@@ -1,0 +1,24 @@
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# MLflow
+mlruns/
+mlflow_server.log
+.mlflow_server.pid
+
+# TensorBoard logs (do not commit raw logs)
+*.tfevents.*
+logs/
+
+# Environment
+.env
+
+# OS
+.DS_Store
+Thumbs.db

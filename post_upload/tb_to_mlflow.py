@@ -1,0 +1,373 @@
+#!/usr/bin/env python3
+"""
+nexus.py
+===============
+TensorBoard tfevents -> MLflow conversion uploader (Method B)
+
+Usage:
+    python nexus.py --tb_dir ./logs/run_001 --experiment robot_hand_grasp --run_name ppo_v1
+
+Expected tfevents directory structure:
+    logs/
+    └── run_001/
+        └── events.out.tfevents.xxxxx
+"""
+
+import argparse
+import os
+import sys
+import time
+from pathlib import Path
+from typing import Optional
+
+import mlflow
+from mlflow.entities import Metric
+from mlflow.tracking import MlflowClient
+import pandas as pd
+from tbparse import SummaryReader
+from rich.console import Console
+from rich.table import Table
+from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn
+from rich import print as rprint
+
+console = Console()
+
+# MLflow log_batch() hard limit: 1000 metrics per call
+BATCH_SIZE = 1000
+
+
+# ──────────────────────────────────────────────
+# 1. Argument parsing
+# ──────────────────────────────────────────────
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="TensorBoard -> MLflow conversion uploader"
+    )
+    parser.add_argument(
+        "--tb_dir",
+        type=str,
+        required=True,
+        help="Path to directory containing tfevents files",
+    )
+    parser.add_argument(
+        "--experiment",
+        type=str,
+        default="robot_hand_rl",
+        help="MLflow experiment name (default: robot_hand_rl)",
+    )
+    parser.add_argument(
+        "--run_name",
+        type=str,
+        default=None,
+        help="MLflow run name (default: dirname_timestamp)",
+    )
+    parser.add_argument(
+        "--tracking_uri",
+        type=str,
+        default="http://127.0.0.1:5000",
+        help="MLflow server URI (default: http://127.0.0.1:5000)",
+    )
+    parser.add_argument(
+        "--tags",
+        type=str,
+        nargs="*",
+        default=[],
+        help="Additional tags (e.g. hardware=robot_22dof task=grasp)",
+    )
+    parser.add_argument(
+        "--dry_run",
+        action="store_true",
+        help="Print parsed results only, without uploading",
+    )
+    parser.add_argument(
+        "--upload_artifacts",
+        action="store_true",
+        help="Upload files in tb_dir as MLflow artifacts",
+    )
+    return parser.parse_args()
+
+
+# ──────────────────────────────────────────────
+# 2. tfevents parsing
+# ──────────────────────────────────────────────
+def parse_tfevents(tb_dir: str) -> pd.DataFrame:
+    """
+    Parse tfevents -> DataFrame using tbparse.
+    Returned columns: tag, step, value
+    """
+    tb_path = Path(tb_dir)
+    if not tb_path.exists():
+        console.print(f"[red][ERROR] Directory not found: {tb_dir}[/red]")
+        sys.exit(1)
+
+    # Recursively search for tfevents files
+    tfevents_files = list(tb_path.rglob("events.out.tfevents.*"))
+    if not tfevents_files:
+        console.print(f"[red][ERROR] No tfevents files found in: {tb_dir}[/red]")
+        sys.exit(1)
+
+    # Detect multiple run directories — each unique parent dir is one run.
+    # Multiple tfevents in the same directory is fine (resumed run), but
+    # tfevents spread across different subdirectories means multiple runs
+    # were passed, which would silently merge their data into one MLflow run.
+    run_dirs = sorted(set(f.parent for f in tfevents_files))
+    if len(run_dirs) > 1:
+        console.print(f"[red][ERROR] Multiple run directories detected under: {tb_dir}[/red]")
+        console.print(f"  Found {len(run_dirs)} separate run directories:")
+        for d in run_dirs:
+            console.print(f"    • {d}")
+        console.print(
+            "\n  Uploading a parent directory merges all runs into one MLflow run,\n"
+            "  causing step collisions and making data uninterpretable.\n"
+            "\n  Upload each run directory individually instead:\n"
+        )
+        console.print(
+            f"  [yellow]for run_dir in {tb_dir}/*/; do\n"
+            f'      python tb_to_mlflow.py --tb_dir "$run_dir" \\\n'
+            f"          --experiment <experiment> --run_name $(basename \"$run_dir\") ...\n"
+            f"  done[/yellow]"
+        )
+        sys.exit(1)
+
+    console.print(f"\n[cyan]Discovered tfevents files:[/cyan]")
+    for f in tfevents_files:
+        size_kb = f.stat().st_size / 1024
+        console.print(f"  • {f}  ({size_kb:.1f} KB)")
+
+    console.print("\n[yellow]Parsing...[/yellow]")
+    try:
+        reader = SummaryReader(str(tb_path), pivot=False)
+        df = reader.scalars
+    except Exception as e:
+        console.print(f"[red][ERROR] Parsing failed: {e}[/red]")
+        sys.exit(1)
+
+    if df.empty:
+        console.print("[red][ERROR] Scalar data is empty.[/red]")
+        console.print("  -> The log may contain only non-scalar data (histogram, image, etc.)")
+        sys.exit(1)
+
+    # Normalize column names to handle tbparse version differences
+    df.columns = [c.lower() for c in df.columns]
+    if "tag" not in df.columns:
+        # Older tbparse versions use 'tags' instead of 'tag'
+        df = df.rename(columns={"tags": "tag"})
+
+    return df
+
+
+# ──────────────────────────────────────────────
+# 3. Preview parsed results
+# ──────────────────────────────────────────────
+def preview_dataframe(df: pd.DataFrame):
+    """Print a summary table of parsed metrics"""
+    summary = (
+        df.groupby("tag")
+        .agg(
+            steps=("step", "count"),
+            step_min=("step", "min"),
+            step_max=("step", "max"),
+            val_min=("value", "min"),
+            val_max=("value", "max"),
+            val_last=("value", "last"),
+        )
+        .reset_index()
+    )
+
+    table = Table(
+        title="[bold]Parsed TensorBoard Metrics Summary[/bold]",
+        show_header=True,
+        header_style="bold magenta",
+    )
+    table.add_column("Tag (Metric)", style="cyan", min_width=30)
+    table.add_column("Steps", justify="right")
+    table.add_column("Step Range", justify="center")
+    table.add_column("Val Min", justify="right")
+    table.add_column("Val Max", justify="right")
+    table.add_column("Val Last", justify="right")
+
+    for _, row in summary.iterrows():
+        table.add_row(
+            str(row["tag"]),
+            str(int(row["steps"])),
+            f"{int(row['step_min'])}~{int(row['step_max'])}",
+            f"{row['val_min']:.4f}",
+            f"{row['val_max']:.4f}",
+            f"{row['val_last']:.4f}",
+        )
+
+    console.print(table)
+    console.print(
+        f"\n[green]Total: {len(summary)} tags, {len(df):,} data points[/green]\n"
+    )
+
+
+# ──────────────────────────────────────────────
+# 4. Tag parsing utility
+# ──────────────────────────────────────────────
+def parse_extra_tags(tag_list: list) -> dict:
+    """Convert a list of 'key=value' strings to a dict"""
+    tags = {}
+    for item in tag_list:
+        if "=" in item:
+            k, v = item.split("=", 1)
+            tags[k.strip()] = v.strip()
+        else:
+            console.print(f"[yellow][WARN] Ignoring malformed tag: '{item}' (expected key=value format)[/yellow]")
+    return tags
+
+
+# ──────────────────────────────────────────────
+# 5. MLflow upload
+# ──────────────────────────────────────────────
+def upload_to_mlflow(
+    df: pd.DataFrame,
+    tb_dir: str,
+    experiment_name: str,
+    run_name: Optional[str],
+    tracking_uri: str,
+    extra_tags: dict,
+    upload_artifacts: bool,
+):
+    # Verify MLflow server connection
+    mlflow.set_tracking_uri(tracking_uri)
+    console.print(f"[cyan]MLflow URI:[/cyan] {tracking_uri}")
+
+    try:
+        mlflow.set_experiment(experiment_name)
+    except Exception as e:
+        console.print(f"[red][ERROR] Failed to connect to MLflow server: {e}[/red]")
+        console.print("  -> Check that the server is running: bash start_all.sh")
+        sys.exit(1)
+
+    # Auto-generate run name if not provided
+    if run_name is None:
+        run_name = f"{Path(tb_dir).name}_{int(time.time())}"
+
+    # Base tags applied to every run
+    base_tags = {
+        "source": "tensorboard_import",
+        "tb_dir": str(Path(tb_dir).resolve()),
+        "upload_time": time.strftime("%Y-%m-%d %H:%M:%S"),
+        **extra_tags,
+    }
+
+    console.print(f"\n[cyan]Experiment:[/cyan] {experiment_name}")
+    console.print(f"[cyan]Run Name  :[/cyan] {run_name}")
+    console.print(f"[cyan]Tags      :[/cyan] {base_tags}\n")
+
+    total_rows = len(df)
+
+    with mlflow.start_run(run_name=run_name) as run:
+        mlflow.set_tags(base_tags)
+        run_id = run.info.run_id
+
+        # ── Build Metric objects upfront (vectorized, no iterrows)
+        # Converts the entire DataFrame to a list of MLflow Metric entities.
+        # Using zip over numpy arrays is ~50x faster than iterrows() for large logs.
+        timestamp_ms = int(time.time() * 1000)
+        all_metrics = [
+            Metric(
+                key=sanitize_metric_name(tag),
+                value=float(value),
+                timestamp=timestamp_ms,
+                step=int(step),
+            )
+            for tag, value, step in zip(
+                df["tag"].values,
+                df["value"].values,
+                df["step"].values,
+            )
+        ]
+
+        # ── Upload via log_batch() — max 1000 metrics per call (MLflow hard limit)
+        client = MlflowClient(tracking_uri=tracking_uri)
+        total_batches = (total_rows + BATCH_SIZE - 1) // BATCH_SIZE
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("{task.completed}/{task.total} batches"),
+            console=console,
+        ) as progress:
+            task = progress.add_task(
+                f"Uploading {total_rows:,} data points in batches of {BATCH_SIZE}...",
+                total=total_batches,
+            )
+
+            for i in range(0, total_rows, BATCH_SIZE):
+                batch = all_metrics[i : i + BATCH_SIZE]
+                client.log_batch(run_id=run_id, metrics=batch)
+                progress.advance(task)
+
+        # ── Artifact upload (optional)
+        if upload_artifacts:
+            console.print("\n[yellow]Uploading artifacts...[/yellow]")
+            mlflow.log_artifacts(tb_dir, artifact_path="tensorboard_logs")
+            console.print("[green][OK] tfevents artifact upload complete[/green]")
+
+    console.print(f"\n[bold green]✓ Upload complete![/bold green]")
+    console.print(f"  Run ID      : [yellow]{run_id}[/yellow]")
+    console.print(f"  Data points : [green]{total_rows:,}[/green]  ({total_batches} batches)")
+    console.print(f"  UI URL      : [blue]{tracking_uri}[/blue]")
+    console.print(f"\n  -> Open the URL above in your browser to verify.\n")
+
+    return run_id
+
+
+# ──────────────────────────────────────────────
+# 6. Metric name sanitization
+# ──────────────────────────────────────────────
+def sanitize_metric_name(name: str) -> str:
+    """
+    Apply MLflow metric naming rules:
+    Slashes (/) are allowed; replace only spaces and select special characters.
+    """
+    # Preserve TensorBoard hierarchy by keeping '/' (allowed by MLflow)
+    # Only replace whitespace and a few problematic special characters
+    return name.replace(" ", "_").replace(":", "-")
+
+
+# ──────────────────────────────────────────────
+# 7. Main
+# ──────────────────────────────────────────────
+def main():
+    args = parse_args()
+
+    console.rule("[bold blue]TensorBoard -> MLflow Uploader[/bold blue]")
+
+    # Parse tfevents
+    df = parse_tfevents(args.tb_dir)
+
+    # Always show preview before uploading
+    preview_dataframe(df)
+
+    if args.dry_run:
+        console.print("[bold yellow]--dry_run mode: skipping upload.[/bold yellow]")
+        return
+
+    # Confirm before upload
+    console.print("Upload the above data to MLflow? [bold](y/n)[/bold]: ", end="")
+    answer = input().strip().lower()
+    if answer != "y":
+        console.print("[yellow]Upload cancelled.[/yellow]")
+        return
+
+    # Parse additional tags
+    extra_tags = parse_extra_tags(args.tags)
+
+    # Upload
+    upload_to_mlflow(
+        df=df,
+        tb_dir=args.tb_dir,
+        experiment_name=args.experiment,
+        run_name=args.run_name,
+        tracking_uri=args.tracking_uri,
+        extra_tags=extra_tags,
+        upload_artifacts=args.upload_artifacts,
+    )
+
+
+if __name__ == "__main__":
+    main()
