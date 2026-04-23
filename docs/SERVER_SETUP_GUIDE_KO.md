@@ -248,7 +248,55 @@ mlflow server \
 
 ## 🔥 Step 5 — 방화벽 / 포트 설정
 
-### 5-1. 현재 방화벽 상태 확인
+### 5-1. SSH 서버(sshd) 설치 및 실행 확인
+
+> ⚠️ **새로 포맷한 PC에는 `openssh-server`가 설치되어 있지 않은 경우가 많습니다.**
+> SSH 데몬이 떠 있지 않으면 Step 8에서 Blackwell이 접속을 시도할 때
+> `ssh: connect to host 192.168.1.42 port 22: Connection refused` 에러가 발생합니다.
+> 방화벽을 열기 전에 sshd가 실제로 동작 중인지 먼저 확인해야 합니다.
+
+**1) SSH 데몬 상태 확인:**
+
+```bash
+sudo systemctl status ssh
+```
+
+**기대 출력 (정상 동작 시):**
+
+```
+● ssh.service - OpenBSD Secure Shell server
+     Loaded: loaded (/lib/systemd/system/ssh.service; enabled; ...)
+     Active: active (running) since ...
+```
+
+- `Active: active (running)` → 다음 5-2로 진행하면 됩니다.
+- `Unit ssh.service could not be found` 또는 `inactive (dead)` → 아래 2)로 설치/기동.
+
+**2) `openssh-server` 설치 및 기동:**
+
+```bash
+sudo apt update
+sudo apt install -y openssh-server
+sudo systemctl enable --now ssh
+```
+
+**3) 22번 포트 LISTEN 확인:**
+
+```bash
+sudo ss -tlnp | grep :22
+```
+
+**기대 출력:**
+
+```
+LISTEN 0  128  0.0.0.0:22  0.0.0.0:*  users:(("sshd",...))
+```
+
+> ✅ 위 출력이 보이면 sshd가 정상적으로 22번 포트에서 대기 중입니다.
+
+---
+
+### 5-2. 현재 방화벽 상태 확인
 
 ```bash
 sudo ufw status
@@ -272,7 +320,7 @@ To                         Action      From
 
 ---
 
-### 5-2. 필요한 포트 열기
+### 5-3. 필요한 포트 열기
 
 ```bash
 # SSH (Blackwell SCP 전송에 필요)
@@ -284,7 +332,7 @@ sudo ufw allow 5000/tcp comment 'NEXUS MLflow Server'
 
 ---
 
-### 5-3. 방화벽 활성화
+### 5-4. 방화벽 활성화
 
 ```bash
 sudo ufw enable
@@ -580,25 +628,32 @@ nexus test
 cd /path/to/nexus
 
 bash scheduled_sync/sync_mlflow_to_server.sh \
-    --experiment  sharpa_hand_rl \
-    --remote      USER@192.168.1.42:/opt/nexus-mlflow/sync_inbox \
-    --local_uri   http://127.0.0.1:5100 \
-    --remote_uri  http://127.0.0.1:5000 \
-    --ssh_key     ~/.ssh/nexus_key
+    --experiment       sharpa_hand_rl \
+    --remote           USER@192.168.1.42:/opt/nexus-mlflow/sync_inbox \
+    --remote_nexus_dir /opt/nexus \
+    --local_uri        http://127.0.0.1:5100 \
+    --remote_uri       http://127.0.0.1:5000 \
+    --ssh_key          ~/.ssh/nexus_key
 ```
+
+> 💡 `--remote_nexus_dir`은 NEXUS 서버에 nexus 저장소가 clone된 경로입니다.
+> 스크립트가 SSH로 접속해 `${remote_nexus_dir}/scheduled_sync/import_delta.py`를 실행하므로 필수입니다.
 
 **기대 출력:**
 
 ```
-[2025-04-18 10:30:00] MLflow sync: sharpa_hand_rl
-  [1/3] Exporting from local MLflow (http://127.0.0.1:5100)...
-  [OK] Export complete (12 KB)
-  [2/3] Transferring to 192.168.1.42...
+[2025-04-18 10:30:00] MLflow delta sync: sharpa_hand_rl
+  [1/3] Exporting delta from local MLflow (http://127.0.0.1:5100)...
+  [OK] Delta exported (12 KB)
+  [2/3] Transferring delta to 192.168.1.42...
   [OK] Transfer complete
-  [3/3] Triggering import on remote server...
+  [3/3] Importing delta on remote server...
   [OK] Import complete
-  [DONE] Sync complete at 2025-04-18 10:30:05
+  [DONE] Delta sync complete at 2025-04-18 10:30:05
 ```
+
+> ℹ️ 최초 실행 시에는 전체 데이터가 한 번에 전송되고, 이후 실행부터는 증분(delta)만 전송됩니다.
+> "새 데이터가 없으면" `[OK] No new data since last sync. Nothing to transfer.`로 즉시 종료됩니다 (정상).
 
 ---
 
@@ -641,6 +696,7 @@ bash scheduled_sync/sync_mlflow_to_server.sh \
 | 증상 | 원인 | 해결 |
 |---|---|---|
 | 브라우저 접속 안 됨 | 방화벽 차단 | `sudo ufw allow 5000/tcp` |
+| `port 22: Connection refused` | MLflow 서버에 `openssh-server` 미설치 또는 sshd 미실행 | Step 5-1 참고 → `sudo apt install -y openssh-server && sudo systemctl enable --now ssh` |
 | 서비스 시작 실패 | 경로 오류 | `journalctl -u nexus-mlflow -n 30` 로 로그 확인 |
 | SCP 비밀번호 계속 물어봄 | 키 등록 안 됨 | `ssh-copy-id` 재실행 |
 | 디스크 꽉 참 | artifact 누적 | `df -h` 확인 후 오래된 run artifact 삭제 |
