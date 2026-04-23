@@ -174,10 +174,26 @@ If the table appears, parsing is working correctly. Verify that metric names and
 
 After reviewing the contents in the dry run, proceed with the actual upload.
 
-> **Note:** The default URI in `tb_to_mlflow.py` is `:5000`, but the local MLflow server runs on `:5100`.  
-> Be sure to specify `--tracking_uri`.
+#### One-time setup — `~/.nexus/config.json`
+
+Team-fixed values (`tracking_uri`, `isaac_lab_version`, `physx_solver`, `hardware`) and your personal `researcher` tag live in a config file, so you don't retype them for every run:
 
 ```bash
+mkdir -p ~/.nexus
+cp post_upload/config.example.json ~/.nexus/config.json
+$EDITOR ~/.nexus/config.json
+```
+
+For local-testing MLflow (`:5100`), set `"tracking_uri": "http://127.0.0.1:5100"` in the config. The built-in default is `:5000` (central server).
+
+#### Upload
+
+```bash
+# Short form — config supplies tracking_uri, researcher, hardware, etc.
+# Missing required tags (researcher/seed/task) are prompted interactively.
+python post_upload/tb_to_mlflow.py --tb_dir /path/to/your/logs/run_001
+
+# Or fully explicit (for CI or ad-hoc overrides)
 python post_upload/tb_to_mlflow.py \
     --tb_dir       /path/to/your/logs/run_001 \
     --experiment   robot_hand_rl \
@@ -186,40 +202,43 @@ python post_upload/tb_to_mlflow.py \
     --tags         researcher=kim seed=42 task=in_hand_reorientation
 ```
 
-The script will show a metric summary table and ask whether to upload:
+The script shows a metric summary, asks for confirmation, uploads, and then **automatically runs verification** against the returned run_id:
 
 ```
-Upload the above data to MLflow? (y/n):
-```
-
-Enter `y` to start the upload. After completion, the Run ID is printed:
-
-```
+Upload the above data to MLflow? (y/n): y
+...
 ✓ Upload complete!
   Run ID      : a1b2c3d4e5f6...
   Data points : 2,100  (3 batches)
   UI URL      : http://127.0.0.1:5100
+
+Running automatic verification...
+✓ All checks passed! TB -> MLflow porting is accurate.
 ```
 
-**Copy the Run ID** — you will need it for the next validation step.
+Pass `--no_verify` to skip the automatic check (e.g. in CI where you verify later).
 
 #### Available options
 
 | Option | Description | Example |
 |---|---|---|
 | `--tb_dir` | Path to folder containing tfevents files (required) | `--tb_dir ./logs/run_001` |
-| `--experiment` | MLflow experiment name (default: `robot_hand_rl`) | `--experiment my_exp` |
+| `--experiment` | MLflow experiment name (default: from config) | `--experiment my_exp` |
 | `--run_name` | MLflow run name (default: folder name + timestamp) | `--run_name ppo_v1` |
-| `--tracking_uri` | MLflow server address (default: `:5000`) | `--tracking_uri http://127.0.0.1:5100` |
-| `--tags` | Additional tags (`key=value` format, space-separated) | `--tags researcher=kim seed=42` |
-| `--dry_run` | Print parsing results only without uploading | `--dry_run` |
+| `--tracking_uri` | MLflow server address (default: from config) | `--tracking_uri http://127.0.0.1:5100` |
+| `--tags` | Per-run tags (`key=value`, space-separated); overrides config | `--tags seed=42 task=grasp` |
+| `--config` | Path to JSON config file (default: `~/.nexus/config.json`) | `--config ./ci-config.json` |
+| `-i`, `--interactive` | Prompt for researcher/seed/task, with config values as defaults | `-i` |
+| `--force` | Skip required-tag validation (researcher, seed, task) | `--force` |
+| `--no_verify` | Skip automatic post-upload verification | `--no_verify` |
+| `--dry_run` | Print parsing results only without uploading (also skips validation) | `--dry_run` |
 | `--upload_artifacts` | Also attach tfevents files as MLflow artifacts | `--upload_artifacts` |
 
 ---
 
 ### B-4. Validate upload accuracy
 
-Automatically compare uploaded data against the original tfevents to verify values match.
+Automatic verification runs at the end of every upload — no manual step needed. If you want to re-verify a previous upload, or validated an upload that was run with `--no_verify`:
 
 ```bash
 python post_upload/verify_upload.py \
@@ -259,10 +278,10 @@ Select multiple runs and click the **Compare** button to compare curves side by 
 
 ### ✅ Phase 1-B Checklist
 
+- [ ] `~/.nexus/config.json` populated with tracking_uri, researcher, team-fixed tags
 - [ ] Confirmed tfevents file existence with `ls`
 - [ ] Reviewed metric parsing results after `--dry_run`
-- [ ] Ran actual upload and recorded Run ID
-- [ ] All three items in `verify_upload.py` show `✓ PASS`
+- [ ] Ran actual upload; automatic verification printed `✓ All checks passed!`
 - [ ] Training curve graphs confirmed in MLflow UI
 
 ---
@@ -552,28 +571,23 @@ crontab -e
 
 If you have existing tfevents files, you can upload them one time after training completes. Use Pipeline A for scheduled sync.
 
-```bash
-# Run directly on NEXUS server, or specify --tracking_uri from GPU server
-python post_upload/tb_to_mlflow.py \
-    --tb_dir       /path/to/logs/run_001 \
-    --experiment   robot_hand_rl \
-    --run_name     ppo_baseline_v1 \
-    --tracking_uri http://nexus-server:5000 \
-    --tags         researcher=kim seed=42
+With `~/.nexus/config.json` pointing at the central server (`tracking_uri: http://nexus-server:5000`), the upload is one line and verification is automatic:
 
-# Validate after upload
-python post_upload/verify_upload.py \
-    --run_id       <RUN_ID printed above> \
-    --tb_dir       /path/to/logs/run_001 \
-    --tracking_uri http://nexus-server:5000
+```bash
+python post_upload/tb_to_mlflow.py \
+    --tb_dir   /path/to/logs/run_001 \
+    --run_name ppo_baseline_v1 \
+    --tags     seed=42 task=in_hand_reorientation
 ```
+
+See Phase 1-B (B-3, B-4) above for the full options reference and for re-running `verify_upload.py` standalone.
 
 ### ✅ Phase 4 Checklist
 
 - [ ] `sync_mlflow_to_server.sh` manual run successful
 - [ ] Synced run confirmed in NEXUS server MLflow UI
 - [ ] Auto-run confirmed after cron registration (`cat /home/user/nexus_sync.log`)
-- [ ] (Optional) `verify_upload.py` validation passed
+- [ ] (Optional) Pipeline B one-time upload succeeded with automatic verification
 
 ---
 

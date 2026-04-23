@@ -20,15 +20,23 @@ import time
 from pathlib import Path
 from typing import Optional
 
+# Ensure sibling modules resolve whether invoked from repo root or post_upload/.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 import mlflow
 from mlflow.entities import Metric
 from mlflow.tracking import MlflowClient
 import pandas as pd
 from tbparse import SummaryReader
 from rich.console import Console
+from rich.prompt import Prompt
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn
 from rich import print as rprint
+
+from config import DEFAULT_CONFIG_PATH, load_config, required_tags
+from history import last_upload, make_record, print_history, save_upload
+from verify_upload import run_verify
 
 console = Console()
 
@@ -39,21 +47,23 @@ BATCH_SIZE = 1000
 # ──────────────────────────────────────────────
 # 1. Argument parsing
 # ──────────────────────────────────────────────
-def parse_args():
+def parse_args(defaults: dict):
+    """Build the argument parser, using `defaults` (from config) as fallbacks."""
     parser = argparse.ArgumentParser(
         description="TensorBoard -> MLflow conversion uploader"
     )
     parser.add_argument(
         "--tb_dir",
         type=str,
-        required=True,
-        help="Path to directory containing tfevents files",
+        default=None,
+        help="Path to directory containing tfevents files "
+             "(required for uploads; optional with --history)",
     )
     parser.add_argument(
         "--experiment",
         type=str,
-        default="robot_hand_rl",
-        help="MLflow experiment name (default: robot_hand_rl)",
+        default=defaults["experiment"],
+        help=f"MLflow experiment name (default: {defaults['experiment']})",
     )
     parser.add_argument(
         "--run_name",
@@ -64,15 +74,38 @@ def parse_args():
     parser.add_argument(
         "--tracking_uri",
         type=str,
-        default="http://127.0.0.1:5000",
-        help="MLflow server URI (default: http://127.0.0.1:5000)",
+        default=defaults["tracking_uri"],
+        help=f"MLflow server URI (default: {defaults['tracking_uri']})",
     )
     parser.add_argument(
         "--tags",
         type=str,
         nargs="*",
         default=[],
-        help="Additional tags (e.g. hardware=robot_22dof task=grasp)",
+        help="Additional tags (e.g. researcher=kim seed=42 task=grasp); "
+             "merged on top of config-file tags",
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help=f"Path to JSON config file (default: {DEFAULT_CONFIG_PATH})",
+    )
+    parser.add_argument(
+        "-i", "--interactive",
+        action="store_true",
+        help="Prompt for researcher/seed/task interactively, "
+             "even if already supplied",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Skip required-tag validation (researcher, seed, task)",
+    )
+    parser.add_argument(
+        "--no_verify",
+        action="store_true",
+        help="Skip the automatic post-upload verification step",
     )
     parser.add_argument(
         "--dry_run",
@@ -83,6 +116,18 @@ def parse_args():
         "--upload_artifacts",
         action="store_true",
         help="Upload files in tb_dir as MLflow artifacts",
+    )
+    parser.add_argument(
+        "--history",
+        action="store_true",
+        help="Print recent uploads (~/.nexus/history.json) and exit",
+    )
+    parser.add_argument(
+        "--repeat-last",
+        dest="repeat_last",
+        action="store_true",
+        help="Inherit experiment/run_name/tags from the most recent upload "
+             "(CLI flags and -i still override)",
     )
     return parser.parse_args()
 
@@ -217,6 +262,53 @@ def parse_extra_tags(tag_list: list) -> dict:
     return tags
 
 
+def prompt_for_tags(tags: dict, required: tuple, force_all: bool) -> dict:
+    """Interactively prompt for `required` tag keys.
+
+    If `force_all` is True, prompt for every required tag (showing current
+    values as defaults). Otherwise prompt only for the ones that are missing.
+    Aborts cleanly if stdin is not a TTY.
+    """
+    if not sys.stdin.isatty():
+        return tags
+
+    console.print("\n[bold cyan]Interactive tag entry[/bold cyan] "
+                  "(press Enter to accept default)")
+    for key in required:
+        current = tags.get(key)
+        if current is not None and not force_all:
+            continue
+        answer = Prompt.ask(f"  {key}", default=current or None)
+        if answer:
+            tags[key] = str(answer).strip()
+    return tags
+
+
+def validate_required_tags(tags: dict, required: tuple) -> list:
+    """Return a list of required tag keys that are missing or empty."""
+    return [k for k in required if not tags.get(k)]
+
+
+def detect_sim_run_id(tb_dir: str) -> Optional[str]:
+    """Look for run_meta.json alongside the tfevents and extract sim_run_id.
+
+    Returns None if the file is absent, unreadable, or lacks the key.
+    Convention: real-robot eval scripts drop run_meta.json next to the
+    tfevents file with {"sim_run_id": "<upstream sim run_id>", ...}.
+    """
+    import json
+    meta = Path(tb_dir) / "run_meta.json"
+    if not meta.exists():
+        return None
+    try:
+        with open(meta) as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
+    value = data.get("sim_run_id") if isinstance(data, dict) else None
+    return str(value) if value else None
+
+
 # ──────────────────────────────────────────────
 # 5. MLflow upload
 # ──────────────────────────────────────────────
@@ -332,41 +424,154 @@ def sanitize_metric_name(name: str) -> str:
 # ──────────────────────────────────────────────
 # 7. Main
 # ──────────────────────────────────────────────
+def _preparse_config_path() -> Optional[str]:
+    """Scan sys.argv for --config so we can load the config before argparse
+    builds its defaults. Returns the path if present, else None."""
+    argv = sys.argv[1:]
+    for i, arg in enumerate(argv):
+        if arg == "--config" and i + 1 < len(argv):
+            return argv[i + 1]
+        if arg.startswith("--config="):
+            return arg.split("=", 1)[1]
+    return None
+
+
 def main():
-    args = parse_args()
+    # Load config first so its values can be used as argparse defaults.
+    config = load_config(_preparse_config_path())
+    args = parse_args(defaults=config)
+
+    # --history: print recent uploads and exit (no tb_dir required).
+    if args.history:
+        print_history()
+        return
+
+    if not args.tb_dir:
+        console.print("[red][ERROR] --tb_dir is required for uploads.[/red]")
+        sys.exit(1)
 
     console.rule("[bold blue]TensorBoard -> MLflow Uploader[/bold blue]")
+    console.print(f"[dim]Config source: {config['source']}[/dim]")
 
-    # Parse tfevents
+    # --repeat-last: inherit tags/experiment/run_name from the most recent
+    # upload. Precedence overall: builtin < config < history < CLI < interactive.
+    tags = dict(config["tags"])
+    experiment = args.experiment
+    run_name = args.run_name
+
+    if args.repeat_last:
+        last = last_upload()
+        if last is None:
+            console.print("[yellow][WARN] --repeat-last: no previous upload in history.[/yellow]")
+        else:
+            console.print(
+                f"[cyan]Reusing previous upload:[/cyan] "
+                f"{last.get('run_name')} ({last.get('ts')})"
+            )
+            tags.update(last.get("tags", {}))
+            # Only override experiment/run_name if user didn't pass them explicitly.
+            # argparse fills experiment from config defaults, so compare to that.
+            if args.experiment == config["experiment"] and last.get("experiment"):
+                experiment = last["experiment"]
+            if args.run_name is None:
+                # Don't reuse the exact run_name — it would collide; auto-regenerate below.
+                run_name = None
+
+    # Auto-detect sim_run_id from run_meta.json next to the tfevents dir.
+    # Overrides any value carried over by --repeat-last (run_meta.json is
+    # ground truth for *this* tb_dir); CLI --tags still takes final precedence.
+    sim = detect_sim_run_id(args.tb_dir)
+    if sim:
+        previous = tags.get("sim_run_id")
+        if previous and previous != sim:
+            console.print(
+                f"[yellow]run_meta.json sim_run_id ({sim}) overrides "
+                f"carried-over value ({previous})[/yellow]"
+            )
+        else:
+            console.print(f"[cyan]Detected sim_run_id from run_meta.json:[/cyan] {sim}")
+        tags["sim_run_id"] = sim
+
+    tags.update(parse_extra_tags(args.tags))
+
+    required = required_tags(experiment)
+
+    if args.interactive:
+        tags = prompt_for_tags(tags, required, force_all=True)
+    else:
+        missing = validate_required_tags(tags, required)
+        if missing and sys.stdin.isatty() and not args.force and not args.dry_run:
+            console.print(
+                f"[yellow]Missing required tags: {', '.join(missing)} — "
+                f"entering interactive mode.[/yellow]"
+            )
+            tags = prompt_for_tags(tags, required, force_all=False)
+
+    missing = validate_required_tags(tags, required)
+    if missing and not args.force and not args.dry_run:
+        console.print(
+            f"[red][ERROR] Required tags missing: {', '.join(missing)}.[/red]\n"
+            f"  Supply them via --tags, ~/.nexus/config.json, or -i "
+            f"(or re-run with --force to skip this check)."
+        )
+        sys.exit(1)
+
+    # Parse tfevents and always show preview before uploading.
     df = parse_tfevents(args.tb_dir)
-
-    # Always show preview before uploading
     preview_dataframe(df)
 
     if args.dry_run:
         console.print("[bold yellow]--dry_run mode: skipping upload.[/bold yellow]")
+        console.print(f"[cyan]Would upload with tags:[/cyan] {tags}")
         return
 
-    # Confirm before upload
+    console.print(f"[cyan]Tags to upload:[/cyan] {tags}")
     console.print("Upload the above data to MLflow? [bold](y/n)[/bold]: ", end="")
     answer = input().strip().lower()
     if answer != "y":
         console.print("[yellow]Upload cancelled.[/yellow]")
         return
 
-    # Parse additional tags
-    extra_tags = parse_extra_tags(args.tags)
+    # Resolve run_name now so the same value ends up in MLflow and in history.
+    if run_name is None:
+        run_name = f"{Path(args.tb_dir).name}_{int(time.time())}"
 
-    # Upload
-    upload_to_mlflow(
+    run_id = upload_to_mlflow(
         df=df,
         tb_dir=args.tb_dir,
-        experiment_name=args.experiment,
-        run_name=args.run_name,
+        experiment_name=experiment,
+        run_name=run_name,
         tracking_uri=args.tracking_uri,
-        extra_tags=extra_tags,
+        extra_tags=tags,
         upload_artifacts=args.upload_artifacts,
     )
+
+    # Auto-verify — removes the manual run_id copy/paste step.
+    verify_ok: Optional[bool] = None
+    if args.no_verify:
+        console.print("[dim]Skipping verification (--no_verify).[/dim]")
+    else:
+        console.print("\n[bold cyan]Running automatic verification...[/bold cyan]")
+        verify_ok = run_verify(
+            run_id=run_id,
+            tb_dir=args.tb_dir,
+            tracking_uri=args.tracking_uri,
+        )
+
+    # Record for --history / --repeat-last / --from-last. Persist even if
+    # verification failed, so the user can retry or replay.
+    save_upload(make_record(
+        run_id=run_id,
+        tb_dir=args.tb_dir,
+        experiment=experiment,
+        run_name=run_name,
+        tracking_uri=args.tracking_uri,
+        tags=tags,
+        verify_ok=verify_ok,
+    ))
+
+    if verify_ok is False:
+        sys.exit(2)
 
 
 if __name__ == "__main__":

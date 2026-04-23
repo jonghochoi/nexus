@@ -375,6 +375,12 @@ self.writer = make_logger(
 > `sim_run_id` 없이 Real 평가 Run을 만들지 않습니다.
 > Sim-to-Real 실패 시 원인 추적이 불가능해집니다.
 
+> 💡 **Pipeline B 업로드 시**: tfevents 디렉토리 옆에 `run_meta.json`
+> (`{"sim_run_id": "..."}`)을 떨어뜨려 두면 `tb_to_mlflow.py`가 자동으로
+> 감지합니다. `--experiment real_robot_eval`로 업로드하면 `sim_run_id`가
+> 필수 태그로 격상되어 누락 시 업로드가 차단됩니다. 상세:
+> [`POST_UPLOAD_GUIDE.md`](./POST_UPLOAD_GUIDE.md) §5.
+
 ---
 
 ## 📊 9. MLflow UI 활용 가이드
