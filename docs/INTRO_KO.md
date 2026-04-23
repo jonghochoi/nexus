@@ -232,7 +232,7 @@ python tb_to_mlflow.py \
 
 ### 3️⃣ 새 실험에 듀얼 로거 적용 *(방식 A, 선택)*
 
-`docs/INTEGRATION_GUIDE.md` 를 참고하세요. PPO 코드 **2곳**만 수정합니다.
+[LOGGER_SETUP.md](LOGGER_SETUP.md) 를 참고하세요. 기존 학습 코드를 최소한의 수정으로 NEXUS 로거에 연결할 수 있습니다.
 
 ---
 

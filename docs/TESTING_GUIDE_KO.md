@@ -483,7 +483,7 @@ python tests/smoke_test.py
 PPO 코드를 수정했다면 짧은 학습 (예: 100 step)을 돌려서 실제 메트릭이 기록되는지 확인합니다.
 
 ```python
-# PPO 초기화 부분에 (docs/INTEGRATION_GUIDE.md 참고)
+# 학습 코드 초기화 부분에 (docs/LOGGER_SETUP.md 참고)
 from logger import make_logger
 import os
 

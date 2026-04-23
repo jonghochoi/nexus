@@ -445,7 +445,7 @@ self.writer = make_logger(
 |---|---|---|
 | NEXUS 서버 접속 주소 | `http://192.168.1.42:5000` | MLflow UI |
 | 서버 구축 가이드 | [SERVER_SETUP_GUIDE_KO.md](SERVER_SETUP_GUIDE_KO.md) | 서버 설치/운영 |
-| PPO 연동 가이드 | [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) | 코드 수정 방법 |
+| 로거 설정 가이드 | [LOGGER_SETUP.md](LOGGER_SETUP.md) | 학습 코드에 로거 붙이는 방법 |
 | 실험 페이지 템플릿 | [EXPERIMENT_PAGE_TEMPLATE_KO.md](EXPERIMENT_PAGE_TEMPLATE_KO.md) | Confluence 작성 양식 |
 
 ---

@@ -1,9 +1,9 @@
-# 🔧 PPO Integration Guide
+# 🔧 Logger Setup Guide
 
-How to replace `tensorboardX.SummaryWriter` with the unified logger in your PPO class.
+How to replace `tensorboardX.SummaryWriter` with the unified logger in any training class.
 
-> ✅ Only **3 locations** in `ppo.py` need to be modified.
-> `write_stats()` and the rest of `train()` require **zero changes**.
+> ✅ Only **3 locations** in your training code need to be modified.
+> `write_stats()` and the rest of the training loop require **zero changes**.
 
 ---
 
@@ -143,8 +143,8 @@ All GPU processes on the server share this single server via loopback HTTP — n
 -from tensorboardX import SummaryWriter
 +from logger import make_logger
 
- class PPO:
-     def __init__(self, env, output_dir, agent_cfg, create_output_dir=True):
+ class YourTrainer:
+     def __init__(self, env, output_dir, agent_cfg, ...):
          ...
 -        self.writer = SummaryWriter(log_dir=output_dir)
 +        self.writer = make_logger(
