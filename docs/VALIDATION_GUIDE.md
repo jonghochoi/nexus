@@ -1,0 +1,703 @@
+# 🧪 NEXUS Step-by-Step Validation Guide
+
+> Verify functionality locally first, then proceed to the GPU server.  
+> Check the checklist after completing each Phase.
+
+---
+
+## 📑 Table of Contents
+
+- [💻 Phase 1-A — Local PC Validation](#phase-1-a--local-pc-validation)
+- [📤 Phase 1-B — Actual Upload Test with Existing TensorBoard Files](#phase-1-b--actual-upload-test-with-existing-tensorboard-files)
+- [📦 Phase 2 — GPU Server Dependency Installation (Offline Environment)](#phase-2--gpu-server-dependency-installation-offline-environment)
+- [🖥️ Phase 3 — GPU Server Validation](#phase-3--gpu-server-validation)
+- [🔄 Phase 4 — Cross-Server Sync Validation](#phase-4--cross-server-sync-validation)
+- [🛠️ Troubleshooting](#troubleshooting)
+
+---
+
+## 💻 Phase 1-A — Local PC Validation
+
+> **Purpose:** Verify that all features work correctly locally before deploying to the GPU server.
+
+### A-1. Clone the repository
+
+```bash
+git clone https://github.com/jonghochoi/nexus.git
+cd nexus
+```
+
+### A-2. Verify Python version
+
+```bash
+python3 --version
+```
+
+Must be `Python 3.8` or higher. 3.10 or 3.11 is recommended.
+
+### A-3. Install environment
+
+```bash
+bash setup.sh
+```
+
+After installation, activate the virtual environment:
+
+```bash
+source venv/bin/activate
+```
+
+> When `(venv)` appears at the start of the terminal prompt, the environment is activated.
+
+### A-4. Verify installation
+
+```bash
+python -c "import mlflow; print('mlflow:', mlflow.__version__)"
+python -c "import tbparse; print('tbparse OK')"
+python -c "from logger import make_logger; print('logger OK')"
+```
+
+If all three lines output without errors, the installation is successful.
+
+### A-5. Start local MLflow server
+
+```bash
+bash scheduled_sync/start_local_mlflow.sh
+```
+
+Expected output:
+
+```
+[NXS] Starting local MLflow server on 127.0.0.1:5100...
+[NXS] MLflow ready at http://127.0.0.1:5100
+```
+
+Open `http://localhost:5100` in a browser and verify the MLflow UI appears.
+
+> It is fine if a message appears saying the server is already running.
+
+### A-6. Run smoke test
+
+The smoke test automatically verifies the core functionality of NEXUS (package installation, MLflow connection, logging, validation).
+
+```bash
+# Run from the root of the nexus directory
+python tests/smoke_test.py
+```
+
+All items must show `[PASS]`:
+
+```
+  [PASS]  Package imports
+  [PASS]  MLflow server connection
+  [PASS]  MLflowLogger logging
+  [PASS]  make_logger factory
+  [PASS]  DualLogger (Dual)
+
+  All tests passed! NEXUS is working correctly.
+```
+
+After the test completes, the MLflow UI (`http://localhost:5100`) should show newly created runs under the `nexus_smoke_test` experiment.
+
+### ✅ Phase 1-A Checklist
+
+- [ ] `bash setup.sh` completed without errors
+- [ ] `(venv)` prompt appears after `source venv/bin/activate`
+- [ ] All three import commands succeed
+- [ ] MLflow UI accessible at `http://localhost:5100` in browser
+- [ ] All `[PASS]` in `python tests/smoke_test.py`
+- [ ] `nexus_smoke_test` experiment and runs confirmed in MLflow UI
+
+---
+
+## 📤 Phase 1-B — Actual Upload Test with Existing TensorBoard Files
+
+> **Purpose:** Upload existing tfevents files to MLflow and validate that data was transferred accurately.  
+> Complete all Phase 1 checklist items before proceeding (MLflow server must be running).
+
+---
+
+### B-1. Locate tfevents files
+
+First, confirm where the tfevents files to be uploaded are located.
+
+```bash
+# Verify tfevents files exist in the directory
+ls /path/to/your/logs/run_001/
+```
+
+Expected output:
+```
+events.out.tfevents.1700000000.hostname.12345.0
+```
+
+> tfevents files typically start with `events.out.tfevents.`.  
+> Having multiple files is fine — the script recursively searches the folder.
+
+---
+
+### B-2. Dry Run — Preview parsing results without uploading
+
+Before the actual upload, use the `--dry_run` option to preview which metrics will be parsed and how many there are.
+
+```bash
+cd nexus/
+source venv/bin/activate
+
+python post_upload/tb_to_mlflow.py \
+    --tb_dir    /path/to/your/logs/run_001 \
+    --dry_run
+```
+
+Expected output (metric summary table):
+
+```
+ Parsed TensorBoard Metrics Summary
+┌──────────────────────────────────┬───────┬────────────┬──────────┬──────────┬──────────┐
+│ Tag (Metric)                     │ Steps │ Step Range │  Val Min │  Val Max │ Val Last │
+├──────────────────────────────────┼───────┼────────────┼──────────┼──────────┼──────────┤
+│ train/episode_reward             │  1000 │ 0~999      │   0.0000 │  98.3200 │  87.5100 │
+│ train/loss                       │  1000 │ 0~999      │   0.0021 │   1.2300 │   0.0412 │
+│ eval/success_rate                │   100 │ 0~99       │   0.0000 │   0.8700 │   0.8200 │
+└──────────────────────────────────┴───────┴────────────┴──────────┴──────────┴──────────┘
+
+Total: 3 tags, 2,100 data points
+
+--dry_run mode: skipping upload.
+```
+
+If the table appears, parsing is working correctly. Verify that metric names and data counts match your expectations.
+
+---
+
+### B-3. Run actual upload
+
+After reviewing the contents in the dry run, proceed with the actual upload.
+
+> **Note:** The default URI in `tb_to_mlflow.py` is `:5000`, but the local MLflow server runs on `:5100`.  
+> Be sure to specify `--tracking_uri`.
+
+```bash
+python post_upload/tb_to_mlflow.py \
+    --tb_dir       /path/to/your/logs/run_001 \
+    --experiment   robot_hand_rl \
+    --run_name     ppo_baseline_v1 \
+    --tracking_uri http://127.0.0.1:5100 \
+    --tags         researcher=kim seed=42 task=in_hand_reorientation
+```
+
+The script will show a metric summary table and ask whether to upload:
+
+```
+Upload the above data to MLflow? (y/n):
+```
+
+Enter `y` to start the upload. After completion, the Run ID is printed:
+
+```
+✓ Upload complete!
+  Run ID      : a1b2c3d4e5f6...
+  Data points : 2,100  (3 batches)
+  UI URL      : http://127.0.0.1:5100
+```
+
+**Copy the Run ID** — you will need it for the next validation step.
+
+#### Available options
+
+| Option | Description | Example |
+|---|---|---|
+| `--tb_dir` | Path to folder containing tfevents files (required) | `--tb_dir ./logs/run_001` |
+| `--experiment` | MLflow experiment name (default: `robot_hand_rl`) | `--experiment my_exp` |
+| `--run_name` | MLflow run name (default: folder name + timestamp) | `--run_name ppo_v1` |
+| `--tracking_uri` | MLflow server address (default: `:5000`) | `--tracking_uri http://127.0.0.1:5100` |
+| `--tags` | Additional tags (`key=value` format, space-separated) | `--tags researcher=kim seed=42` |
+| `--dry_run` | Print parsing results only without uploading | `--dry_run` |
+| `--upload_artifacts` | Also attach tfevents files as MLflow artifacts | `--upload_artifacts` |
+
+---
+
+### B-4. Validate upload accuracy
+
+Automatically compare uploaded data against the original tfevents to verify values match.
+
+```bash
+python post_upload/verify_upload.py \
+    --run_id       a1b2c3d4e5f6...   \
+    --tb_dir       /path/to/your/logs/run_001 \
+    --tracking_uri http://127.0.0.1:5100
+```
+
+Three items are checked:
+
+| Check Item | Meaning |
+|---|---|
+| Tag list fully matched | All metric names from TB also exist in MLflow |
+| Data point counts matched | Data point count for each metric is identical |
+| Values within tolerance | All values match within tolerance (default `1e-6`) |
+
+If all pass:
+
+```
+✓ All checks passed! TB -> MLflow porting is accurate.
+```
+
+---
+
+### B-5. Verify results in MLflow UI
+
+Open `http://localhost:5100` in a browser and verify the uploaded run.
+
+1. Click the experiment name (`robot_hand_rl`) in the left sidebar.
+2. Click the run you just uploaded (`ppo_baseline_v1`) in the run list.
+3. **Metrics** tab → Click a metric name to see the training curve graph.
+4. **Parameters** tab → The tags specified with `--tags` should appear here.
+
+Select multiple runs and click the **Compare** button to compare curves side by side.
+
+---
+
+### ✅ Phase 1-B Checklist
+
+- [ ] Confirmed tfevents file existence with `ls`
+- [ ] Reviewed metric parsing results after `--dry_run`
+- [ ] Ran actual upload and recorded Run ID
+- [ ] All three items in `verify_upload.py` show `✓ PASS`
+- [ ] Training curve graphs confirmed in MLflow UI
+
+---
+
+## 📦 Phase 2 — GPU Server Dependency Installation (Offline Environment)
+
+> **Problem:** The GPU server has no internet access, so `pip install` does not work.  
+> **Solution:** Download package files (.whl) in advance on an internet-connected machine and transfer them via SCP.
+
+Choose the appropriate method for your situation from the two options below.
+
+---
+
+### Method A — pip wheel offline transfer *(No Docker required, recommended)*
+
+This method works without Docker and transfers only Python packages, so the file size is small.
+
+#### A-1. On local machine — Download wheel files
+
+**Important:** The OS/Python version may differ between your local PC and the GPU server.  
+If the GPU server is `Linux x86_64` + `Python 3.12`, you must specify the platform as shown below.
+
+```bash
+# Run inside the nexus folder
+mkdir nexus_wheels
+
+pip download \
+    --platform manylinux2014_x86_64 \
+    --python-version 3.12 \
+    --only-binary=:all: \
+    -d ./nexus_wheels \
+    virtualenv \
+    mlflow==2.13.0 \
+    tbparse==0.0.8 \
+    tensorboard==2.16.2 \
+    tensorboardX \
+    pandas \
+    rich
+```
+
+> **How to check the platform value:**  
+> SSH into the GPU server and run `python3 -c "import platform; print(platform.machine())"`.  
+> `x86_64` → use `manylinux2014_x86_64`.
+
+**Check Python version:**  
+Run `python3 --version` on the GPU server and match the version.  
+Example: `Python 3.12.x` → `--python-version 3.12`
+
+#### A-2. On local machine — Transfer nexus code + wheel files to GPU server
+
+```bash
+# Transfer nexus_wheels folder and nexus code
+scp -r nexus_wheels user@gpu-server:/home/user/
+scp -r nexus        user@gpu-server:/home/user/
+```
+
+> If SSH uses a non-standard port, add the `-P port_number` option.  
+> Example: `scp -P 22222 -r nexus_wheels user@gpu-server:/home/user/`
+
+#### A-3. On GPU server — Offline installation
+
+After SSH-ing into the GPU server:
+
+```bash
+cd /home/user/nexus
+
+# Step 1: Install virtualenv with system pip first (alternative to venv module)
+pip install --no-index --find-links /home/user/nexus_wheels --break-system-packages virtualenv
+
+# Step 2: Create virtual environment with virtualenv
+python3.12 -m virtualenv venv
+source venv/bin/activate
+
+# Step 3: Install pinned setuptools version (versions 70+ exclude pkg_resources)
+pip install --force-reinstall --no-index --find-links /home/user/nexus_wheels "setuptools==69.5.1"
+
+# Upgrade pip itself (works offline)
+pip install --upgrade pip
+
+# Offline install remaining packages from wheel files
+pip install \
+    --no-index \
+    --find-links /home/user/nexus_wheels \
+    mlflow==2.13.0 \
+    tbparse==0.0.8 \
+    tensorboard==2.16.2 \
+    tensorboardX \
+    pandas \
+    rich
+```
+
+> **Why `virtualenv`:**  
+> On Ubuntu/Debian, `python3.12-venv` is an apt package and cannot be transferred as a pip wheel.  
+> `virtualenv` is a pip package that can be transferred offline as a wheel, and its usage is identical to venv.
+
+---
+
+### Method B — Docker image transfer *(Fully isolated environment, when Docker is available)*
+
+If Docker is installed on the GPU server, this method is the most reliable.
+
+#### B-1. On local machine — Write Dockerfile
+
+Create the following `Dockerfile` in the `nexus/` folder:
+
+```dockerfile
+FROM python:3.10-slim
+
+WORKDIR /nexus
+
+# Install packages (uses internet at build time)
+RUN pip install --no-cache-dir \
+    mlflow==2.13.0 \
+    tbparse==0.0.8 \
+    tensorboard==2.16.2 \
+    tensorboardX \
+    pandas \
+    rich
+
+# Copy nexus code
+COPY . /nexus/
+
+CMD ["bash"]
+```
+
+#### B-2. On local machine — Build and save image
+
+```bash
+cd nexus/
+
+# Build image
+docker build -t nexus-env:latest .
+
+# Save image to file (compressed)
+docker save nexus-env:latest | gzip > nexus-env.tar.gz
+
+# Check file size
+ls -lh nexus-env.tar.gz
+```
+
+> Image size is typically 500MB–1GB.
+
+#### B-3. Transfer image to GPU server
+
+```bash
+scp nexus-env.tar.gz user@gpu-server:/home/user/
+```
+
+#### B-4. On GPU server — Load and run image
+
+```bash
+# Load image
+docker load < /home/user/nexus-env.tar.gz
+
+# Run container (mount nexus folder)
+docker run --rm -it \
+    -v /home/user/nexus:/nexus \
+    -p 5100:5100 \
+    nexus-env:latest bash
+```
+
+Run all subsequent commands inside the container.
+
+---
+
+### Method selection criteria
+
+| Situation | Recommended Method |
+|---|---|
+| No Docker on GPU server, local machine is Linux | Method A (matching platform) |
+| No Docker on GPU server, local machine is macOS/Windows | Method A (platform must be specified) |
+| Docker is installed on GPU server | Method B |
+| Entire team needs to share the same environment | Method B |
+
+---
+
+## 🖥️ Phase 3 — GPU Server Validation
+
+> Proceed while SSH-connected to the GPU server.
+
+### 3-1. Verify installation
+
+```bash
+cd /home/user/nexus
+source venv/bin/activate  # For Method A
+
+python -c "import mlflow; print('mlflow:', mlflow.__version__)"
+python -c "from logger import make_logger; print('logger OK')"
+```
+
+### 3-2. Start local MLflow server (inside GPU server)
+
+Start a local MLflow on the GPU server (no internet required, loopback only):
+
+```bash
+bash scheduled_sync/start_local_mlflow.sh
+```
+
+> This MLflow is only accessible from within the GPU server (`127.0.0.1:5100`).  
+> To access it externally, use SSH tunneling:
+>
+> ```bash
+> # On local PC terminal (tunnel GPU server MLflow to local)
+> ssh -L 5100:127.0.0.1:5100 user@gpu-server
+> # Then access http://localhost:5100 in the local browser
+> ```
+
+### 3-3. Run smoke test
+
+```bash
+python tests/smoke_test.py
+```
+
+All items must show `[PASS]`, same as on the local PC.
+
+### 3-4. Integrated test with actual training code (optional)
+
+If you have modified the PPO code, run a short training session (e.g., 100 steps) to verify that actual metrics are being recorded.
+
+```python
+# In the training code initialization section (refer to docs/LOGGER_SETUP.md)
+from logger import make_logger
+import os
+
+self.writer = make_logger(
+    mode="dual",
+    log_dir=output_dir,
+    run_name=os.path.basename(output_dir),
+    tracking_uri="http://127.0.0.1:5100",
+    experiment_name="robot_hand_rl",
+    params=agent_cfg,
+    tags={
+        "researcher": os.environ.get("USER", "unknown"),
+        "seed":       str(agent_cfg.get("seed", -1)),
+        "task":       agent_cfg.get("task", "unknown"),
+        "hardware":   "robot_22dof",
+    },
+)
+```
+
+After training starts, verify that metrics are accumulating in real time in the MLflow UI (`http://localhost:5100`) via SSH tunneling.
+
+### ✅ Phase 3 Checklist
+
+- [ ] `import mlflow` succeeds on GPU server
+- [ ] `bash scheduled_sync/start_local_mlflow.sh` runs without errors
+- [ ] All `[PASS]` in `python tests/smoke_test.py`
+- [ ] (Optional) Metrics confirmed in MLflow UI after PPO run
+
+---
+
+## 🔄 Phase 4 — Cross-Server Sync Validation
+
+> This step synchronizes experiment data from the GPU server to the central MLflow server (NEXUS server).  
+> Proceed after the NEXUS server is ready.
+
+### 4-1. Pipeline A — Delta Sync (MLflow incremental)
+
+Run the following command once on the GPU server to test synchronization. Each run uses **delta (incremental)** mode, sending only steps recorded since the last sync.
+
+```bash
+bash scheduled_sync/sync_mlflow_to_server.sh \
+    --experiment       robot_hand_rl \
+    --remote           user@nexus-server:/data/mlflow_delta_inbox \
+    --remote_nexus_dir /opt/nexus
+```
+
+> 💡 `--remote_nexus_dir` is the path where nexus is installed on the NEXUS server (e.g., `/opt/nexus`). Required to locate `import_delta.py` on the server.
+
+On success, the run will appear in the NEXUS server's MLflow UI. The local state file (`/tmp/nexus_delta_{experiment}.json`) records the last synced step for each run and tag.
+
+**On second run:** If there are no new metrics, SCP is skipped with the message `[OK] No new data since last sync.`
+
+**Automation (cron registration):**
+
+```bash
+crontab -e
+# Add the following line (runs every 5 minutes):
+*/5 * * * * bash /home/user/nexus/scheduled_sync/sync_mlflow_to_server.sh \
+    --experiment       robot_hand_rl \
+    --remote           user@nexus-server:/data/mlflow_delta_inbox \
+    --remote_nexus_dir /opt/nexus \
+    >> /home/user/nexus_sync.log 2>&1
+```
+
+### 4-2. Pipeline B — One-time batch upload (post_upload validation)
+
+If you have existing tfevents files, you can upload them one time after training completes. Use Pipeline A for scheduled sync.
+
+```bash
+# Run directly on NEXUS server, or specify --tracking_uri from GPU server
+python post_upload/tb_to_mlflow.py \
+    --tb_dir       /path/to/logs/run_001 \
+    --experiment   robot_hand_rl \
+    --run_name     ppo_baseline_v1 \
+    --tracking_uri http://nexus-server:5000 \
+    --tags         researcher=kim seed=42
+
+# Validate after upload
+python post_upload/verify_upload.py \
+    --run_id       <RUN_ID printed above> \
+    --tb_dir       /path/to/logs/run_001 \
+    --tracking_uri http://nexus-server:5000
+```
+
+### ✅ Phase 4 Checklist
+
+- [ ] `sync_mlflow_to_server.sh` manual run successful
+- [ ] Synced run confirmed in NEXUS server MLflow UI
+- [ ] Auto-run confirmed after cron registration (`cat /home/user/nexus_sync.log`)
+- [ ] (Optional) `verify_upload.py` validation passed
+
+---
+
+## 🛠️ Troubleshooting
+
+### ⚠️ When MLflow server won't start
+
+```bash
+# Check existing processes
+lsof -i :5100
+
+# Kill all master + worker processes, then restart
+lsof -ti :5100 | xargs kill
+bash scheduled_sync/start_local_mlflow.sh
+```
+
+> **Why `kill $(cat .mlflow_local.pid)` doesn't work:**  
+> MLflow uses gunicorn internally to spawn multiple worker processes.  
+> The PID file only stores the master PID, so killing only the master leaves workers as orphan processes.  
+> Terminating by port kills both master and all workers at once.
+
+### ⚠️ `externally-managed-environment` error during `pip install`
+
+This error occurs on Python 3.12 + Ubuntu systems that block direct pip installation to the system Python (PEP 668).  
+Add the `--break-system-packages` flag when bootstrapping `virtualenv`:
+
+```bash
+pip install --no-index --find-links /home/user/nexus_wheels --break-system-packages virtualenv
+```
+
+After creating and activating a virtual environment with `python3.12 -m virtualenv venv`,  
+the venv's internal pip is used and this error will not occur again.
+
+### ⚠️ `ModuleNotFoundError: No module named 'pkg_resources'`
+
+Starting from setuptools version 70+, `pkg_resources` has been removed from wheels.  
+Switch to the last stable version that includes `pkg_resources` (69.5.1):
+
+```bash
+# On local machine: download pinned version
+pip download --platform manylinux2014_x86_64 --python-version 3.12 \
+    --only-binary=:all: -d ./nexus_wheels "setuptools==69.5.1"
+
+scp nexus_wheels/setuptools-69.5.1*.whl user@gpu-server:/home/user/nexus_wheels/
+
+# On GPU server: force reinstall
+pip install --force-reinstall --no-index --find-links /home/user/nexus_wheels "setuptools==69.5.1"
+
+# Verify
+python -c "import pkg_resources; print('OK')"
+```
+
+### ⚠️ Some packages fail with `pip download --only-binary`
+
+Some packages don't have binary wheels and require source compilation.  
+Separate individual packages instead of using `--only-binary=:all:`:
+
+```bash
+# Packages with binary wheels
+pip download --platform manylinux2014_x86_64 --python-version 3.12 \
+    --only-binary=:all: -d ./nexus_wheels \
+    mlflow==2.13.0 pandas rich virtualenv
+
+# Packages without binary wheels, download separately
+pip download -d ./nexus_wheels \
+    tbparse==0.0.8 tensorboardX
+```
+
+The `--no-build-isolation` option may also be required when installing on the GPU server:
+
+```bash
+pip install --no-index --find-links ./nexus_wheels --no-build-isolation \
+    tbparse==0.0.8
+```
+
+### ⚠️ SSH connection keeps dropping (long-running sessions)
+
+```bash
+# Run in background with nohup + log file
+nohup bash scheduled_sync/start_local_mlflow.sh > mlflow_local.log 2>&1 &
+```
+
+Or use `tmux`/`screen`:
+
+```bash
+tmux new -s nexus
+bash scheduled_sync/start_local_mlflow.sh
+# Ctrl+B, D to detach
+```
+
+### ⚠️ `tbparse` import error (`protobuf` version conflict)
+
+A `protobuf` version conflict may occur between MLflow and TensorBoard:
+
+```bash
+pip install "protobuf>=3.20,<5.0"
+```
+
+### ⚠️ `MLflow server connection failed` in smoke_test.py
+
+1. Verify MLflow server is running: `lsof -i :5100`
+2. Verify correct URI is being used: `http://127.0.0.1:5100` (use IP directly instead of localhost)
+3. Verify firewall is not blocking the port: `curl http://127.0.0.1:5100/health`
+
+---
+
+## ⚡ Quick Reference — Key Commands
+
+```bash
+# Activate environment
+source venv/bin/activate
+
+# Start local MLflow
+bash scheduled_sync/start_local_mlflow.sh
+
+# Smoke test
+python tests/smoke_test.py
+
+# Smoke test (different server URI)
+python tests/smoke_test.py --tracking_uri http://nexus-server:5000
+
+# Stop MLflow server (master + all workers)
+lsof -ti :5100 | xargs kill
+
+# Access GPU server MLflow locally (SSH tunnel)
+ssh -L 5100:127.0.0.1:5100 user@gpu-server
+```
