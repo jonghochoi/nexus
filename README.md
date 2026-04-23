@@ -15,7 +15,7 @@
 [![TensorBoard](https://img.shields.io/badge/TensorBoard-2.16-FF6F00?logo=tensorflow&logoColor=white)](https://www.tensorflow.org/tensorboard)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-📖 팀 온보딩 한글 문서: [`docs/INTRO_KO.md`](docs/INTRO_KO.md)
+📖 Team onboarding guide (Korean): [`docs/INTRO_KO.md`](docs/INTRO_KO.md)
 
 </div>
 
@@ -68,8 +68,8 @@ nexus/
 ├── docs/
 │   ├── ARCHITECTURE.md             # Full system design & component map
 │   ├── LOGGER_SETUP.md             # Logger integration guide (step-by-step diff)
-│   ├── VALIDATION_GUIDE_KO.md      # Step-by-step validation guide (Korean)
-│   ├── MLFLOW_SERVER_SETUP_KO.md   # MLflow server setup guide (Korean)
+│   ├── VALIDATION_GUIDE.md         # Step-by-step validation guide
+│   ├── MLFLOW_SERVER_SETUP.md      # MLflow server setup guide
 │   ├── EXPERIMENT_STANDARD_KO.md   # Team experiment management standard (Korean)
 │   ├── INTRO_KO.md                 # Onboarding document (Korean)
 │   └── ADVANCED_FEATURES.md        # Advanced features guide (opt-in)
@@ -233,12 +233,12 @@ python verify_upload.py \
 
 | Document | Description |
 |---|---|
-| [`docs/INTRO_KO.md`](docs/INTRO_KO.md) | Korean team onboarding — motivation, workflow, FAQ |
+| [`docs/INTRO_KO.md`](docs/INTRO_KO.md) | Team onboarding — motivation, workflow, FAQ (Korean) |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Full system design and component map |
 | [`docs/LOGGER_SETUP.md`](docs/LOGGER_SETUP.md) | Logger integration — step-by-step diff (trainer-agnostic) |
-| [`docs/VALIDATION_GUIDE_KO.md`](docs/VALIDATION_GUIDE_KO.md) | Step-by-step validation guide (Korean) |
-| [`docs/MLFLOW_SERVER_SETUP_KO.md`](docs/MLFLOW_SERVER_SETUP_KO.md) | MLflow server setup on LAN (Korean) |
-| [`docs/EXPERIMENT_STANDARD_KO.md`](docs/EXPERIMENT_STANDARD_KO.md) | Team experiment management standard (Korean) |
+| [`docs/VALIDATION_GUIDE.md`](docs/VALIDATION_GUIDE.md) | Step-by-step validation guide |
+| [`docs/MLFLOW_SERVER_SETUP.md`](docs/MLFLOW_SERVER_SETUP.md) | MLflow server setup on LAN |
+| [`docs/EXPERIMENT_STANDARD_KO.md`](docs/EXPERIMENT_STANDARD_KO.md) | Team experiment management standard |
 | [`docs/ADVANCED_FEATURES.md`](docs/ADVANCED_FEATURES.md) | Advanced features — SweepLogger, RL metrics, Model Registry, system metrics |
 | [`brand.py`](brand.py) | ASCII art, sigils, and color constants |
 

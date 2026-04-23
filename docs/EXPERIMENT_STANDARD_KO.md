@@ -505,7 +505,7 @@ self.writer = make_logger(
 | 문서 | 링크 | 설명 |
 |---|---|---|
 | NEXUS 서버 접속 주소 | `http://192.168.1.42:5000` | MLflow UI |
-| 서버 구축 가이드 | [MLFLOW_SERVER_SETUP_KO.md](MLFLOW_SERVER_SETUP_KO.md) | 서버 설치/운영 |
+| 서버 구축 가이드 | [MLFLOW_SERVER_SETUP.md](MLFLOW_SERVER_SETUP.md) | 서버 설치/운영 |
 | 로거 설정 가이드 | [LOGGER_SETUP.md](LOGGER_SETUP.md) | 학습 코드에 로거 붙이는 방법 |
 
 ---
