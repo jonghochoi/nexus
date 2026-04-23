@@ -621,39 +621,11 @@ nexus test
 
 ---
 
-### 8-5. NEXUS 동기화 스크립트 최초 실행 테스트
+### 8-5. 동기화 파이프라인 전체 검증
 
-```bash
-# nexus 프로젝트 디렉토리에서 실행
-cd /path/to/nexus
+SSH 키와 SCP 전송이 확인되었으면 서버 구축은 완료된 것입니다.
 
-bash scheduled_sync/sync_mlflow_to_server.sh \
-    --experiment       sharpa_hand_rl \
-    --remote           USER@192.168.1.42:/opt/nexus-mlflow/sync_inbox \
-    --remote_nexus_dir /opt/nexus \
-    --local_uri        http://127.0.0.1:5100 \
-    --remote_uri       http://127.0.0.1:5000 \
-    --ssh_key          ~/.ssh/nexus_key
-```
-
-> 💡 `--remote_nexus_dir`은 NEXUS 서버에 nexus 저장소가 clone된 경로입니다.
-> 스크립트가 SSH로 접속해 `${remote_nexus_dir}/scheduled_sync/import_delta.py`를 실행하므로 필수입니다.
-
-**기대 출력:**
-
-```
-[2025-04-18 10:30:00] MLflow delta sync: sharpa_hand_rl
-  [1/3] Exporting delta from local MLflow (http://127.0.0.1:5100)...
-  [OK] Delta exported (12 KB)
-  [2/3] Transferring delta to 192.168.1.42...
-  [OK] Transfer complete
-  [3/3] Importing delta on remote server...
-  [OK] Import complete
-  [DONE] Delta sync complete at 2025-04-18 10:30:05
-```
-
-> ℹ️ 최초 실행 시에는 전체 데이터가 한 번에 전송되고, 이후 실행부터는 증분(delta)만 전송됩니다.
-> "새 데이터가 없으면" `[OK] No new data since last sync. Nothing to transfer.`로 즉시 종료됩니다 (정상).
+`sync_mlflow_to_server.sh` 스크립트를 이용한 전체 동기화 파이프라인 검증(cron 등록 포함)은 **[VALIDATION_GUIDE_KO.md — Phase 4](VALIDATION_GUIDE_KO.md#phase-4--서버-간-sync-검증)** 를 따라 진행하세요.
 
 ---
 

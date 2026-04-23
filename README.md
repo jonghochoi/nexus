@@ -66,13 +66,13 @@ nexus/
 │   └── smoke_test.py               # End-to-end local validation script
 │
 ├── docs/
-│   ├── ARCHITECTURE.md             # Full system design & component map
-│   ├── INTEGRATION_GUIDE.md        # PPO code changes (step-by-step diff)
-│   ├── TESTING_GUIDE_KO.md         # Step-by-step validation guide (Korean)
-│   ├── CONFLUENCE_MLFLOW_GUIDE.md  # Role separation guide
-│   ├── EXPERIMENT_TEMPLATE.md      # Confluence page template
-│   ├── INTRO_KO.md                 # Onboarding document (Korean)
-│   └── ADVANCED_FEATURES.md        # Advanced features guide (opt-in)
+│   ├── ARCHITECTURE.md               # Full system design & component map
+│   ├── LOGGER_SETUP.md               # Logger integration guide (step-by-step diff)
+│   ├── VALIDATION_GUIDE_KO.md           # Step-by-step validation guide (Korean)
+│   ├── MLFLOW_SERVER_SETUP_KO.md      # MLflow server setup guide (Korean)
+│   ├── EXPERIMENT_STANDARD_KO.md     # Team experiment management standard (Korean)
+│   ├── INTRO_KO.md                   # Onboarding document (Korean)
+│   └── ADVANCED_FEATURES.md          # Advanced features guide (opt-in)
 │
 ├── brand.py                        # ASCII art, sigils, color constants
 ├── setup.sh
@@ -139,7 +139,7 @@ bash scheduled_sync/start_local_mlflow.sh
 
 Replace `SummaryWriter` with `make_logger` at the import, `__init__`, and `train()` checkpoint block.
 
-→ Copy-paste diff: [`docs/INTEGRATION_GUIDE.md`](docs/INTEGRATION_GUIDE.md)
+→ Copy-paste diff: [`docs/LOGGER_SETUP.md`](docs/LOGGER_SETUP.md)
 
 ### Step 3 — Sync to NEXUS server *(via cron, every 5 min)*
 
@@ -235,10 +235,10 @@ python verify_upload.py \
 |---|---|
 | [`docs/INTRO_KO.md`](docs/INTRO_KO.md) | Korean team onboarding — motivation, workflow, FAQ |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Full system design and component map |
-| [`docs/INTEGRATION_GUIDE.md`](docs/INTEGRATION_GUIDE.md) | PPO code changes — step-by-step diff |
-| [`docs/TESTING_GUIDE_KO.md`](docs/TESTING_GUIDE_KO.md) | Step-by-step validation guide (Korean) |
-| [`docs/CONFLUENCE_MLFLOW_GUIDE.md`](docs/CONFLUENCE_MLFLOW_GUIDE.md) | Confluence vs MLflow role separation |
-| [`docs/EXPERIMENT_TEMPLATE.md`](docs/EXPERIMENT_TEMPLATE.md) | Confluence page template |
+| [`docs/LOGGER_SETUP.md`](docs/LOGGER_SETUP.md) | Logger integration — step-by-step diff (trainer-agnostic) |
+| [`docs/VALIDATION_GUIDE_KO.md`](docs/VALIDATION_GUIDE_KO.md) | Step-by-step validation guide (Korean) |
+| [`docs/MLFLOW_SERVER_SETUP_KO.md`](docs/MLFLOW_SERVER_SETUP_KO.md) | MLflow server setup on LAN (Korean) |
+| [`docs/EXPERIMENT_STANDARD_KO.md`](docs/EXPERIMENT_STANDARD_KO.md) | Team experiment management standard (Korean) |
 | [`docs/ADVANCED_FEATURES.md`](docs/ADVANCED_FEATURES.md) | Advanced features — SweepLogger, RL metrics, Model Registry, system metrics |
 | [`brand.py`](brand.py) | ASCII art, sigils, and color constants |
 
