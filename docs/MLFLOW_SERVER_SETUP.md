@@ -483,6 +483,45 @@ sudo journalctl -u nexus-mlflow -f
 sudo journalctl -u nexus-mlflow --since today
 ```
 
+#### Register the commands above as bash aliases
+
+Run the following block once on the MLflow server. It appends a set of
+`mlflow-*` aliases to `~/.bashrc` so the commands above can be invoked with a
+short name.
+
+```bash
+cat >> ~/.bashrc <<'EOF'
+
+# --- NEXUS MLflow service aliases ---
+alias mlflow-status='sudo systemctl status nexus-mlflow'
+alias mlflow-start='sudo systemctl start nexus-mlflow'
+alias mlflow-stop='sudo systemctl stop nexus-mlflow'
+alias mlflow-restart='sudo systemctl restart nexus-mlflow'
+alias mlflow-logs='sudo journalctl -u nexus-mlflow -f'
+alias mlflow-logs-today='sudo journalctl -u nexus-mlflow --since today'
+# --- end NEXUS MLflow service aliases ---
+EOF
+
+# Apply to the current shell without reopening the terminal
+source ~/.bashrc
+```
+
+**Alias quick reference:**
+
+| Alias                | Equivalent command                            |
+| -------------------- | --------------------------------------------- |
+| `mlflow-status`      | `sudo systemctl status nexus-mlflow`          |
+| `mlflow-start`       | `sudo systemctl start nexus-mlflow`           |
+| `mlflow-stop`        | `sudo systemctl stop nexus-mlflow`            |
+| `mlflow-restart`     | `sudo systemctl restart nexus-mlflow`         |
+| `mlflow-logs`        | `sudo journalctl -u nexus-mlflow -f`          |
+| `mlflow-logs-today`  | `sudo journalctl -u nexus-mlflow --since today` |
+
+> 💡 Verify the aliases are registered with `alias | grep mlflow-`.
+>
+> 💡 To remove them later, open `~/.bashrc` and delete the block between the
+> `NEXUS MLflow service aliases` markers, then run `source ~/.bashrc`.
+
 ---
 
 ## 👥 Step 7 — Verify Team Member Access
