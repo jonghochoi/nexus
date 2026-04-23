@@ -67,6 +67,8 @@ pip install \
     tensorboardX \
     pandas \
     rich \
+    plotly \
+    pyyaml \
     -q
 
 echo "[OK] All packages installed"

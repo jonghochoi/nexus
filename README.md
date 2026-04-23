@@ -63,6 +63,13 @@ nexus/
 │   ├── export_delta.py             # [GPU Server] serialize new metrics only
 │   └── import_delta.py             # [MLflow server] import delta JSON
 │
+├── presets/                        # YAML-defined visualization presets
+│   ├── schema.py                   # preset YAML → dataclass + validation
+│   ├── resolver.py                 # preset + MLflow → runs & metric histories
+│   ├── renderer.py                 # ResolvedData → standalone Plotly HTML
+│   ├── cli.py                      # python -m presets {render,list,validate}
+│   └── examples/                   # team-standard preset YAMLs
+│
 ├── tests/
 │   └── smoke_test.py               # End-to-end local validation script
 │
@@ -104,7 +111,7 @@ nexus/
 
 ## 🎛️ Logger Modes
 
-Use `make_logger()` with the `mode` argument. Only this argument changes — everything else in PPO stays exactly the same.
+Use `make_logger()` with the `mode` argument. Only this argument changes — everything else in your trainer stays exactly the same.
 
 | `mode` | TensorBoard | MLflow | When to use |
 |:---:|:---:|:---:|---|
@@ -135,7 +142,7 @@ nexus-activate                 # works from any directory, any terminal
 
 ## 🅰️ Pipeline A — Direct MLflow Logging *(recommended for new runs)*
 
-Requires changes in **3 locations** in PPO. TensorBoard continues to work unchanged.
+Requires changes in **3 locations** in your trainer. TensorBoard continues to work unchanged.
 
 ### Step 1 — Start local MLflow server on GPU Server *(once per session)*
 
@@ -144,7 +151,7 @@ bash scheduled_sync/start_local_mlflow.sh
 # [NXS] Local MLflow on 127.0.0.1:5100 — loopback only, no internet needed
 ```
 
-### Step 2 — Update PPO *(3 locations only)*
+### Step 2 — Update your trainer *(3 locations only)*
 
 Replace `SummaryWriter` with `make_logger` at the import, `__init__`, and `train()` checkpoint block.
 
@@ -166,7 +173,7 @@ Each sync is **incremental**: only metric points with step beyond the last synce
 
 ## 🅱️ Pipeline B — TensorBoard Post-Upload *(one-shot, no code changes)*
 
-Use when PPO has **not** been updated yet, or when you want to upload a completed tfevents run in a single batch. This is a manual, one-time operation — run it once after training ends.
+Use when your trainer has **not** been updated yet, or when you want to upload a completed tfevents run in a single batch. This is a manual, one-time operation — run it once after training ends.
 
 ### One-time setup — put your fixed values in `~/.nexus/config.json`
 
@@ -232,7 +239,7 @@ For full details on config, interactive mode, history, `sim_run_id` auto-detecti
 ```
 🖥️  GPU Server  ───────────────────────────────────────────────
 │
-├── 🤖  PPO Training Process
+├── 🤖  Trainer Process
 │   └── 🔀  DualLogger
 │       ├── 📁  → tfevents/         local disk  (tensorboard --logdir)
 │       └── 📡  → 127.0.0.1:5100    local MLflow server
@@ -290,6 +297,7 @@ For full details on config, interactive mode, history, `sim_run_id` auto-detecti
 | [`docs/VALIDATION_GUIDE.md`](docs/VALIDATION_GUIDE.md) | Step-by-step validation guide |
 | [`docs/MLFLOW_SERVER_SETUP.md`](docs/MLFLOW_SERVER_SETUP.md) | MLflow server setup on LAN |
 | [`docs/EXPERIMENT_STANDARD_KO.md`](docs/EXPERIMENT_STANDARD_KO.md) | Team experiment management standard |
+| [`docs/PRESETS_GUIDE.md`](docs/PRESETS_GUIDE.md) | YAML visualization presets — usage & maintenance |
 | [`docs/ADVANCED_FEATURES.md`](docs/ADVANCED_FEATURES.md) | Advanced features — SweepLogger, RL metrics, Model Registry, system metrics, git tracking |
 | [`brand.py`](brand.py) | ASCII art, sigils, and color constants |
 

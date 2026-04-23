@@ -1,0 +1,38 @@
+# ============================================================
+#  Sim-to-Real gap — overlay sim policy vs. real-robot evaluation
+# ============================================================
+#  `sim_run_id` ties a real-robot eval run to the exact sim policy it
+#  deployed (see README "Recommended Tags"). This preset picks one
+#  sim run and its downstream real runs and overlays success rates.
+# ============================================================
+#
+#  Usage:
+#    1. Replace the run_id below with your sim policy run_id.
+#    2. Add corresponding real-robot run_ids in the same list.
+#    3. Render — the two will appear on the same axis.
+# ============================================================
+
+name: sim_to_real_gap
+title: "Sim-to-Real gap — policy X"
+experiment: robot_hand_rl
+
+description: |
+  First run_id is the sim policy; the rest are real-robot evals that
+  deployed it. Replace IDs below each time you want a new comparison.
+
+select:
+  mode: explicit
+  run_ids:
+    - REPLACE_WITH_SIM_RUN_ID
+    - REPLACE_WITH_REAL_RUN_ID_1
+    - REPLACE_WITH_REAL_RUN_ID_2
+
+metrics:
+  - key: rl/success_rate
+    smoothing: 0.3
+  - key: eval/episode_return
+
+chart:
+  x_axis: step
+  group_by: tags.environment       # e.g. "sim" vs "real" — set this tag at run start
+  height_per_plot: 360

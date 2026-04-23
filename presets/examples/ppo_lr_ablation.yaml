@@ -1,0 +1,40 @@
+# ============================================================
+#  PPO learning-rate ablation — in_hand_reorientation
+# ============================================================
+#  Overlay the most recent PPO runs that share the same task/hardware
+#  but differ in learning rate. Use this preset whenever you finish
+#  an LR sweep and want a one-glance comparison of sample efficiency
+#  and policy stability.
+# ============================================================
+
+name: ppo_lr_ablation
+title: "PPO LR ablation — in_hand_reorientation"
+experiment: robot_hand_rl
+
+description: |
+  Compares recent PPO runs on the in-hand reorientation task across
+  learning rates. Grouped by seed so variance within an LR is visible.
+
+filters:
+  tags:
+    task: in_hand_reorientation
+    hardware: robot_22dof
+  status: [FINISHED]
+
+select:
+  mode: latest
+  limit: 12
+
+metrics:
+  - key: rl/success_rate
+    smoothing: 0.6
+  - key: rl/approx_kl
+    smoothing: 0.3
+  - key: rl/explained_variance
+  - key: rl/entropy
+
+chart:
+  x_axis: step
+  group_by: params.lr.base
+  default_smoothing: 0.0
+  height_per_plot: 320

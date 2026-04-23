@@ -1,0 +1,36 @@
+# ============================================================
+#  Seed spread — single-config variance check
+# ============================================================
+#  Take one training recipe (same params, same task), pull all the
+#  seeds, and plot them together. Use this to sanity-check that a
+#  reported improvement isn't just seed luck before celebrating.
+# ============================================================
+
+name: seed_spread
+title: "Seed spread — PPO baseline (robot_22dof)"
+experiment: robot_hand_rl
+
+description: |
+  All seeds for the current PPO baseline config on robot_22dof.
+  If the curves fan out too wide, treat single-seed numbers with suspicion.
+
+filters:
+  tags:
+    task: in_hand_reorientation
+    hardware: robot_22dof
+    config_hash: baseline_v3        # pin exact recipe
+  status: [FINISHED]
+
+select:
+  mode: all
+
+metrics:
+  - key: rl/success_rate
+    smoothing: 0.6
+  - key: rl/approx_kl
+    smoothing: 0.3
+
+chart:
+  x_axis: step
+  group_by: tags.seed
+  height_per_plot: 340
