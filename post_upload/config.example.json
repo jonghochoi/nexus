@@ -1,0 +1,10 @@
+{
+  "tracking_uri": "http://nexus-server:5000",
+  "experiment": "robot_hand_rl",
+  "tags": {
+    "researcher": "your_name",
+    "isaac_lab_version": "1.2.0",
+    "physx_solver": "TGS",
+    "hardware": "robot_22dof"
+  }
+}

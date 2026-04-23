@@ -10,6 +10,10 @@ Usage:
 
 import argparse
 import sys
+from pathlib import Path
+
+# Ensure sibling modules resolve whether invoked from repo root or post_upload/.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import mlflow
 import pandas as pd
@@ -23,8 +27,8 @@ console = Console()
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Validate MLflow upload against TensorBoard source")
-    parser.add_argument("--run_id", type=str, required=True, help="MLflow Run ID to validate")
-    parser.add_argument("--tb_dir", type=str, required=True, help="Original tfevents directory")
+    parser.add_argument("--run_id", type=str, default=None, help="MLflow Run ID to validate")
+    parser.add_argument("--tb_dir", type=str, default=None, help="Original tfevents directory")
     parser.add_argument(
         "--tracking_uri",
         type=str,
@@ -37,7 +41,30 @@ def parse_args():
         default=1e-6,
         help="Numeric comparison tolerance (default: 1e-6)",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--from-last",
+        dest="from_last",
+        action="store_true",
+        help="Re-verify the most recent upload from ~/.nexus/history.json "
+             "(fills run_id/tb_dir/tracking_uri automatically)",
+    )
+    args = parser.parse_args()
+
+    if args.from_last:
+        from history import last_upload
+        last = last_upload()
+        if last is None:
+            parser.error("--from-last: no previous upload in history.")
+        args.run_id = args.run_id or last["run_id"]
+        args.tb_dir = args.tb_dir or last["tb_dir"]
+        # Only inherit tracking_uri if user didn't override it from the default.
+        if args.tracking_uri == "http://127.0.0.1:5000":
+            args.tracking_uri = last["tracking_uri"]
+
+    if not args.run_id or not args.tb_dir:
+        parser.error("--run_id and --tb_dir are required (or pass --from-last).")
+
+    return args
 
 
 def fetch_mlflow_metrics(run_id: str, tracking_uri: str) -> pd.DataFrame:
@@ -197,18 +224,25 @@ def verify(tb_df: pd.DataFrame, mlflow_df: pd.DataFrame, tolerance: float):
     return all_pass
 
 
-def main():
-    args = parse_args()
+def run_verify(run_id: str, tb_dir: str, tracking_uri: str, tolerance: float = 1e-6) -> bool:
+    """Programmatic entry point — callable from tb_to_mlflow.py for auto-verify.
 
+    Returns True if all checks pass, False otherwise.
+    """
     console.rule("[bold blue]MLflow Upload Verifier[/bold blue]")
 
     console.print("[yellow]Fetching MLflow metrics...[/yellow]")
-    mlflow_df = fetch_mlflow_metrics(args.run_id, args.tracking_uri)
+    mlflow_df = fetch_mlflow_metrics(run_id, tracking_uri)
 
     console.print("[yellow]Parsing TensorBoard source...[/yellow]")
-    tb_df = fetch_tb_metrics(args.tb_dir)
+    tb_df = fetch_tb_metrics(tb_dir)
 
-    verify(tb_df, mlflow_df, args.tolerance)
+    return verify(tb_df, mlflow_df, tolerance)
+
+
+def main():
+    args = parse_args()
+    run_verify(args.run_id, args.tb_dir, args.tracking_uri, args.tolerance)
 
 
 if __name__ == "__main__":

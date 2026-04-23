@@ -159,23 +159,60 @@ Each sync is **incremental**: only metric points with step beyond the last synce
 
 Use when PPO has **not** been updated yet, or when you want to upload a completed tfevents run in a single batch. This is a manual, one-time operation — run it once after training ends.
 
+### One-time setup — put your fixed values in `~/.nexus/config.json`
+
+```bash
+mkdir -p ~/.nexus
+cp post_upload/config.example.json ~/.nexus/config.json
+$EDITOR ~/.nexus/config.json   # set tracking_uri, researcher, team-fixed tags
+```
+
+Example:
+
+```json
+{
+  "tracking_uri": "http://nexus-server:5000",
+  "experiment": "robot_hand_rl",
+  "tags": {
+    "researcher": "kim",
+    "isaac_lab_version": "1.2.0",
+    "physx_solver": "TGS",
+    "hardware": "robot_22dof"
+  }
+}
+```
+
+### Uploading a run
+
+With the config above, you only need to supply the per-run values (`seed`, `task`) — and if any of the required tags (`researcher`, `seed`, `task`) are missing, the CLI drops into interactive mode automatically:
+
 ```bash
 cd post_upload/
 
-# [NXS] uploading run...
-python tb_to_mlflow.py \
-    --tb_dir       /path/to/logs/run_001 \
-    --experiment   robot_hand_rl \
-    --run_name     ppo_baseline_v1 \
-    --tracking_uri http://<nexus-server>:5000 \
-    --tags         researcher=kim seed=42 task=in_hand_reorientation
+# Interactive — prompts for seed and task, auto-verifies after upload
+python tb_to_mlflow.py --tb_dir /path/to/logs/run_001
 
-# [NXS] verifying upload...
-python verify_upload.py \
-    --run_id       <RUN_ID> \
-    --tb_dir       /path/to/logs/run_001 \
-    --tracking_uri http://<nexus-server>:5000
+# Or fully non-interactive
+python tb_to_mlflow.py \
+    --tb_dir   /path/to/logs/run_001 \
+    --run_name ppo_baseline_v1 \
+    --tags     seed=42 task=in_hand_reorientation
 ```
+
+After upload completes, `verify_upload.py` runs automatically against the returned run_id. Pass `--no_verify` to skip, or run `python verify_upload.py --run_id <id> --tb_dir <dir>` manually.
+
+| Flag | Effect |
+|---|---|
+| `-i`, `--interactive` | Prompt for every required tag (researcher, seed, task), showing config values as defaults |
+| `--tags k=v ...` | Per-run tag overrides (wins over config) |
+| `--repeat-last` | Inherit experiment/run_name/tags from the last upload (for seed sweeps) |
+| `--history` | List recent uploads (`~/.nexus/history.json`) and exit |
+| `--config <path>` | Use a config file other than `~/.nexus/config.json` |
+| `--force` | Skip required-tag validation |
+| `--no_verify` | Skip automatic post-upload verification |
+| `--dry_run` | Parse and preview only; don't upload |
+
+For full details on config, interactive mode, history, `sim_run_id` auto-detection for real-robot evals, and troubleshooting, see [`docs/POST_UPLOAD_GUIDE.md`](docs/POST_UPLOAD_GUIDE.md).
 
 > 💡 For long-running training that needs **scheduled** sync (not just post-hoc), use Pipeline A with `make_logger(mode="dual")` or `mode="mlflow"`.
 
@@ -236,6 +273,7 @@ python verify_upload.py \
 | [`docs/INTRO_KO.md`](docs/INTRO_KO.md) | Team onboarding — motivation, workflow, FAQ (Korean) |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Full system design and component map |
 | [`docs/LOGGER_SETUP.md`](docs/LOGGER_SETUP.md) | Logger integration — step-by-step diff (trainer-agnostic) |
+| [`docs/POST_UPLOAD_GUIDE.md`](docs/POST_UPLOAD_GUIDE.md) | Pipeline B CLI in depth — config, interactive, history, sim_run_id |
 | [`docs/VALIDATION_GUIDE.md`](docs/VALIDATION_GUIDE.md) | Step-by-step validation guide |
 | [`docs/MLFLOW_SERVER_SETUP.md`](docs/MLFLOW_SERVER_SETUP.md) | MLflow server setup on LAN |
 | [`docs/EXPERIMENT_STANDARD_KO.md`](docs/EXPERIMENT_STANDARD_KO.md) | Team experiment management standard |
