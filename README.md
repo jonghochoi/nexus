@@ -118,9 +118,17 @@ Use `make_logger()` with the `mode` argument. Only this argument changes — eve
 ```bash
 git clone https://github.com/jonghochoi/nexus.git
 cd nexus
-bash setup.sh
-source venv/bin/activate
+bash setup.sh --alias          # installs venv at ~/.nexus/venv + registers `nexus-activate`
+source ~/.bashrc               # pick up the alias
+nexus-activate                 # works from any directory, any terminal
 ```
+
+> The venv lives at `~/.nexus/venv` — **outside** the repo — so overwriting or
+> re-cloning the source tree does not destroy the installed packages. Run
+> `bash setup.sh --reinstall` if you ever need to rebuild it from scratch.
+>
+> Prefer no alias? Drop `--alias` and activate with
+> `source ~/.nexus/activate.sh`.
 
 ---
 
@@ -294,5 +302,7 @@ For full details on config, interactive mode, history, `sim_run_id` auto-detecti
 | `rich` | latest |
 
 ```bash
-bash setup.sh   # installs all dependencies into a venv
+bash setup.sh             # installs all dependencies into ~/.nexus/venv
+bash setup.sh --alias     # same, plus register `nexus-activate` in ~/.bashrc
+bash setup.sh --reinstall # wipe and recreate ~/.nexus/venv (after source overwrite)
 ```

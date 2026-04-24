@@ -288,8 +288,9 @@ You've just joined the team and cloned the repo. Get set up and do your
 first upload:
 
 ```bash
-# Install
-bash setup.sh && source venv/bin/activate
+# Install — venv is created at ~/.nexus/venv (outside the repo)
+bash setup.sh --alias && source ~/.bashrc
+nexus-activate   # or: source ~/.nexus/activate.sh
 
 # One-time config — fill in your name and the central server
 cp post_upload/config.example.json ~/.nexus/config.json

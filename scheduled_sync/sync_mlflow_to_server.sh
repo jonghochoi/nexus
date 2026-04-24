@@ -89,8 +89,14 @@ DELTA_FILE="/tmp/${DELTA_FILENAME}"
 
 echo "[$TIMESTAMP] MLflow delta sync: $EXPERIMENT"
 
-# ── Activate venv if present
-if [ -f "venv/bin/activate" ]; then source venv/bin/activate; fi
+# ── Activate venv if present (prefer shared ~/.nexus/venv, fall back to ./venv)
+if [ -f "${HOME}/.nexus/venv/bin/activate" ]; then
+    # shellcheck disable=SC1091
+    source "${HOME}/.nexus/venv/bin/activate"
+elif [ -f "venv/bin/activate" ]; then
+    # shellcheck disable=SC1091
+    source venv/bin/activate
+fi
 
 # ── Step 1: Export delta from local MLflow
 echo "  [1/3] Exporting delta from local MLflow ($LOCAL_MLFLOW_URI)..."

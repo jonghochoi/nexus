@@ -44,10 +44,14 @@ bash setup.sh
 After installation, activate the virtual environment:
 
 ```bash
-source venv/bin/activate
+source ~/.nexus/activate.sh
+# or, if you ran `bash setup.sh --alias`:
+nexus-activate
 ```
 
 > When `(venv)` appears at the start of the terminal prompt, the environment is activated.
+> The venv itself lives at `~/.nexus/venv` — outside the repo — so replacing or
+> re-cloning nexus sources does not wipe it.
 
 ### A-4. Verify installation
 
@@ -102,7 +106,7 @@ After the test completes, the MLflow UI (`http://localhost:5100`) should show ne
 ### ✅ Phase 1-A Checklist
 
 - [ ] `bash setup.sh` completed without errors
-- [ ] `(venv)` prompt appears after `source venv/bin/activate`
+- [ ] `(venv)` prompt appears after `source ~/.nexus/activate.sh` (or `nexus-activate`)
 - [ ] All three import commands succeed
 - [ ] MLflow UI accessible at `http://localhost:5100` in browser
 - [ ] All `[PASS]` in `python tests/smoke_test.py`
@@ -142,7 +146,7 @@ Before the actual upload, use the `--dry_run` option to preview which metrics wi
 
 ```bash
 cd nexus/
-source venv/bin/activate
+source ~/.nexus/activate.sh   # or: nexus-activate
 
 python post_upload/tb_to_mlflow.py \
     --tb_dir    /path/to/your/logs/run_001 \
@@ -366,12 +370,15 @@ cd ~/nexus
 # Step 1: Install virtualenv with system pip first (alternative to venv module)
 pip install --no-index --find-links ~/nexus_wheels --break-system-packages virtualenv
 
-# Step 2: Create virtual environment. Use the same Python version that you
-#         passed to `--python-version` when downloading the wheels (e.g. 3.12).
-#         `python3 -m virtualenv` uses the default python3 — if the server has
-#         multiple versions, call it explicitly (e.g. `python3.12 -m virtualenv`).
-python3 -m virtualenv venv
-source venv/bin/activate
+# Step 2: Create virtual environment at ~/.nexus/venv (outside the repo so
+#         replacing/updating the nexus source tree does not wipe it). Use the
+#         same Python version you passed to `--python-version` when downloading
+#         the wheels. `python3 -m virtualenv` uses the default python3 — if the
+#         server has multiple versions, call it explicitly (e.g.
+#         `python3.12 -m virtualenv`).
+mkdir -p ~/.nexus
+python3 -m virtualenv ~/.nexus/venv
+source ~/.nexus/venv/bin/activate
 
 # Step 3: Install pinned setuptools version (versions 70+ exclude pkg_resources)
 pip install --force-reinstall --no-index --find-links ~/nexus_wheels "setuptools==69.5.1"
@@ -488,7 +495,7 @@ Run all subsequent commands inside the container.
 
 ```bash
 cd ~/nexus
-source venv/bin/activate  # For Method A
+source ~/.nexus/activate.sh  # For Method A (or `nexus-activate`)
 
 python -c "import mlflow; print('mlflow:', mlflow.__version__)"
 python -c "from logger import make_logger; print('logger OK')"
@@ -721,7 +728,7 @@ pip install "protobuf>=3.20,<5.0"
 
 ```bash
 # Activate environment
-source venv/bin/activate
+source ~/.nexus/activate.sh   # or: nexus-activate
 
 # Start local MLflow
 bash scheduled_sync/start_local_mlflow.sh
