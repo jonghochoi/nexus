@@ -299,18 +299,38 @@ Choose the appropriate method for your situation from the two options below.
 
 This method works without Docker and transfers only Python packages, so the file size is small.
 
+> **Critical — wheels must match the GPU server's Python, not your local Python.**  
+> The OS/Python version on your local PC and the GPU server almost always differ.  
+> The `--python-version` flag below refers to the **target (GPU server) Python**, not your local one.  
+> Your local Python only needs to be new enough to run `pip download` (any 3.8+ is fine).
+
 #### A-1. On local machine — Download wheel files
 
-**Important:** The OS/Python version may differ between your local PC and the GPU server.  
-If the GPU server is `Linux x86_64` + `Python 3.12`, you must specify the platform as shown below.
+**Step 1 — Check the GPU server's Python version and architecture first:**
+
+```bash
+# SSH into the GPU server and run:
+python3 --version                                          # e.g., Python 3.12.3
+python3 -c "import platform; print(platform.machine())"    # e.g., x86_64
+```
+
+**Step 2 — Export those values as shell variables on your local machine** so every command below stays in sync:
+
+```bash
+# Example values — replace with whatever the GPU server reported in Step 1.
+export GPU_PY=3.12                    # major.minor only (no patch)
+export GPU_PLATFORM=manylinux2014_x86_64   # x86_64 → manylinux2014_x86_64
+```
+
+**Step 3 — Download the wheels for that target:**
 
 ```bash
 # Run inside the nexus folder
 mkdir nexus_wheels
 
 pip download \
-    --platform manylinux2014_x86_64 \
-    --python-version 3.12 \
+    --platform "${GPU_PLATFORM}" \
+    --python-version "${GPU_PY}" \
     --only-binary=:all: \
     -d ./nexus_wheels \
     virtualenv \
@@ -322,41 +342,39 @@ pip download \
     rich
 ```
 
-> **How to check the platform value:**  
-> SSH into the GPU server and run `python3 -c "import platform; print(platform.machine())"`.  
-> `x86_64` → use `manylinux2014_x86_64`.
-
-**Check Python version:**  
-Run `python3 --version` on the GPU server and match the version.  
-Example: `Python 3.12.x` → `--python-version 3.12`
-
 #### A-2. On local machine — Transfer nexus code + wheel files to GPU server
 
 ```bash
-# Transfer nexus_wheels folder and nexus code
-scp -r nexus_wheels user@gpu-server:/home/user/
-scp -r nexus        user@gpu-server:/home/user/
+# Transfer nexus_wheels folder and nexus code.
+# Replace `user` with your GPU server login name. The remote `~/` expands to
+# that user's home directory on the server — no need to hardcode `/home/<name>`.
+scp -r nexus_wheels user@gpu-server:~/
+scp -r nexus        user@gpu-server:~/
 ```
 
 > If SSH uses a non-standard port, add the `-P port_number` option.  
-> Example: `scp -P 22222 -r nexus_wheels user@gpu-server:/home/user/`
+> Example: `scp -P 22222 -r nexus_wheels user@gpu-server:~/`
 
 #### A-3. On GPU server — Offline installation
 
-After SSH-ing into the GPU server:
+After SSH-ing into the GPU server. `~` below automatically expands to the current
+login user's home directory, so these commands work regardless of your username.
 
 ```bash
-cd /home/user/nexus
+cd ~/nexus
 
 # Step 1: Install virtualenv with system pip first (alternative to venv module)
-pip install --no-index --find-links /home/user/nexus_wheels --break-system-packages virtualenv
+pip install --no-index --find-links ~/nexus_wheels --break-system-packages virtualenv
 
-# Step 2: Create virtual environment with virtualenv
-python3.12 -m virtualenv venv
+# Step 2: Create virtual environment. Use the same Python version that you
+#         passed to `--python-version` when downloading the wheels (e.g. 3.12).
+#         `python3 -m virtualenv` uses the default python3 — if the server has
+#         multiple versions, call it explicitly (e.g. `python3.12 -m virtualenv`).
+python3 -m virtualenv venv
 source venv/bin/activate
 
 # Step 3: Install pinned setuptools version (versions 70+ exclude pkg_resources)
-pip install --force-reinstall --no-index --find-links /home/user/nexus_wheels "setuptools==69.5.1"
+pip install --force-reinstall --no-index --find-links ~/nexus_wheels "setuptools==69.5.1"
 
 # Upgrade pip itself (works offline)
 pip install --upgrade pip
@@ -364,7 +382,7 @@ pip install --upgrade pip
 # Offline install remaining packages from wheel files
 pip install \
     --no-index \
-    --find-links /home/user/nexus_wheels \
+    --find-links ~/nexus_wheels \
     mlflow==2.13.0 \
     tbparse==0.0.8 \
     tensorboard==2.16.2 \
@@ -374,7 +392,7 @@ pip install \
 ```
 
 > **Why `virtualenv`:**  
-> On Ubuntu/Debian, `python3.12-venv` is an apt package and cannot be transferred as a pip wheel.  
+> On Ubuntu/Debian, the `pythonX.Y-venv` package (e.g. `python3.12-venv`) ships via apt and cannot be transferred as a pip wheel.  
 > `virtualenv` is a pip package that can be transferred offline as a wheel, and its usage is identical to venv.
 
 ---
@@ -385,7 +403,10 @@ If Docker is installed on the GPU server, this method is the most reliable.
 
 #### B-1. On local machine — Write Dockerfile
 
-Create the following `Dockerfile` in the `nexus/` folder:
+Create the following `Dockerfile` in the `nexus/` folder. The base image's Python
+version is self-contained inside the container — it does **not** need to match
+the GPU server's system Python. Pick any 3.10+ tag that your code is tested on
+(`python:3.10-slim`, `python:3.11-slim`, `python:3.12-slim`, etc.).
 
 ```dockerfile
 FROM python:3.10-slim
@@ -427,18 +448,19 @@ ls -lh nexus-env.tar.gz
 #### B-3. Transfer image to GPU server
 
 ```bash
-scp nexus-env.tar.gz user@gpu-server:/home/user/
+scp nexus-env.tar.gz user@gpu-server:~/
 ```
 
 #### B-4. On GPU server — Load and run image
 
 ```bash
-# Load image
-docker load < /home/user/nexus-env.tar.gz
+# Load image (from the SSH-logged-in user's home directory)
+docker load < ~/nexus-env.tar.gz
 
-# Run container (mount nexus folder)
+# Run container (mount nexus folder). $HOME expands to the current user's home
+# before docker sees it — no need to hardcode /home/<name>.
 docker run --rm -it \
-    -v /home/user/nexus:/nexus \
+    -v "$HOME/nexus":/nexus \
     -p 5100:5100 \
     nexus-env:latest bash
 ```
@@ -465,7 +487,7 @@ Run all subsequent commands inside the container.
 ### 3-1. Verify installation
 
 ```bash
-cd /home/user/nexus
+cd ~/nexus
 source venv/bin/activate  # For Method A
 
 python -c "import mlflow; print('mlflow:', mlflow.__version__)"
@@ -559,12 +581,14 @@ On success, the run will appear in the NEXUS server's MLflow UI. The local state
 
 ```bash
 crontab -e
-# Add the following line (runs every 5 minutes):
-*/5 * * * * bash /home/user/nexus/scheduled_sync/sync_mlflow_to_server.sh \
+# Add the following line (runs every 5 minutes).
+# $HOME is set by cron to the crontab owner's home directory, so the same
+# line works for any user without editing /home/<name> paths.
+*/5 * * * * bash $HOME/nexus/scheduled_sync/sync_mlflow_to_server.sh \
     --experiment       robot_hand_rl \
     --remote           user@nexus-server:/data/mlflow_delta_inbox \
     --remote_nexus_dir /opt/nexus \
-    >> /home/user/nexus_sync.log 2>&1
+    >> $HOME/nexus_sync.log 2>&1
 ```
 
 ### 4-2. Pipeline B — One-time batch upload (post_upload validation)
@@ -586,7 +610,7 @@ See Phase 1-B (B-3, B-4) above for the full options reference and for re-running
 
 - [ ] `sync_mlflow_to_server.sh` manual run successful
 - [ ] Synced run confirmed in NEXUS server MLflow UI
-- [ ] Auto-run confirmed after cron registration (`cat /home/user/nexus_sync.log`)
+- [ ] Auto-run confirmed after cron registration (`cat ~/nexus_sync.log`)
 - [ ] (Optional) Pipeline B one-time upload succeeded with automatic verification
 
 ---
@@ -611,14 +635,13 @@ bash scheduled_sync/start_local_mlflow.sh
 
 ### ⚠️ `externally-managed-environment` error during `pip install`
 
-This error occurs on Python 3.12 + Ubuntu systems that block direct pip installation to the system Python (PEP 668).  
-Add the `--break-system-packages` flag when bootstrapping `virtualenv`:
+This error (PEP 668) is raised by distros that mark the system Python as externally managed — typically Ubuntu 23.04+ / Debian 12+ or any Python 3.11+ system install. Add the `--break-system-packages` flag when bootstrapping `virtualenv`:
 
 ```bash
-pip install --no-index --find-links /home/user/nexus_wheels --break-system-packages virtualenv
+pip install --no-index --find-links ~/nexus_wheels --break-system-packages virtualenv
 ```
 
-After creating and activating a virtual environment with `python3.12 -m virtualenv venv`,  
+After creating and activating a virtual environment (e.g. `python3 -m virtualenv venv`, or `python3.X -m virtualenv venv` to pin a specific version),  
 the venv's internal pip is used and this error will not occur again.
 
 ### ⚠️ `ModuleNotFoundError: No module named 'pkg_resources'`
@@ -627,14 +650,14 @@ Starting from setuptools version 70+, `pkg_resources` has been removed from whee
 Switch to the last stable version that includes `pkg_resources` (69.5.1):
 
 ```bash
-# On local machine: download pinned version
-pip download --platform manylinux2014_x86_64 --python-version 3.12 \
+# On local machine: download pinned version (uses GPU_PY / GPU_PLATFORM from A-1)
+pip download --platform "${GPU_PLATFORM}" --python-version "${GPU_PY}" \
     --only-binary=:all: -d ./nexus_wheels "setuptools==69.5.1"
 
-scp nexus_wheels/setuptools-69.5.1*.whl user@gpu-server:/home/user/nexus_wheels/
+scp nexus_wheels/setuptools-69.5.1*.whl user@gpu-server:~/nexus_wheels/
 
 # On GPU server: force reinstall
-pip install --force-reinstall --no-index --find-links /home/user/nexus_wheels "setuptools==69.5.1"
+pip install --force-reinstall --no-index --find-links ~/nexus_wheels "setuptools==69.5.1"
 
 # Verify
 python -c "import pkg_resources; print('OK')"
@@ -646,8 +669,8 @@ Some packages don't have binary wheels and require source compilation.
 Separate individual packages instead of using `--only-binary=:all:`:
 
 ```bash
-# Packages with binary wheels
-pip download --platform manylinux2014_x86_64 --python-version 3.12 \
+# Packages with binary wheels (uses GPU_PY / GPU_PLATFORM from A-1)
+pip download --platform "${GPU_PLATFORM}" --python-version "${GPU_PY}" \
     --only-binary=:all: -d ./nexus_wheels \
     mlflow==2.13.0 pandas rich virtualenv
 
