@@ -129,6 +129,8 @@ All GPU processes on the server share this single server via loopback HTTP — n
 |---|---|---|
 | Hyperparameters (`agent_cfg`) | Run start | Parameters tab |
 | Tags (researcher, task, seed …) | Run start | Tags tab |
+| `git_commit`, `git_dirty` tags | Run start | Tags tab |
+| `git_patch.diff` | Run start *(dirty tree only)* | `git/git_patch.diff` |
 | `env_cfg.yaml` | Run start | `configs/env_cfg.yaml` |
 | `reward_fn.py` | Run start | `configs/reward_fn.py` |
 | Metrics (loss, FPS, reward …) | Every step | Metrics tab |

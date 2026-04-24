@@ -197,7 +197,53 @@ pip install psutil pynvml
 
 ---
 
-## 5. Smoke Test — Advanced Mode
+## 5. Git Commit Tracking
+
+`MLflowLogger` automatically captures the git state of the training code at run
+start. No extra code is needed — it is on by default.
+
+### What gets recorded
+
+| MLflow location | Key | Value |
+|---|---|---|
+| Tags tab | `git_commit` | Full SHA of HEAD — e.g. `54696cb326bb...` |
+| Tags tab | `git_dirty` | `"false"` when tree is clean, `"true"` when there are uncommitted changes |
+| Artifacts | `git/git_patch.diff` | Full `git diff HEAD` output — **only present when `git_dirty = "true"`** |
+
+### Restoring a dirty-tree run
+
+If training was launched with uncommitted changes, the exact state can be
+recovered from any machine that has the base commit:
+
+```bash
+git checkout <git_commit>
+# download git_patch.diff from the MLflow run's Artifacts tab
+git apply git_patch.diff
+```
+
+### Opting out
+
+Pass `track_git=False` to suppress all git tags and artifacts — useful when
+training outside a git repo or in CI environments where the working tree is
+intentionally untracked:
+
+```python
+logger = MLflowLogger(
+    run_name="my_run",
+    ...
+    track_git=False,
+)
+```
+
+`make_logger()` forwards `track_git` transparently:
+
+```python
+logger = make_logger(mode="mlflow", ..., track_git=False)
+```
+
+---
+
+## 6. Smoke Test — Advanced Mode
 
 The smoke test (`tests/smoke_test.py`) runs only core tests by default. Pass `--advanced` to also validate the features described in this document.
 

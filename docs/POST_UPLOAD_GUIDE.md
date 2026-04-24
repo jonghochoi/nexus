@@ -110,11 +110,20 @@ otherwise (pass `--force` to bypass):
 
 ### Precedence (low → high)
 
-```
-builtin defaults  →  config file  →  --repeat-last (history)
-              →  run_meta.json (sim_run_id only)
-                      →  --tags k=v...  →  -i interactive input
-```
+| Priority | Source | Scope |
+|:---:|---|---|
+| 1 | Builtin defaults | all tags |
+| 2 | `~/.nexus/config.json` | all tags |
+| 3 | `--repeat-last` (history) | all tags |
+| 4 | `run_meta.json` | `sim_run_id` only |
+| 5 | `--tags k=v ...` | all tags |
+| 6 | `--git_commit HASH` | `git_commit` only |
+| 7 | `-i` interactive input | required tags |
+
+> **Note:** `--git_commit` is a convenience shorthand for `--tags git_commit=<hash>`.
+> Use it for post-hoc uploads where the training commit is known but the working
+> tree is no longer in that state. For scheduled-sync runs (Pipeline A), the commit
+> is captured automatically — no flag needed.
 
 ---
 
@@ -256,6 +265,7 @@ with open(log_dir / "run_meta.json", "w") as f:
 | `--run_name NAME` | MLflow run name (default: `{dirname}_{timestamp}`) |
 | `--tracking_uri URL` | MLflow server (default: from config) |
 | `--tags k=v ...` | Per-run tags, highest-priority source after `-i` |
+| `--git_commit HASH` | Git commit hash of the training code; stored as `git_commit` tag |
 | `--config PATH` | Alternate config file path |
 | `-i`, `--interactive` | Prompt for every required tag |
 | `--repeat-last` | Inherit experiment/run_name/tags from last history entry |
