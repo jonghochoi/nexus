@@ -22,8 +22,13 @@ MLRUNS_DIR="./mlruns_training"
 LOG_FILE="./mlflow_training.log"
 PID_FILE=".mlflow_local.pid"
 
-# Activate venv
-if [ -f "venv/bin/activate" ]; then
+# Activate venv — prefer the shared ~/.nexus/venv, fall back to a repo-local
+# ./venv for legacy installs.
+if [ -f "${HOME}/.nexus/venv/bin/activate" ]; then
+    # shellcheck disable=SC1091
+    source "${HOME}/.nexus/venv/bin/activate"
+elif [ -f "venv/bin/activate" ]; then
+    # shellcheck disable=SC1091
     source venv/bin/activate
 fi
 
@@ -41,7 +46,8 @@ mlflow server \
     --host 127.0.0.1 \
     --port $PORT \
     --backend-store-uri "$MLRUNS_DIR" \
-    --default-artifact-root "$MLRUNS_DIR" \
+    --artifacts-destination "$MLRUNS_DIR" \
+    --serve-artifacts \
     > "$LOG_FILE" 2>&1 &
 
 echo $! > "$PID_FILE"

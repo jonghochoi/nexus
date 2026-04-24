@@ -5,7 +5,7 @@ tests/smoke_test.py — NEXUS local validation script
 Automated validation script that runs identically on both local PC and GPU server.
 
 Prerequisites:
-  - nexus venv activated (source venv/bin/activate)
+  - nexus venv activated (source ~/.nexus/activate.sh, or `nexus-activate`)
   - MLflow server running (bash scheduled_sync/start_local_mlflow.sh)
 
 Usage:

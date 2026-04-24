@@ -213,8 +213,10 @@ Phase 3 ──── MLflow 중심 전환 (선택, 팀 합의 후)
 ```bash
 git clone https://github.com/jonghochoi/nexus.git
 cd nexus
-bash setup.sh
-source venv/bin/activate
+bash setup.sh --alias            # venv 는 ~/.nexus/venv 에 설치됩니다 (repo 외부)
+source ~/.bashrc
+nexus-activate                   # 어느 경로/터미널에서든 활성화 가능
+# alias 없이 쓰려면: source ~/.nexus/activate.sh
 ```
 
 ### 2️⃣ 완료된 실험 업로드 *(방식 B, 코드 수정 없음)*
