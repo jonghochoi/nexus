@@ -63,6 +63,10 @@ nexus/
 │   ├── export_delta.py             # [GPU Server] serialize new metrics only
 │   └── import_delta.py             # [MLflow server] import delta JSON
 │
+├── chart_settings/                 # Persist MLflow UI column/chart settings
+│   ├── chart_settings.json         # Team-standard column and chart configuration
+│   └── apply_chart_settings.py     # CLI: apply / show / bookmarklet
+│
 ├── tests/
 │   └── smoke_test.py               # End-to-end local validation script
 │
@@ -73,7 +77,8 @@ nexus/
 │   ├── MLFLOW_SERVER_SETUP.md      # MLflow server setup guide
 │   ├── EXPERIMENT_STANDARD_KO.md   # Team experiment management standard (Korean)
 │   ├── INTRO_KO.md                 # Onboarding document (Korean)
-│   └── ADVANCED_FEATURES.md        # Advanced features guide (opt-in)
+│   ├── ADVANCED_FEATURES.md        # Advanced features guide (opt-in)
+│   └── CHART_SETTINGS_GUIDE.md     # Persist MLflow chart/column settings across sessions
 │
 ├── brand.py                        # ASCII art, sigils, color constants
 ├── setup.sh
@@ -291,6 +296,7 @@ For full details on config, interactive mode, history, `sim_run_id` auto-detecti
 | [`docs/MLFLOW_SERVER_SETUP.md`](docs/MLFLOW_SERVER_SETUP.md) | MLflow server setup on LAN |
 | [`docs/EXPERIMENT_STANDARD_KO.md`](docs/EXPERIMENT_STANDARD_KO.md) | Team experiment management standard |
 | [`docs/ADVANCED_FEATURES.md`](docs/ADVANCED_FEATURES.md) | Advanced features — SweepLogger, RL metrics, Model Registry, system metrics, git tracking |
+| [`docs/CHART_SETTINGS_GUIDE.md`](docs/CHART_SETTINGS_GUIDE.md) | Persist MLflow chart/column settings across browser sessions |
 | [`brand.py`](brand.py) | ASCII art, sigils, and color constants |
 
 ---

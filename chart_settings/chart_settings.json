@@ -1,0 +1,63 @@
+{
+  "version": "1.0",
+  "experiments": {
+    "robot_hand_rl": {
+      "visible_columns": {
+        "tags": ["researcher", "task", "seed", "hardware", "isaac_lab_version", "physx_solver"],
+        "params": [],
+        "metrics": [
+          "train/reward_mean",
+          "eval/reward_mean",
+          "rl/success_rate",
+          "rl/explained_variance",
+          "rl/approx_kl"
+        ]
+      },
+      "charts": [
+        {
+          "title": "Training Reward",
+          "type": "line",
+          "metrics": ["train/reward_mean"],
+          "x_axis": "step",
+          "group_by_tag": "researcher"
+        },
+        {
+          "title": "Eval Reward",
+          "type": "line",
+          "metrics": ["eval/reward_mean"],
+          "x_axis": "step",
+          "group_by_tag": "task"
+        },
+        {
+          "title": "Success Rate",
+          "type": "line",
+          "metrics": ["rl/success_rate"],
+          "x_axis": "step",
+          "group_by_tag": "researcher"
+        },
+        {
+          "title": "RL Diagnostics",
+          "type": "line",
+          "metrics": ["rl/approx_kl", "rl/explained_variance", "rl/clip_fraction"],
+          "x_axis": "step"
+        }
+      ]
+    },
+    "real_robot_eval": {
+      "visible_columns": {
+        "tags": ["researcher", "task", "hardware", "sim_run_id"],
+        "params": [],
+        "metrics": ["eval/reward_mean", "rl/success_rate"]
+      },
+      "charts": [
+        {
+          "title": "Eval Reward",
+          "type": "line",
+          "metrics": ["eval/reward_mean"],
+          "x_axis": "step",
+          "group_by_tag": "researcher"
+        }
+      ]
+    }
+  }
+}
