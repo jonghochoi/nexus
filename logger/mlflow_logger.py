@@ -9,6 +9,8 @@ Key behaviors:
   - Creates or resumes an MLflow run by run_name (crash-safe)
   - Logs hyperparameters once at run start
   - Logs env_cfg and reward_fn as artifacts at run start
+  - Captures git_commit / git_dirty tags at run start (track_git=True by default)
+  - Uploads git diff HEAD as artifacts/git/git_patch.diff when working tree is dirty
   - Marks run FINISHED on close() or process exit
 """
 
@@ -26,6 +28,8 @@ import mlflow
 import mlflow.entities
 from mlflow.entities import Metric
 from mlflow.tracking import MlflowClient
+
+from git_utils import get_git_info, get_git_patch
 
 _BATCH_SIZE = 1000   # MLflow hard limit per log_batch() call
 
@@ -49,6 +53,7 @@ class MLflowLogger:
         env_cfg_path: Optional[str] = None,
         reward_fn_path: Optional[str] = None,
         parent_run_id: Optional[str] = None,
+        track_git: bool = True,  # set False if not inside a git repo or to suppress git tags
     ):
         self.run_name = run_name
         self.tracking_uri = tracking_uri
@@ -62,12 +67,19 @@ class MLflowLogger:
         mlflow.set_experiment(experiment_name)
         self._client = MlflowClient(tracking_uri=tracking_uri)
 
-        self._run_id = self._get_or_create_run(experiment_name, tags or {})
+        merged_tags = dict(tags or {})
+        if track_git:
+            merged_tags.update(get_git_info())
+        self._run_id = self._get_or_create_run(experiment_name, merged_tags)
+        self._track_git = track_git
 
         if params:
             self._log_params(params)
 
         self._log_run_artifacts(env_cfg_path, reward_fn_path)
+
+        if track_git:
+            self._log_git_patch()
 
         atexit.register(self.close)
 
@@ -222,6 +234,18 @@ class MLflowLogger:
         for path in (env_cfg_path, reward_fn_path):
             if path:
                 self.log_artifact(path, artifact_path="configs")
+
+    def _log_git_patch(self) -> None:
+        """Upload git diff HEAD as artifacts/git/git_patch.diff when the tree is dirty."""
+        patch = get_git_patch()
+        if not patch:
+            return
+        with tempfile.TemporaryDirectory() as tmp:
+            patch_path = os.path.join(tmp, "git_patch.diff")
+            with open(patch_path, "w") as f:
+                f.write(patch)
+            self._client.log_artifact(self._run_id, patch_path, "git")
+        print("[MLflowLogger] Dirty working tree detected — git patch saved to artifacts/git/git_patch.diff")
 
     def _log_params(self, params: dict) -> None:
         flat = self._flatten(params)

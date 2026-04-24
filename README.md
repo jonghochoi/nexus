@@ -47,6 +47,7 @@ nexus/
 │   ├── dual_logger.py              # TensorBoard + MLflow simultaneously
 │   ├── mlflow_logger.py            # MLflow-only logger
 │   ├── tb_logger.py                # TensorBoard wrapper (legacy compat)
+│   ├── git_utils.py                # Git commit/dirty-state capture (auto-called at run start)
 │   ├── sweep_logger.py             # [Advanced] HP sweep parent run
 │   ├── model_registry.py           # [Advanced] Model Registry operations
 │   ├── rl_metrics.py               # [Advanced] RL diagnostic metric helpers
@@ -269,8 +270,12 @@ For full details on config, interactive mode, history, `sim_run_id` auto-detecti
 | `task` | `in_hand_reorientation` | ✅ |
 | `hardware` | `robot_22dof` | ✅ |
 | `sim_run_id` | `<upstream_run_id>` | ✅ *(real-robot eval only)* |
+| `git_commit` | `54696cb326bb...` | auto *(Pipeline A)* |
+| `git_dirty` | `false` / `true` | auto *(Pipeline A)* |
 
 > 💡 `sim_run_id` links a real-robot evaluation run back to the exact sim policy deployed — critical for Sim-to-Real failure tracing.
+
+> 💡 `git_commit` and `git_dirty` are set automatically by `MLflowLogger` (Pipeline A). For Pipeline B post-uploads, pass `--git_commit <hash>` manually. When `git_dirty=true`, the full diff is saved as `artifacts/git/git_patch.diff`. See [`docs/ADVANCED_FEATURES.md`](docs/ADVANCED_FEATURES.md#5-git-commit-tracking) for details.
 
 ---
 
@@ -285,7 +290,7 @@ For full details on config, interactive mode, history, `sim_run_id` auto-detecti
 | [`docs/VALIDATION_GUIDE.md`](docs/VALIDATION_GUIDE.md) | Step-by-step validation guide |
 | [`docs/MLFLOW_SERVER_SETUP.md`](docs/MLFLOW_SERVER_SETUP.md) | MLflow server setup on LAN |
 | [`docs/EXPERIMENT_STANDARD_KO.md`](docs/EXPERIMENT_STANDARD_KO.md) | Team experiment management standard |
-| [`docs/ADVANCED_FEATURES.md`](docs/ADVANCED_FEATURES.md) | Advanced features — SweepLogger, RL metrics, Model Registry, system metrics |
+| [`docs/ADVANCED_FEATURES.md`](docs/ADVANCED_FEATURES.md) | Advanced features — SweepLogger, RL metrics, Model Registry, system metrics, git tracking |
 | [`brand.py`](brand.py) | ASCII art, sigils, and color constants |
 
 ---

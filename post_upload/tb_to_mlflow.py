@@ -129,6 +129,14 @@ def parse_args(defaults: dict):
         help="Inherit experiment/run_name/tags from the most recent upload "
              "(CLI flags and -i still override)",
     )
+    parser.add_argument(
+        "--git_commit",
+        type=str,
+        default=None,
+        metavar="HASH",
+        help="Git commit hash of the training code (e.g. abc1234); "
+             "stored as git_commit tag",
+    )
     return parser.parse_args()
 
 
@@ -493,6 +501,9 @@ def main():
         tags["sim_run_id"] = sim
 
     tags.update(parse_extra_tags(args.tags))
+
+    if args.git_commit:
+        tags["git_commit"] = args.git_commit
 
     required = required_tags(experiment)
 
