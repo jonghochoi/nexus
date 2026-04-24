@@ -243,7 +243,31 @@ logger = make_logger(mode="mlflow", ..., track_git=False)
 
 ---
 
-## 6. Smoke Test — Advanced Mode
+## 6. Chart Settings — Persistent Column Layout
+
+MLflow stores the runs-table column visibility (which tags, params, and metrics are shown) in the **browser's localStorage**. This means the layout resets whenever you open a fresh browser or switch machines.
+
+`chart_settings/` solves this by storing the desired layout as MLflow **experiment tags** — permanently, on the server — and providing a one-click bookmarklet to restore it in any browser.
+
+```bash
+# 1. Edit chart_settings/chart_settings.json to define your column layout
+# 2. Save it to the MLflow server (run once after every edit)
+python chart_settings/apply_chart_settings.py apply
+
+# 3. Generate a browser bookmarklet to restore localStorage
+python chart_settings/apply_chart_settings.py bookmarklet
+
+# 4. Verify what is currently stored on the server
+python chart_settings/apply_chart_settings.py show
+```
+
+The bookmarklet fetches the stored settings from the MLflow API and writes them to localStorage, then reloads the page. Paste it into the browser console (F12 > Console), or save it as a browser bookmark for one-click restore.
+
+→ Full workflow and persistence details: [`CHART_SETTINGS_GUIDE.md`](CHART_SETTINGS_GUIDE.md)
+
+---
+
+## 7. Smoke Test — Advanced Mode
 
 The smoke test (`tests/smoke_test.py`) runs only core tests by default. Pass `--advanced` to also validate the features described in this document.
 
