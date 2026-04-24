@@ -31,8 +31,34 @@ class TBLogger:
         self._writer.add_image(tag, img_tensor, global_step)
 
     def log_artifact(self, local_path: str, artifact_path: Optional[str] = None) -> None:
-        # TensorBoard does not support artifacts — silently skip
-        pass
+        pass  # TensorBoard does not support artifacts
+
+    def log_checkpoint(self, local_path: str, kind: str) -> None:
+        pass  # TensorBoard does not support checkpoint artifacts
+
+    def log_rl_metrics(
+        self,
+        step: int,
+        *,
+        explained_variance: Optional[float] = None,
+        approx_kl: Optional[float] = None,
+        clip_fraction: Optional[float] = None,
+        grad_norm: Optional[float] = None,
+        entropy: Optional[float] = None,
+        success_rate: Optional[float] = None,
+    ) -> None:
+        """Log RL diagnostic metrics under the 'rl/' namespace."""
+        mapping = {
+            "rl/explained_variance": explained_variance,
+            "rl/approx_kl": approx_kl,
+            "rl/clip_fraction": clip_fraction,
+            "rl/grad_norm": grad_norm,
+            "rl/entropy": entropy,
+            "rl/success_rate": success_rate,
+        }
+        for tag, value in mapping.items():
+            if value is not None:
+                self.add_scalar(tag, value, step)
 
     def close(self) -> None:
         self._writer.close()

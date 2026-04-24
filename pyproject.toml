@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nexus-logger"
+version = "0.1.0"
+description = "Unified RL logging package: MLflow + TensorBoard"
+dependencies = ["mlflow>=2.0", "tensorboardX"]
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["logger*"]
