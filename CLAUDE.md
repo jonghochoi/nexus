@@ -101,9 +101,33 @@ Several concepts are reflected in multiple places. Change one without auditing t
 - **Changing the default URIs (`5100`, `5000`)** — defaults are hardcoded across `logger/`, `scheduled_sync/*`, `post_upload/`, `chart_settings/apply_chart_settings.py`, and the README diagrams. Grep for `5100` and `5000` and change them in concert.
 - **New team-wide chart or column** — edit `chart_settings/chart_settings.json`, then run `python chart_settings/apply_chart_settings.py apply` against the central server. The bookmarklet picks up the new payload automatically; no JS edit needed.
 
+## Comment & docstring style (unicode banners)
+
+This repo deliberately uses unicode box-drawing and em-dash characters in comments. The general "default to no comments" guidance does **not** apply here — match the surrounding style and never strip existing comments when editing. New files must follow the same conventions.
+
+| Where | Character | Example |
+|------|-----------|---------|
+| Module docstring banner | `=` (U+003D) under the path, same length | `logger/mlflow_logger.py`<br>`=======================` |
+| Section divider inside a file | `─` (U+2500 BOX DRAWINGS LIGHT HORIZONTAL) | `# ── Public interface ──────────────────────────` |
+| Inline section marker (no trailing rule) | `─` (U+2500), title only | `# ── Step 1: Export delta from local MLflow` |
+| Label / description separator, "why" explanations | `—` (U+2014 EM DASH) | `make_logger  — factory function`<br>`# Dirty tree detected — git patch saved` |
+| ASCII directory tree in docstrings | `└──` `├──` (U+2514, U+251C) | `└── events.out.tfevents.xxxxx` |
+
+Concrete rules when authoring or editing a file:
+
+1. **Every Python module starts with a docstring** that opens with `module/relative_path.py`, then a line of `=` exactly as long as that path, then a one-paragraph summary. See `logger/mlflow_logger.py:1`, `post_upload/tb_to_mlflow.py:1`, `scheduled_sync/export_delta.py:1`.
+2. **Section dividers** use `# ── Title ──...` — pad the trailing `─` run so the comment ends near column 76 (look at neighbouring dividers in the same file and match width). Numbered top-level sections (`# ── 1. Argument parsing ──...`) appear in the larger CLI scripts (`tb_to_mlflow.py`, `verify_upload.py`).
+3. **Class- or method-internal sections** use the same `# ──` style indented to match the surrounding code (see `MLflowLogger` at `logger/mlflow_logger.py:93,191`).
+4. **Use em dash `—`, not ` - `**, when joining a label to its explanation in docstrings or in "why" comments. Same for prose punctuation inside comments. Hyphen-minus `-` stays for compound words and CLI flags only.
+5. **Short "why" comments stay ASCII** (e.g. `# MLflow hard limit per log_batch() call`, `# ~50x faster than iterrows`). Don't rewrite them with unicode.
+6. **Shell scripts** follow the same divider style — see `scheduled_sync/sync_mlflow_to_server.sh` for `# ── Step N: ...` markers.
+7. When introducing a new file, copy the header of the closest sibling (e.g. a new `logger/foo.py` should mirror `logger/rl_metrics.py`'s opening) rather than inventing a new layout.
+
+Audit hint: `grep -nE "^# (-{4,}|={4,})" path/to/file.py` should return nothing. ASCII rule lines mean someone bypassed this convention.
+
 ## Things to be careful about
 
-- This repo keeps module-level docstrings (`module/name.py` + `===` banner pattern), `# ── section ─` dividers, and short "why" comments (e.g. `"MLflow hard limit per log_batch() call"`, `"~50x faster than iterrows"`). The general "default to no comments" guidance does **not** apply here — match the surrounding style and don't strip existing comments when editing.
+- See the dedicated **Comment & docstring style** section above before editing or creating any source file — the unicode banner / divider conventions are mandatory in this repo.
 - `setup.sh` pins `mlflow==2.13.0`, `tensorboard==2.16.2`, `tbparse==0.0.8`. The `tbparse` column-name handling in `tb_to_mlflow.parse_tfevents` and `verify_upload.fetch_tb_metrics` already has a fallback for older `tbparse` (`tags` → `tag`) — preserve it if upgrading.
 - Do not add `git push` / `scp` / cron-installation steps to `setup.sh`. The deployment is intentionally split: setup.sh only builds the venv, and operators wire up cron / SSH keys themselves following `docs/MLFLOW_SERVER_SETUP.md`.
 - `tests/smoke_test.py` writes real runs to a real MLflow server under the experiment name `nexus_smoke_test`. Don't point it at a production tracking URI without intending to.
