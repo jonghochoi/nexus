@@ -18,7 +18,7 @@ import argparse
 import sys
 import time
 
-# ─── ANSI colors ─────────────────────────────────────────────────────────────
+# ── ANSI colors ──────────────────────────────────────────────────────────────
 GREEN  = "\033[32m"
 RED    = "\033[31m"
 YELLOW = "\033[33m"
@@ -50,7 +50,7 @@ def info(msg: str) -> None:
     print(f"  {INFO}  {msg}")
 
 
-# ─── Test functions ───────────────────────────────────────────────────────────
+# ── Test functions ───────────────────────────────────────────────────────────
 
 def check_imports() -> bool:
     """1. Check required package imports"""
@@ -260,7 +260,7 @@ def test_dual_logger(tracking_uri: str) -> bool:
         return False
 
 
-# ─── Advanced tests ──────────────────────────────────────────────────────────
+# ── Advanced tests ───────────────────────────────────────────────────────────
 
 def test_rl_metrics_helpers() -> bool:
     """6. rl_metrics helper function accuracy test"""
@@ -406,7 +406,7 @@ def test_sweep_logger(tracking_uri: str) -> bool:
         return False
 
 
-# ─── Main ─────────────────────────────────────────────────────────────────────
+# ── Main ─────────────────────────────────────────────────────────────────────
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="NEXUS smoke test")

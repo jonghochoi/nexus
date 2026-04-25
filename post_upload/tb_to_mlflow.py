@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-nexus.py
-===============
-TensorBoard tfevents -> MLflow conversion uploader (Method B)
+post_upload/tb_to_mlflow.py
+===========================
+TensorBoard tfevents -> MLflow conversion uploader (Pipeline B)
 
 Usage:
-    python nexus.py --tb_dir ./logs/run_001 --experiment robot_hand_grasp --run_name ppo_v1
+    python tb_to_mlflow.py --tb_dir ./logs/run_001 --experiment robot_hand_grasp --run_name ppo_v1
 
 Expected tfevents directory structure:
     logs/
@@ -44,9 +44,7 @@ console = Console()
 BATCH_SIZE = 1000
 
 
-# ──────────────────────────────────────────────
-# 1. Argument parsing
-# ──────────────────────────────────────────────
+# ── 1. Argument parsing ──────────────────────────────────────────────────────
 def parse_args(defaults: dict):
     """Build the argument parser, using `defaults` (from config) as fallbacks."""
     parser = argparse.ArgumentParser(
@@ -140,9 +138,7 @@ def parse_args(defaults: dict):
     return parser.parse_args()
 
 
-# ──────────────────────────────────────────────
-# 2. tfevents parsing
-# ──────────────────────────────────────────────
+# ── 2. tfevents parsing ──────────────────────────────────────────────────────
 def parse_tfevents(tb_dir: str) -> pd.DataFrame:
     """
     Parse tfevents -> DataFrame using tbparse.
@@ -209,9 +205,7 @@ def parse_tfevents(tb_dir: str) -> pd.DataFrame:
     return df
 
 
-# ──────────────────────────────────────────────
-# 3. Preview parsed results
-# ──────────────────────────────────────────────
+# ── 3. Preview parsed results ────────────────────────────────────────────────
 def preview_dataframe(df: pd.DataFrame):
     """Print a summary table of parsed metrics"""
     summary = (
@@ -255,9 +249,7 @@ def preview_dataframe(df: pd.DataFrame):
     )
 
 
-# ──────────────────────────────────────────────
-# 4. Tag parsing utility
-# ──────────────────────────────────────────────
+# ── 4. Tag parsing utility ───────────────────────────────────────────────────
 def parse_extra_tags(tag_list: list) -> dict:
     """Convert a list of 'key=value' strings to a dict"""
     tags = {}
@@ -317,9 +309,7 @@ def detect_sim_run_id(tb_dir: str) -> Optional[str]:
     return str(value) if value else None
 
 
-# ──────────────────────────────────────────────
-# 5. MLflow upload
-# ──────────────────────────────────────────────
+# ── 5. MLflow upload ─────────────────────────────────────────────────────────
 def upload_to_mlflow(
     df: pd.DataFrame,
     tb_dir: str,
@@ -416,9 +406,7 @@ def upload_to_mlflow(
     return run_id
 
 
-# ──────────────────────────────────────────────
-# 6. Metric name sanitization
-# ──────────────────────────────────────────────
+# ── 6. Metric name sanitization ──────────────────────────────────────────────
 def sanitize_metric_name(name: str) -> str:
     """
     Apply MLflow metric naming rules:
@@ -429,9 +417,7 @@ def sanitize_metric_name(name: str) -> str:
     return name.replace(" ", "_").replace(":", "-")
 
 
-# ──────────────────────────────────────────────
-# 7. Main
-# ──────────────────────────────────────────────
+# ── 7. Main ──────────────────────────────────────────────────────────────────
 def _preparse_config_path() -> Optional[str]:
     """Scan sys.argv for --config so we can load the config before argparse
     builds its defaults. Returns the path if present, else None."""
