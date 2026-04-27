@@ -18,9 +18,10 @@
 set -e
 
 PORT=5100
-MLRUNS_DIR="./mlruns_training"
-LOG_FILE="./mlflow_training.log"
-PID_FILE=".mlflow_local.pid"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MLRUNS_DIR="${SCRIPT_DIR}/mlruns_training"
+LOG_FILE="${SCRIPT_DIR}/mlflow_training.log"
+PID_FILE="${SCRIPT_DIR}/.mlflow_local.pid"
 
 # Activate venv — prefer the shared ~/.nexus/venv, fall back to a repo-local
 # ./venv for legacy installs.
