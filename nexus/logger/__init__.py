@@ -1,6 +1,6 @@
 """
-logger/
-=======
+nexus/logger/
+=============
 Unified logging package for RL training.
 
 Core exports:
@@ -10,10 +10,10 @@ Core exports:
     TBLogger     — TensorBoard only (legacy compatibility)
 
 Advanced features (explicit import required):
-    from logger.sweep_logger   import SweepLogger
-    from logger.model_registry import ModelRegistry
-    from logger.system_metrics import SystemMetricsLogger
-    from logger                import rl_metrics
+    from nexus.logger.sweep_logger   import SweepLogger
+    from nexus.logger.model_registry import ModelRegistry
+    from nexus.logger.system_metrics import SystemMetricsLogger
+    from nexus.logger                import rl_metrics
 
     See docs/ADVANCED_FEATURES.md for usage guide.
 """

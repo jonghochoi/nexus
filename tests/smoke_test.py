@@ -76,21 +76,21 @@ def check_imports() -> bool:
     # logger package (nexus internal module) — core
     try:
         sys.path.insert(0, ".")
-        from logger import make_logger, MLflowLogger, DualLogger, TBLogger
-        ok("logger (nexus) core — make_logger, MLflowLogger, DualLogger, TBLogger")
+        from nexus.logger import make_logger, MLflowLogger, DualLogger, TBLogger
+        ok("nexus.logger core — make_logger, MLflowLogger, DualLogger, TBLogger")
     except ImportError as e:
-        fail(f"logger (nexus) core — {e}")
+        fail(f"nexus.logger core — {e}")
         all_ok = False
 
     # logger advanced features — explicit import paths
     try:
-        from logger.sweep_logger   import SweepLogger    # noqa: F401
-        from logger.model_registry import ModelRegistry  # noqa: F401
-        from logger.system_metrics import SystemMetricsLogger  # noqa: F401
-        from logger                import rl_metrics     # noqa: F401
-        ok("logger (nexus) advanced — SweepLogger, ModelRegistry, SystemMetricsLogger, rl_metrics")
+        from nexus.logger.sweep_logger   import SweepLogger    # noqa: F401
+        from nexus.logger.model_registry import ModelRegistry  # noqa: F401
+        from nexus.logger.system_metrics import SystemMetricsLogger  # noqa: F401
+        from nexus.logger                import rl_metrics     # noqa: F401
+        ok("nexus.logger advanced — SweepLogger, ModelRegistry, SystemMetricsLogger, rl_metrics")
     except ImportError as e:
-        fail(f"logger (nexus) advanced — {e}")
+        fail(f"nexus.logger advanced — {e}")
         all_ok = False
 
     return all_ok
@@ -120,7 +120,7 @@ def test_mlflow_logger(tracking_uri: str) -> bool:
     section("3. MLflowLogger Logging Test")
     try:
         sys.path.insert(0, ".")
-        from logger import MLflowLogger
+        from nexus.logger import MLflowLogger
 
         run_name = f"smoke_test_{int(time.time())}"
         info(f"Creating test run: {run_name}")
@@ -198,7 +198,7 @@ def test_make_logger_factory(tracking_uri: str) -> bool:
     section("4. make_logger Factory Test")
     try:
         sys.path.insert(0, ".")
-        from logger import make_logger
+        from nexus.logger import make_logger
 
         run_name = f"factory_test_{int(time.time())}"
         logger = make_logger(
@@ -227,7 +227,7 @@ def test_dual_logger(tracking_uri: str) -> bool:
     try:
         import tempfile, os
         sys.path.insert(0, ".")
-        from logger import make_logger
+        from nexus.logger import make_logger
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             run_name = f"dual_test_{int(time.time())}"
@@ -268,7 +268,7 @@ def test_rl_metrics_helpers() -> bool:
     try:
         import numpy as np
         sys.path.insert(0, ".")
-        from logger import rl_metrics
+        from nexus.logger import rl_metrics
 
         returns = np.array([1.0, 2.0, 3.0, 4.0])
         values  = np.array([1.0, 2.0, 3.0, 4.0])
@@ -306,7 +306,7 @@ def test_rl_metrics_logging(tracking_uri: str) -> bool:
     section("7. RL Metrics Logging (log_rl_metrics)")
     try:
         sys.path.insert(0, ".")
-        from logger import MLflowLogger
+        from nexus.logger import MLflowLogger
 
         run_name = f"rl_metrics_test_{int(time.time())}"
         logger = MLflowLogger(
@@ -357,7 +357,7 @@ def test_tb_log_rl_metrics() -> bool:
     try:
         import tempfile
         sys.path.insert(0, ".")
-        from logger import TBLogger
+        from nexus.logger import TBLogger
         from tbparse import SummaryReader
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -402,7 +402,7 @@ def test_dual_log_rl_metrics_fanout(tracking_uri: str) -> bool:
     try:
         import tempfile
         sys.path.insert(0, ".")
-        from logger import make_logger
+        from nexus.logger import make_logger
         from tbparse import SummaryReader
 
         run_name = f"dual_rl_metrics_{int(time.time())}"
@@ -477,7 +477,7 @@ def test_omegaconf_flatten(tracking_uri: str) -> bool:
             return True
 
         sys.path.insert(0, ".")
-        from logger import MLflowLogger
+        from nexus.logger import MLflowLogger
 
         cfg = OmegaConf.create({
             "lr": 1e-3,
@@ -526,8 +526,8 @@ def test_sweep_logger(tracking_uri: str) -> bool:
     section("11. SweepLogger (Parent-Child Runs)")
     try:
         sys.path.insert(0, ".")
-        from logger.sweep_logger import SweepLogger
-        from logger import MLflowLogger
+        from nexus.logger.sweep_logger import SweepLogger
+        from nexus.logger import MLflowLogger
 
         sweep_name = f"smoke_sweep_{int(time.time())}"
         sweep = SweepLogger(

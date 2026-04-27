@@ -1,6 +1,6 @@
 """
-logger/rl_metrics.py
-====================
+nexus/logger/rl_metrics.py
+==========================
 Pure NumPy helper functions for common RL diagnostic metrics.
 """
 

@@ -155,10 +155,10 @@ PPO.write_stats()
 
 | Component | Location | Purpose |
 |---|---|---|
-| `make_logger()` | `logger/` | 🏭 Factory: returns DualLogger / MLflowLogger / TBLogger |
-| `DualLogger` | `logger/dual_logger.py` | 🔀 Forwards calls to TB + MLflow simultaneously |
-| `MLflowLogger` | `logger/mlflow_logger.py` | 📊 Buffers + flushes to local MLflow via `log_batch()` |
-| `TBLogger` | `logger/tb_logger.py` | 📈 Thin `SummaryWriter` wrapper |
+| `make_logger()` | `nexus/logger/` | 🏭 Factory: returns DualLogger / MLflowLogger / TBLogger |
+| `DualLogger` | `nexus/logger/dual_logger.py` | 🔀 Forwards calls to TB + MLflow simultaneously |
+| `MLflowLogger` | `nexus/logger/mlflow_logger.py` | 📊 Buffers + flushes to local MLflow via `log_batch()` |
+| `TBLogger` | `nexus/logger/tb_logger.py` | 📈 Thin `SummaryWriter` wrapper |
 | `start_local_mlflow.sh` | `scheduled_sync/` | 🚀 Starts local MLflow on GPU Server (loopback) |
 | `sync_mlflow_to_server.sh` | `scheduled_sync/` | 🔄 Orchestrates delta export → SCP → import |
 | `export_delta.py` | `scheduled_sync/` | 📦 Serializes only new metric points per run/tag |

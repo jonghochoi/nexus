@@ -1,6 +1,6 @@
 """
-logger/system_metrics.py
-=========================
+nexus/logger/system_metrics.py
+==============================
 SystemMetricsLogger: background thread that periodically logs system resource metrics.
 
 Requires optional dependencies: psutil (CPU/RAM), pynvml or nvidia-smi (GPU).

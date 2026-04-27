@@ -6,17 +6,17 @@
 
 ## Import Pattern
 
-Advanced features are **not** exported from `logger` by default. Each module must be imported explicitly:
+Advanced features are **not** exported from `nexus.logger` by default. Each module must be imported explicitly:
 
 ```python
 # Core — always available
-from logger import make_logger, MLflowLogger, DualLogger
+from nexus.logger import make_logger, MLflowLogger, DualLogger
 
 # Advanced — explicit import required
-from logger.sweep_logger   import SweepLogger
-from logger.model_registry import ModelRegistry
-from logger.system_metrics import SystemMetricsLogger
-from logger                import rl_metrics          # module, not a class
+from nexus.logger.sweep_logger   import SweepLogger
+from nexus.logger.model_registry import ModelRegistry
+from nexus.logger.system_metrics import SystemMetricsLogger
+from nexus.logger                import rl_metrics          # module, not a class
 ```
 
 ---
@@ -26,8 +26,8 @@ from logger                import rl_metrics          # module, not a class
 Groups multiple training runs under a single parent run in the MLflow UI tree. Useful when running a grid search or Optuna sweep.
 
 ```python
-from logger.sweep_logger import SweepLogger
-from logger import make_logger
+from nexus.logger.sweep_logger import SweepLogger
+from nexus.logger import make_logger
 
 sweep = SweepLogger(
     sweep_name="ppo_lr_sweep",
@@ -87,7 +87,7 @@ Keys logged to MLflow: `rl/explained_variance`, `rl/approx_kl`, `rl/clip_fractio
 Compute the values before logging them:
 
 ```python
-from logger import rl_metrics
+from nexus.logger import rl_metrics
 import numpy as np
 
 ev = rl_metrics.explained_variance(value_preds, returns)
@@ -137,7 +137,7 @@ logger.promote_model(
 ### 3c. `ModelRegistry` — querying the registry
 
 ```python
-from logger.model_registry import ModelRegistry
+from nexus.logger.model_registry import ModelRegistry
 
 registry = ModelRegistry(tracking_uri="http://127.0.0.1:5100")
 
@@ -166,7 +166,7 @@ registry.set_sim_to_real_link(
 Spawns a daemon thread that periodically logs CPU, RAM, and GPU memory to MLflow without blocking training.
 
 ```python
-from logger.system_metrics import SystemMetricsLogger
+from nexus.logger.system_metrics import SystemMetricsLogger
 
 logger = make_logger(mode="mlflow", ...)
 sys_logger = SystemMetricsLogger(logger, interval_seconds=30)

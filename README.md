@@ -42,16 +42,17 @@ Dexterous manipulation demands running hundreds of experiments — reward shapin
 ```
 nexus/
 │
-├── logger/                         # Unified logging package
-│   ├── __init__.py                 # make_logger() factory (core exports only)
-│   ├── dual_logger.py              # TensorBoard + MLflow simultaneously
-│   ├── mlflow_logger.py            # MLflow-only logger
-│   ├── tb_logger.py                # TensorBoard wrapper (legacy compat)
-│   ├── git_utils.py                # Git commit/dirty-state capture (auto-called at run start)
-│   ├── sweep_logger.py             # [Advanced] HP sweep parent run
-│   ├── model_registry.py           # [Advanced] Model Registry operations
-│   ├── rl_metrics.py               # [Advanced] RL diagnostic metric helpers
-│   └── system_metrics.py           # [Advanced] Background CPU/GPU logging
+├── nexus/                          # Importable Python package (`from nexus.logger import ...`)
+│   └── logger/                     # Unified logging package
+│       ├── __init__.py             # make_logger() factory (core exports only)
+│       ├── dual_logger.py          # TensorBoard + MLflow simultaneously
+│       ├── mlflow_logger.py        # MLflow-only logger
+│       ├── tb_logger.py            # TensorBoard wrapper (legacy compat)
+│       ├── git_utils.py            # Git commit/dirty-state capture (auto-called at run start)
+│       ├── sweep_logger.py         # [Advanced] HP sweep parent run
+│       ├── model_registry.py       # [Advanced] Model Registry operations
+│       ├── rl_metrics.py           # [Advanced] RL diagnostic metric helpers
+│       └── system_metrics.py       # [Advanced] Background CPU/GPU logging
 │
 ├── post_upload/                    # Upload after training
 │   ├── tb_to_mlflow.py             # Full tfevents → MLflow batch upload

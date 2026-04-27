@@ -24,4 +24,4 @@ server = ["mlflow>=2.0,<3"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["logger*"]
+include = ["nexus*"]

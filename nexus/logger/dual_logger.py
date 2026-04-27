@@ -1,6 +1,6 @@
 """
-logger/dual_logger.py
-=====================
+nexus/logger/dual_logger.py
+===========================
 DualLogger: writes to TensorBoard AND MLflow simultaneously.
 
 This is the recommended logger for the transition period.
@@ -8,7 +8,7 @@ Once the team is comfortable with MLflow, switch to MLflowLogger alone.
 
 Usage in PPO.__init__():
 
-    from logger import make_logger
+    from nexus.logger import make_logger
 
     self.writer = make_logger(
         mode="dual",           # "dual" | "mlflow" | "tensorboard"
