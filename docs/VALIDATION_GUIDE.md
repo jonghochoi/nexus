@@ -553,17 +553,27 @@ After training starts, verify that metrics are accumulating in real time in the 
 
 ### 4-1. Pipeline A — Delta Sync (MLflow incremental)
 
-#### One-time setup — `~/.nexus/sync_config.json`
+#### One-time setup — sync config file(s)
 
-The fixed values (experiment, remote inbox, SSH key, remote nexus path) live in a config file, so the cron line is a single bash invocation:
+The fixed values live in a config file so the cron line is a single bash invocation. Two locations are auto-discovered:
+
+| Path | Owner | Typical contents |
+|---|---|---|
+| `/etc/nexus/sync_config.json` | Operator (root) | Team-wide values: `remote`, `remote_nexus_dir`, `remote_uri`, `ssh_port` |
+| `~/.nexus/sync_config.json`   | Each user       | Per-user overrides: `researcher`, `ssh_key`, optionally a different `experiment` |
+
+Per-key merge: user file overrides system file. CLI flags still win over both. If a single-user team prefers, all values can live in `~/.nexus/sync_config.json` alone.
 
 ```bash
+# Per-user setup (always applicable):
 mkdir -p ~/.nexus
 cp scheduled_sync/sync_config.example.json ~/.nexus/sync_config.json
 $EDITOR ~/.nexus/sync_config.json
 ```
 
-Required keys: `experiment`, `remote`, `remote_nexus_dir`. Optional: `ssh_key`, `ssh_port`, `local_uri`, `remote_uri`, `state_file`. The file is auto-loaded from `~/.nexus/sync_config.json` when no `--config` flag is given.
+Required keys (anywhere in the resolution chain): `experiment`, `remote`, `remote_nexus_dir`. Optional: `researcher`, `ssh_key`, `ssh_port`, `local_uri`, `remote_uri`, `state_file`.
+
+> ⚠️ **Multi-user GPU servers**: when several researchers share one GPU server (and one local MLflow), each user **MUST** set their own `researcher` in `~/.nexus/sync_config.json`. Without it, every user's cron exports every other user's runs and the central server logs duplicate metric points at identical steps. The validator flags this with a `[WARN]`.
 
 #### Run once manually
 
@@ -610,6 +620,25 @@ Need a per-key override (e.g. running an alternate experiment from one cron line
 */5 * * * * bash $HOME/nexus/scheduled_sync/sync_mlflow_to_server.sh \
     --experiment robot_hand_rl_pilot >> $HOME/nexus_sync.log 2>&1
 ```
+
+#### Multi-user GPU servers
+
+When kim, lee, and park all train on the same GPU server, each user runs their own cron:
+
+1. **Each user sets their own `researcher`** in `~/.nexus/sync_config.json`. This scopes their export to runs tagged with that researcher; otherwise everyone re-exports everyone else's runs and the central server gets duplicate metric points.
+2. **Operator puts shared values in `/etc/nexus/sync_config.json`** (root-writable, world-readable): `remote`, `remote_nexus_dir`, `remote_uri`, `ssh_port`. Each user's `~/.nexus/sync_config.json` then only carries `researcher` and `ssh_key`.
+3. **Stagger cron offsets** so SSH/SCP traffic to the central server is spread out across the interval:
+
+   ```cron
+   # kim
+   0-59/5 * * * * bash $HOME/nexus/scheduled_sync/sync_mlflow_to_server.sh >> $HOME/nexus_sync.log 2>&1
+   # lee — offset by 1 minute
+   1-59/5 * * * * bash $HOME/nexus/scheduled_sync/sync_mlflow_to_server.sh >> $HOME/nexus_sync.log 2>&1
+   # park — offset by 2 minutes
+   2-59/5 * * * * bash $HOME/nexus/scheduled_sync/sync_mlflow_to_server.sh >> $HOME/nexus_sync.log 2>&1
+   ```
+
+   The wrapper writes per-user, per-PID delta filenames (`delta_${USER}_<TS>_<PID>.json`) so concurrent runs don't corrupt each other's `/tmp` files or remote inbox even if you don't stagger — staggering is just polite.
 
 ### 4-2. Pipeline B — One-time batch upload (post_upload validation)
 

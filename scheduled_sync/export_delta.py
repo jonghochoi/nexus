@@ -9,7 +9,12 @@ Unlike `mlflow experiments export` (which always exports everything),
 this script maintains a local state file tracking per-run, per-tag
 last-synced step, and only serializes data points beyond that step.
 
-State file (JSON): ~/.nexus/sync_state/{experiment}.json
+When several researchers share one GPU server (and one local MLflow), pass
+`--researcher <name>` so each user's cron only exports runs tagged with
+that researcher. Without the filter, every cron job re-exports every run
+and the central server gets duplicate metric points at the same step.
+
+State file (JSON): ~/.nexus/sync_state/{experiment}[__{researcher}].json
   {
     "runs": {
       "<run_id>": {"reward": 1000, "policy_loss": 500, ...}
@@ -46,17 +51,28 @@ def parse_args():
     p.add_argument("--output",       required=True,
                    help="Path to write delta JSON")
     p.add_argument("--state_file",   default=None,
-                   help="Override state file path (default: ~/.nexus/sync_state/{experiment}.json)")
+                   help="Override state file path "
+                        "(default: ~/.nexus/sync_state/{experiment}[__{researcher}].json)")
+    p.add_argument("--researcher",   default=None,
+                   help="Only export runs whose `researcher` tag matches this value. "
+                        "Required for safe multi-user setups; without it, every user's "
+                        "cron exports every other user's runs and the central server "
+                        "gets duplicate points.")
     return p.parse_args()
 
 
-def default_state_path(experiment: str) -> str:
+def default_state_path(experiment: str, researcher: str | None) -> str:
     """
     Default state file location — under ~/.nexus/ so it survives reboots.
     /tmp is wiped on reboot on most distros, which silently triggered a full
     re-sync on the next cron cycle.
+
+    When --researcher is set, the state file is namespaced so the same
+    operator account can host multiple sync identities without their state
+    bleeding into each other.
     """
-    return str(Path.home() / ".nexus" / "sync_state" / f"{experiment}.json")
+    suffix = f"__{researcher}" if researcher else ""
+    return str(Path.home() / ".nexus" / "sync_state" / f"{experiment}{suffix}.json")
 
 
 def load_state(path: str) -> dict:
@@ -74,7 +90,7 @@ def save_state(path: str, state: dict) -> None:
 
 def main():
     args = parse_args()
-    state_path = args.state_file or default_state_path(args.experiment)
+    state_path = args.state_file or default_state_path(args.experiment, args.researcher)
 
     client = MlflowClient(tracking_uri=args.tracking_uri)
 
@@ -94,8 +110,13 @@ def main():
     state      = load_state(state_path)
     runs_state = state.get("runs", {})
 
+    # `researcher` filter scopes each user's sync to runs they own. Without it,
+    # parallel cron jobs on a shared GPU server re-export each other's runs and
+    # the central server logs duplicate metric points at identical steps.
+    filter_string = f"tags.researcher = '{args.researcher}'" if args.researcher else ""
     all_runs = client.search_runs(
         experiment_ids=[experiment.experiment_id],
+        filter_string=filter_string,
         max_results=1000,
     )
 
