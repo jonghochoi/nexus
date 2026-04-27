@@ -1,6 +1,6 @@
 """
-logger/git_utils.py
-===================
+nexus/logger/git_utils.py
+=========================
 Utilities for capturing git repository state at training time.
 
 Called automatically by MLflowLogger.__init__() when track_git=True (default).

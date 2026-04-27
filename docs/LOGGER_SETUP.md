@@ -24,7 +24,7 @@ How to replace `tensorboardX.SummaryWriter` with the unified logger in any train
 from tensorboardX import SummaryWriter
 
 # ✅ After
-from logger import make_logger
+from nexus.logger import make_logger
 ```
 
 ---
@@ -132,7 +132,7 @@ This starts a local MLflow server on `127.0.0.1:5100`. All GPU processes on the 
 
 ```diff
 -from tensorboardX import SummaryWriter
-+from logger import make_logger
++from nexus.logger import make_logger
 
  class YourTrainer:
      def __init__(self, env, output_dir, agent_cfg, ...):

@@ -1,6 +1,6 @@
 """
-logger/sweep_logger.py
-======================
+nexus/logger/sweep_logger.py
+============================
 SweepLogger: creates and manages a parent MLflow run for hyperparameter sweeps.
 
 Pass `parent_run_id` to MLflowLogger or make_logger() so child runs appear

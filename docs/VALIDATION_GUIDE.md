@@ -55,7 +55,7 @@ nexus-activate
 ```bash
 python -c "import mlflow; print('mlflow:', mlflow.__version__)"
 python -c "import tbparse; print('tbparse OK')"
-python -c "from logger import make_logger; print('logger OK')"
+python -c "from nexus.logger import make_logger; print('logger OK')"
 ```
 
 If all three lines output without errors, the installation is successful.
@@ -484,7 +484,7 @@ cd ~/nexus
 source ~/.nexus/activate.sh  # For Method A (or `nexus-activate`)
 
 python -c "import mlflow; print('mlflow:', mlflow.__version__)"
-python -c "from logger import make_logger; print('logger OK')"
+python -c "from nexus.logger import make_logger; print('logger OK')"
 ```
 
 ### 3-2. Start local MLflow server (inside GPU server)
@@ -517,7 +517,7 @@ If you have modified the PPO code, run a short training session (e.g., 100 steps
 
 ```python
 # In the training code initialization section (refer to docs/LOGGER_SETUP.md)
-from logger import make_logger
+from nexus.logger import make_logger
 import os
 
 self.writer = make_logger(

@@ -1,6 +1,6 @@
 """
-logger/tb_logger.py
-===================
+nexus/logger/tb_logger.py
+=========================
 Thin wrapper around tensorboardX.SummaryWriter.
 Provides the same interface as MLflowLogger so DualLogger can treat them uniformly.
 """

@@ -1,6 +1,6 @@
 """
-logger/model_registry.py
-=========================
+nexus/logger/model_registry.py
+==============================
 ModelRegistry: utilities for MLflow Model Registry operations.
 
 Provides sim-to-real version tracking, stage management, and

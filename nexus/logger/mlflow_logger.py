@@ -1,6 +1,6 @@
 """
-logger/mlflow_logger.py
-=======================
+nexus/logger/mlflow_logger.py
+=============================
 Drop-in replacement for tensorboardX.SummaryWriter that logs to a local MLflow server.
 
 Key behaviors:

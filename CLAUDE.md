@@ -11,7 +11,7 @@ NEXUS is a centralized RL experiment hub for an air-gapped GPU-server / internet
 Venv setup and activation are covered in `README.md` → "Quick Start" (`bash setup.sh [--alias|--reinstall]`, `source ~/.nexus/activate.sh`). Two things matter for code changes:
 
 - The venv is at `~/.nexus/venv` — **outside** the source tree — so overwriting the repo does not wipe installed packages. `~/.nexus/` also holds the user's `config.json` and `history.json`.
-- There is no package install (no `setup.py`/`pyproject.toml`); scripts are run directly and `logger/` is imported via `sys.path.insert(0, ".")` from the repo root.
+- There is no package install (no `setup.py`/`pyproject.toml`); scripts are run directly and `nexus/logger/` is imported via `sys.path.insert(0, ".")` from the repo root (which puts the `nexus` package on `sys.path`).
 
 Smoke / end-to-end tests (require an MLflow server reachable at `--tracking_uri`):
 
@@ -22,7 +22,7 @@ python tests/smoke_test.py --advanced            # also: rl_metrics, log_rl_metr
 python tests/smoke_test.py --tracking_uri http://<host>:5000   # against a different server
 ```
 
-There is no pytest config and no linter — `smoke_test.py` is a hand-rolled script with sectioned PASS/FAIL output. Run it from the repo root (it does `sys.path.insert(0, ".")` to import the `logger` package). It writes to a real `nexus_smoke_test` experiment on whatever server you point it at.
+There is no pytest config and no linter — `smoke_test.py` is a hand-rolled script with sectioned PASS/FAIL output. Run it from the repo root (it does `sys.path.insert(0, ".")` to import the `nexus.logger` package). It writes to a real `nexus_smoke_test` experiment on whatever server you point it at.
 
 Pipeline B CLI smoke (no MLflow upload):
 
@@ -36,7 +36,7 @@ python verify_upload.py --from-last             # re-verify the last upload
 
 The system has **two independent pipelines** for getting data into central MLflow. Treat them as separate codebases that share only the metric-name sanitizer and tag conventions.
 
-### Pipeline A — `logger/` + `scheduled_sync/` (live training)
+### Pipeline A — `nexus/logger/` + `scheduled_sync/` (live training)
 
 Used when training code is modified to call `make_logger()`. Flow:
 
@@ -72,15 +72,15 @@ Important behaviors:
 - **Required reproducibility tags**: the user-facing list is in `README.md` → "Recommended Tags" and `docs/EXPERIMENT_STANDARD_KO.md`. The code-side enforcement lives in `post_upload/config.py::required_tags()` — base is `(researcher, seed, task)`, and experiments in `REAL_EVAL_EXPERIMENTS` additionally require `sim_run_id`. If you add a new required tag, change it there.
 - **Checkpoint policy**: only two artifacts ever exist under `checkpoints/` in MLflow — `best.pth` (highest score so far) and `last.pth` (most recent epoch). `MLflowLogger.log_checkpoint(path, kind)` enforces `kind in {"best", "last"}` and renames the source file on upload, so the on-disk filename doesn't matter.
 
-### `logger/` package layout (matters for imports)
+### `nexus/logger/` package layout (matters for imports)
 
-`logger/__init__.py` re-exports **only** the core: `make_logger`, `DualLogger`, `MLflowLogger`, `TBLogger`. Advanced features must be imported by their submodule path:
+`nexus/logger/__init__.py` re-exports **only** the core: `make_logger`, `DualLogger`, `MLflowLogger`, `TBLogger`. Advanced features must be imported by their submodule path:
 
 ```python
-from logger.sweep_logger   import SweepLogger          # parent run for HP sweeps; pass parent_run_id to children
-from logger.model_registry import ModelRegistry        # MLflow Model Registry helpers (sim_run_id linkage)
-from logger.system_metrics import SystemMetricsLogger  # background thread, 30s default, optional psutil/pynvml
-from logger                import rl_metrics           # pure-numpy explained_variance, approx_kl, clip_fraction, grad_norm
+from nexus.logger.sweep_logger   import SweepLogger          # parent run for HP sweeps; pass parent_run_id to children
+from nexus.logger.model_registry import ModelRegistry        # MLflow Model Registry helpers (sim_run_id linkage)
+from nexus.logger.system_metrics import SystemMetricsLogger  # background thread, 30s default, optional psutil/pynvml
+from nexus.logger                import rl_metrics           # pure-numpy explained_variance, approx_kl, clip_fraction, grad_norm
 ```
 
 All intra-package imports use the relative form (`from .git_utils import ...`, `from .mlflow_logger import ...`). Do not introduce bare top-level imports between sibling modules — they break when the package is installed via `pip install nexus-logger` because the repo root is not on `sys.path` in that case.
@@ -96,9 +96,9 @@ All intra-package imports use the relative form (`from .git_utils import ...`, `
 Several concepts are reflected in multiple places. Change one without auditing the others and the docs will silently rot:
 
 - **New required tag** — add to `post_upload/config.py::required_tags()` (code-side enforcement), the "Recommended Tags" table in `README.md`, and `docs/EXPERIMENT_STANDARD_KO.md`.
-- **New logger mode or core method** — decide whether to re-export from `logger/__init__.py`, update the `make_logger()` factory in `logger/dual_logger.py`, extend the "Logger Modes" table in `README.md`, and add a case to `tests/smoke_test.py`. Advanced (opt-in) features are documented in `docs/ADVANCED_FEATURES.md`; only the core four (`make_logger`, `DualLogger`, `MLflowLogger`, `TBLogger`) belong in `README.md`.
+- **New logger mode or core method** — decide whether to re-export from `nexus/logger/__init__.py`, update the `make_logger()` factory in `nexus/logger/dual_logger.py`, extend the "Logger Modes" table in `README.md`, and add a case to `tests/smoke_test.py`. Advanced (opt-in) features are documented in `docs/ADVANCED_FEATURES.md`; only the core four (`make_logger`, `DualLogger`, `MLflowLogger`, `TBLogger`) belong in `README.md`.
 - **New Pipeline B CLI flag** — `post_upload/tb_to_mlflow.py::parse_args()`, plus the flag table in `README.md` "Pipeline B" section and the deeper notes in `docs/POST_UPLOAD_GUIDE.md`.
-- **Changing the default URIs (`5100`, `5000`)** — defaults are hardcoded across `logger/`, `scheduled_sync/*`, `post_upload/`, `chart_settings/apply_chart_settings.py`, and the README diagrams. Grep for `5100` and `5000` and change them in concert.
+- **Changing the default URIs (`5100`, `5000`)** — defaults are hardcoded across `nexus/logger/`, `scheduled_sync/*`, `post_upload/`, `chart_settings/apply_chart_settings.py`, and the README diagrams. Grep for `5100` and `5000` and change them in concert.
 - **New team-wide chart or column** — edit `chart_settings/chart_settings.json`, then run `python chart_settings/apply_chart_settings.py apply` against the central server. The bookmarklet picks up the new payload automatically; no JS edit needed.
 
 ## Comment & docstring style (unicode banners)
@@ -107,7 +107,7 @@ This repo deliberately uses unicode box-drawing and em-dash characters in commen
 
 | Where | Character | Example |
 |------|-----------|---------|
-| Module docstring banner | `=` (U+003D) under the path, same length | `logger/mlflow_logger.py`<br>`=======================` |
+| Module docstring banner | `=` (U+003D) under the path, same length | `nexus/logger/mlflow_logger.py`<br>`=============================` |
 | Section divider inside a file | `─` (U+2500 BOX DRAWINGS LIGHT HORIZONTAL) | `# ── Public interface ──────────────────────────` |
 | Inline section marker (no trailing rule) | `─` (U+2500), title only | `# ── Step 1: Export delta from local MLflow` |
 | Label / description separator, "why" explanations | `—` (U+2014 EM DASH) | `make_logger  — factory function`<br>`# Dirty tree detected — git patch saved` |
@@ -115,20 +115,20 @@ This repo deliberately uses unicode box-drawing and em-dash characters in commen
 
 Concrete rules when authoring or editing a file:
 
-1. **Every Python module starts with a docstring** that opens with `module/relative_path.py`, then a line of `=` exactly as long as that path, then a one-paragraph summary. See `logger/mlflow_logger.py:1`, `post_upload/tb_to_mlflow.py:1`, `scheduled_sync/export_delta.py:1`.
+1. **Every Python module starts with a docstring** that opens with `module/relative_path.py`, then a line of `=` exactly as long as that path, then a one-paragraph summary. See `nexus/logger/mlflow_logger.py:1`, `post_upload/tb_to_mlflow.py:1`, `scheduled_sync/export_delta.py:1`.
 2. **Section dividers** use `# ── Title ──...` — pad the trailing `─` run so the comment ends near column 76 (look at neighbouring dividers in the same file and match width). Numbered top-level sections (`# ── 1. Argument parsing ──...`) appear in the larger CLI scripts (`tb_to_mlflow.py`, `verify_upload.py`).
-3. **Class- or method-internal sections** use the same `# ──` style indented to match the surrounding code (see `MLflowLogger` at `logger/mlflow_logger.py:93,191`).
+3. **Class- or method-internal sections** use the same `# ──` style indented to match the surrounding code (see `MLflowLogger` at `nexus/logger/mlflow_logger.py:93,191`).
 4. **Use em dash `—`, not ` - `**, when joining a label to its explanation in docstrings or in "why" comments. Same for prose punctuation inside comments. Hyphen-minus `-` stays for compound words and CLI flags only.
 5. **Short "why" comments stay ASCII** (e.g. `# MLflow hard limit per log_batch() call`, `# ~50x faster than iterrows`). Don't rewrite them with unicode.
 6. **Shell scripts** follow the same divider style — see `scheduled_sync/sync_mlflow_to_server.sh` for `# ── Step N: ...` markers.
-7. When introducing a new file, copy the header of the closest sibling (e.g. a new `logger/foo.py` should mirror `logger/rl_metrics.py`'s opening) rather than inventing a new layout.
+7. When introducing a new file, copy the header of the closest sibling (e.g. a new `nexus/logger/foo.py` should mirror `nexus/logger/rl_metrics.py`'s opening) rather than inventing a new layout.
 
 Audit hint: `grep -nE "^# (-{4,}|={4,})" path/to/file.py` should return nothing. ASCII rule lines mean someone bypassed this convention.
 
 ## Things to be careful about
 
 - See the dedicated **Comment & docstring style** section above before editing or creating any source file — the unicode banner / divider conventions are mandatory in this repo.
-- **`pyproject.toml` ships `mlflow-skinny` as the default runtime dep**, with full `mlflow` only behind the `[server]` extra. All Python code in `logger/`, `post_upload/`, `scheduled_sync/`, `chart_settings/`, and `tests/` must stay within client / tracking APIs that exist in skinny — `MlflowClient`, `mlflow.entities.*`, `mlflow.set_tracking_uri/set_experiment/get_experiment_by_name`, `register_model`, `set_experiment_tag`. APIs that require the full distribution — `mlflow.pyfunc.load_model`, `mlflow.models.Model` flavor builders, anything under `mlflow.server.*` — would silently break the default training-node install (`pip install "nexus-logger @ git+..."`). The only full-mlflow consumer in this repo is the `mlflow server` CLI inside `scheduled_sync/start_local_mlflow.sh`, run from the operator venv built by `setup.sh` (which still installs full mlflow), not from `pip install nexus-logger`.
+- **`pyproject.toml` ships `mlflow-skinny` as the default runtime dep**, with full `mlflow` only behind the `[server]` extra. All Python code in `nexus/logger/`, `post_upload/`, `scheduled_sync/`, `chart_settings/`, and `tests/` must stay within client / tracking APIs that exist in skinny — `MlflowClient`, `mlflow.entities.*`, `mlflow.set_tracking_uri/set_experiment/get_experiment_by_name`, `register_model`, `set_experiment_tag`. APIs that require the full distribution — `mlflow.pyfunc.load_model`, `mlflow.models.Model` flavor builders, anything under `mlflow.server.*` — would silently break the default training-node install (`pip install "nexus-logger @ git+..."`). The only full-mlflow consumer in this repo is the `mlflow server` CLI inside `scheduled_sync/start_local_mlflow.sh`, run from the operator venv built by `setup.sh` (which still installs full mlflow), not from `pip install nexus-logger`.
 - `setup.sh` pins `mlflow==2.13.0`, `tensorboard==2.16.2`, `tbparse==0.0.8`. The `tbparse` column-name handling in `tb_to_mlflow.parse_tfevents` and `verify_upload.fetch_tb_metrics` already has a fallback for older `tbparse` (`tags` → `tag`) — preserve it if upgrading.
 - Do not add `git push` / `scp` / cron-installation steps to `setup.sh`. The deployment is intentionally split: setup.sh only builds the venv, and operators wire up cron / SSH keys themselves following `docs/MLFLOW_SERVER_SETUP.md`.
 - `tests/smoke_test.py` writes real runs to a real MLflow server under the experiment name `nexus_smoke_test`. Don't point it at a production tracking URI without intending to.

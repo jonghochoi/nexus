@@ -71,7 +71,7 @@ from tensorboardX import SummaryWriter
 self.writer = SummaryWriter(log_dir=output_dir)
 
 # ✅ 변경 후 — [NXS] 듀얼 로깅 활성화
-from logger import make_logger
+from nexus.logger import make_logger
 self.writer = make_logger(mode="dual", log_dir=output_dir, run_name=..., ...)
 ```
 
