@@ -86,7 +86,7 @@ nexus/
 ```
 [GPU Server]                               [NEXUS Server]
   No internet — SCP/SSH only                 Internet accessible
-  Isaac Lab / PPO training                   MLflow Tracking UI :5000
+  Isaac Lab / your trainer                   MLflow Tracking UI :5000
 
   ┌────────────────────────────┐             ┌─────────────────────────┐
   │  ╷  ╷  ╷  ╷  ╷             │             │                         │
@@ -103,7 +103,7 @@ nexus/
 
 ## 🎛️ Logger Modes
 
-Use `make_logger()` with the `mode` argument. Only this argument changes — everything else in PPO stays exactly the same.
+Use `make_logger()` with the `mode` argument. Only this argument changes — everything else in your trainer stays exactly the same.
 
 | `mode` | TensorBoard | MLflow | When to use |
 |:---:|:---:|:---:|---|
@@ -134,7 +134,7 @@ nexus-activate                 # works from any directory, any terminal
 
 ## 🅰️ Pipeline A — Direct MLflow Logging *(recommended for new runs)*
 
-Requires changes in **3 locations** in PPO. TensorBoard continues to work unchanged.
+Requires changes in **3 locations** in your trainer. TensorBoard continues to work unchanged.
 
 ### Step 1 — Start local MLflow server on GPU Server *(once per session)*
 
@@ -143,7 +143,7 @@ bash scheduled_sync/start_local_mlflow.sh
 # [NXS] Local MLflow on 127.0.0.1:5100 — loopback only, no internet needed
 ```
 
-### Step 2 — Update PPO *(3 locations only)*
+### Step 2 — Update your trainer *(3 locations only)*
 
 Replace `SummaryWriter` with `make_logger` at the import, `__init__`, and `train()` checkpoint block.
 
@@ -165,7 +165,7 @@ Each sync is **incremental**: only metric points with step beyond the last synce
 
 ## 🅱️ Pipeline B — TensorBoard Post-Upload *(one-shot, no code changes)*
 
-Use when PPO has **not** been updated yet, or when you want to upload a completed tfevents run in a single batch. This is a manual, one-time operation — run it once after training ends.
+Use when your trainer has **not** been updated yet, or when you want to upload a completed tfevents run in a single batch. This is a manual, one-time operation — run it once after training ends.
 
 ### One-time setup — put your fixed values in `~/.nexus/config.json`
 
@@ -203,7 +203,7 @@ python tb_to_mlflow.py --tb_dir /path/to/logs/run_001
 # Or fully non-interactive
 python tb_to_mlflow.py \
     --tb_dir   /path/to/logs/run_001 \
-    --run_name ppo_baseline_v1 \
+    --run_name baseline_v1 \
     --tags     seed=42 task=in_hand_reorientation
 ```
 
@@ -231,7 +231,7 @@ For full details on config, interactive mode, history, `sim_run_id` auto-detecti
 ```
 🖥️  GPU Server  ───────────────────────────────────────────────
 │
-├── 🤖  PPO Training Process
+├── 🤖  Your Trainer Process
 │   └── 🔀  DualLogger
 │       ├── 📁  → tfevents/         local disk  (tensorboard --logdir)
 │       └── 📡  → 127.0.0.1:5100    local MLflow server
