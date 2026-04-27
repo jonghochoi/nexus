@@ -97,6 +97,15 @@ class DualLogger:
         entropy: Optional[float] = None,
         success_rate: Optional[float] = None,
     ) -> None:
+        self._tb.log_rl_metrics(
+            step,
+            explained_variance=explained_variance,
+            approx_kl=approx_kl,
+            clip_fraction=clip_fraction,
+            grad_norm=grad_norm,
+            entropy=entropy,
+            success_rate=success_rate,
+        )
         self._mlflow.log_rl_metrics(
             step,
             explained_variance=explained_variance,
