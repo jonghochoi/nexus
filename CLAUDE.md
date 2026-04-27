@@ -10,7 +10,7 @@ NEXUS is a centralized RL experiment hub for an air-gapped GPU-server / internet
 
 Venv setup and activation are covered in `README.md` → "Quick Start" (`bash setup.sh [--alias|--reinstall]`, `source ~/.nexus/activate.sh`). Two things matter for code changes:
 
-- The venv is at `~/.nexus/venv` — **outside** the source tree — so overwriting the repo does not wipe installed packages. `~/.nexus/` also holds the user's `config.json` and `history.json`.
+- The venv is at `~/.nexus/venv` — **outside** the source tree — so overwriting the repo does not wipe installed packages. `~/.nexus/` also holds the user's `post_config.json` (Pipeline B), `sync_config.json` (Pipeline A), `sync_state/{exp}.json`, and `history.json`.
 - There is no package install (no `setup.py`/`pyproject.toml`); scripts are run directly and `nexus/logger/` is imported via `sys.path.insert(0, ".")` from the repo root (which puts the `nexus` package on `sys.path`).
 
 Smoke / end-to-end tests (require an MLflow server reachable at `--tracking_uri`):
@@ -44,12 +44,14 @@ Used when training code is modified to call `make_logger()`. Flow:
 2. `MLflowLogger` writes to a **local** MLflow server on `127.0.0.1:5100` (started by `scheduled_sync/start_local_mlflow.sh`). It buffers `add_scalar` calls per-step in memory and flushes the whole step's metrics with a single `client.log_batch()` when `global_step` advances. The `_BATCH_SIZE = 1000` constant matches MLflow's hard per-call limit.
 3. Run identity is `run_name`, not `run_id` — `_get_or_create_run` searches for an existing run by `tags.mlflow.runName` and resumes it if found, so a crash + restart of the trainer reattaches to the same MLflow run instead of creating a duplicate.
 4. `git_utils.get_git_info()` is called automatically (suppress with `track_git=False`) and stamps `git_commit` / `git_dirty` tags. If dirty, the full `git diff HEAD` is uploaded as `artifacts/git/git_patch.diff`.
-5. A cron job runs `scheduled_sync/sync_mlflow_to_server.sh` every N minutes. It chains:
-   - `export_delta.py` on the GPU server → reads `/tmp/nexus_delta_{experiment}.json` to find each run's last-synced step per tag, queries the local MLflow, writes only **new** points to a delta JSON. Exits with code `2` (no new data) so the shell wrapper can skip the SCP.
+5. A cron job runs `scheduled_sync/sync_mlflow_to_server.sh` every N minutes. The shell wrapper resolves required values (`experiment`, `remote`, `remote_nexus_dir`, optional `ssh_key`/`ssh_port`/`local_uri`/`remote_uri`/`state_file`) in this order, first non-empty wins per key: CLI flag → `--config <path>` JSON → `~/.nexus/sync_config.json` (auto-discovered) → built-in default (only for `local_uri`/`remote_uri`/`ssh_port`). It chains:
+   - `export_delta.py` on the GPU server → reads `~/.nexus/sync_state/{experiment}.json` to find each run's last-synced step per tag, queries the local MLflow, writes only **new** points to a delta JSON. Exit codes are meaningful: `0` = data to transfer, `1` = configuration error (e.g. unknown experiment), `2` = no new data (wrapper skips SCP).
    - `scp` of the delta JSON to the central server's inbox.
-   - `ssh` invocation of `import_delta.py` on the central server, which `get_or_create`s the run by `run_name` and `log_batch`es the new metrics. Params + tags are sent only on first appearance of a run.
+   - `ssh` invocation of `import_delta.py` on the central server, which `get_or_create`s the run by `run_name` and `log_batch`es the new metrics. Params + tags are sent only on first appearance of a run; the run is then stamped with `nexus.lastSyncTime` (UTC ISO) and `nexus.syncedFromHost` (origin GPU server hostname carried in the delta JSON's `source_host` field) so the central UI can flag stale GPU servers.
 
-The state file at `/tmp/nexus_delta_{experiment}.json` is the source of truth for "what has been synced." Deleting it forces a full re-sync on the next run.
+The state file at `~/.nexus/sync_state/{experiment}.json` is the source of truth for "what has been synced." Deleting it forces a full re-sync on the next run. (The default location used to be `/tmp/nexus_delta_{experiment}.json`, but `/tmp` is wiped on reboot on most distros and silently triggered a full re-sync every cycle.)
+
+`scheduled_sync/validate_sync.sh` is a pre-flight checker for cron registration: it loads the same config resolution chain, then verifies SSH reachability, remote inbox writability, presence of `import_delta.py` on the server, remote MLflow `/health`, local MLflow experiment existence, and finally runs `--dry-run` once. Exits 0 only if every step passes; prints a paste-ready cron line on success but never edits crontab itself.
 
 ### Pipeline B — `post_upload/` (one-shot, no trainer changes)
 
@@ -98,6 +100,7 @@ Several concepts are reflected in multiple places. Change one without auditing t
 - **New required tag** — add to `post_upload/config.py::required_tags()` (code-side enforcement), the "Recommended Tags" table in `README.md`, and `docs/EXPERIMENT_STANDARD_KO.md`.
 - **New logger mode or core method** — decide whether to re-export from `nexus/logger/__init__.py`, update the `make_logger()` factory in `nexus/logger/dual_logger.py`, extend the "Logger Modes" table in `README.md`, and add a case to `tests/smoke_test.py`. Advanced (opt-in) features are documented in `docs/ADVANCED_FEATURES.md`; only the core four (`make_logger`, `DualLogger`, `MLflowLogger`, `TBLogger`) belong in `README.md`.
 - **New Pipeline B CLI flag** — `post_upload/tb_to_mlflow.py::parse_args()`, plus the flag table in `README.md` "Pipeline B" section and the deeper notes in `docs/POST_UPLOAD_GUIDE.md`.
+- **New Pipeline A sync option** — add the CLI flag in `scheduled_sync/sync_mlflow_to_server.sh` (argument-parsing case), the matching JSON key in the `KEY_MAP` of the same script's `--config` parser, the example file `scheduled_sync/sync_config.example.json`, the validator's required-key list in `scheduled_sync/validate_sync.sh` if the new key is required, and the cron snippet in `README.md` + `docs/VALIDATION_GUIDE.md`. Keep CLI-name ↔ JSON-key mapping consistent (`--remote_nexus_dir` ↔ `"remote_nexus_dir"`).
 - **Changing the default URIs (`5100`, `5000`)** — defaults are hardcoded across `nexus/logger/`, `scheduled_sync/*`, `post_upload/`, `chart_settings/apply_chart_settings.py`, and the README diagrams. Grep for `5100` and `5000` and change them in concert.
 - **New team-wide chart or column** — edit `chart_settings/chart_settings.json`, then run `python chart_settings/apply_chart_settings.py apply` against the central server. The bookmarklet picks up the new payload automatically; no JS edit needed.
 

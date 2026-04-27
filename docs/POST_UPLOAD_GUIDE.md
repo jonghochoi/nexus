@@ -10,8 +10,8 @@ This guide covers the ergonomic features of the post-upload CLI (`post_upload/tb
 
 ```bash
 # One-time setup
-cp post_upload/config.example.json ~/.nexus/config.json
-$EDITOR ~/.nexus/config.json   # set tracking_uri + your fixed tags
+cp post_upload/post_config.example.json ~/.nexus/post_config.json
+$EDITOR ~/.nexus/post_config.json   # set tracking_uri + your fixed tags
 
 # Every upload
 python post_upload/tb_to_mlflow.py --tb_dir /path/to/run_001
@@ -33,13 +33,13 @@ python post_upload/verify_upload.py --from-last
 
 ---
 
-## 1. `~/.nexus/config.json` — team-fixed values
+## 1. `~/.nexus/post_config.json` — team-fixed values
 
-The CLI reads defaults from `~/.nexus/config.json`. Ship the example file to every team member:
+The CLI reads defaults from `~/.nexus/post_config.json`. Ship the example file to every team member:
 
 ```bash
 mkdir -p ~/.nexus
-cp post_upload/config.example.json ~/.nexus/config.json
+cp post_upload/post_config.example.json ~/.nexus/post_config.json
 ```
 
 Example:
@@ -74,7 +74,7 @@ Every uploaded run must carry these tags — the CLI blocks the upload otherwise
 
 | Tag | Source | Notes |
 |---|---|---|
-| `researcher` | `~/.nexus/config.json` | Set once per user |
+| `researcher` | `~/.nexus/post_config.json` | Set once per user |
 | `seed` | `--tags` or interactive prompt | Per-run |
 | `task` | `--tags` or interactive prompt | Per-run |
 | `sim_run_id` | run_meta.json or `--tags` | **Required** when `experiment=real_robot_eval` (see §5) |
@@ -102,7 +102,7 @@ Every uploaded run must carry these tags — the CLI blocks the upload otherwise
 | Priority | Source | Scope |
 |:---:|---|---|
 | 1 | Builtin defaults | all tags |
-| 2 | `~/.nexus/config.json` | all tags |
+| 2 | `~/.nexus/post_config.json` | all tags |
 | 3 | `--repeat-last` (history) | all tags |
 | 4 | `run_meta.json` | `sim_run_id` only |
 | 5 | `--tags k=v ...` | all tags |
@@ -275,8 +275,8 @@ bash setup.sh --alias && source ~/.bashrc
 nexus-activate   # or: source ~/.nexus/activate.sh
 
 # One-time config — fill in your name and the central server
-cp post_upload/config.example.json ~/.nexus/config.json
-$EDITOR ~/.nexus/config.json
+cp post_upload/post_config.example.json ~/.nexus/post_config.json
+$EDITOR ~/.nexus/post_config.json
 ```
 
 ```json
@@ -298,7 +298,7 @@ First upload — the CLI handles the rest:
 $ python post_upload/tb_to_mlflow.py --tb_dir ./logs/ppo_first_try
 
 ──────── TensorBoard -> MLflow Uploader ────────
-Config source: /home/lee/.nexus/config.json
+Config source: /home/lee/.nexus/post_config.json
 
 Missing required tags: seed, task — entering interactive mode.
 
@@ -409,7 +409,7 @@ $ python post_upload/tb_to_mlflow.py \
     --tags       seed=42 task=in_hand_reorientation
 
 ──────── TensorBoard -> MLflow Uploader ────────
-Config source: /home/kim/.nexus/config.json
+Config source: /home/kim/.nexus/post_config.json
 Detected sim_run_id from run_meta.json: 7f3a9c8d2e1b4f6a
 
 [upload + auto-verify ...]
@@ -507,7 +507,7 @@ Exit codes you can branch on:
 | `1` | Connection error, missing tfevents, missing required tags, etc. |
 | `2` | Upload succeeded but auto-verify failed |
 
-If a separate CI job handles verification, add `--no_verify` and fail the pipeline later on the verify step instead. For leaner configuration on a long-lived runner, keep `~/.nexus/config.json` populated and drop the fixed flags:
+If a separate CI job handles verification, add `--no_verify` and fail the pipeline later on the verify step instead. For leaner configuration on a long-lived runner, keep `~/.nexus/post_config.json` populated and drop the fixed flags:
 
 ```bash
 python post_upload/tb_to_mlflow.py \
@@ -521,9 +521,9 @@ python post_upload/tb_to_mlflow.py \
 
 | Symptom | Cause / Fix |
 |---|---|
-| `[ERROR] Required tags missing: researcher, seed, task.` | No config file and not a TTY. Either populate `~/.nexus/config.json`, pass `--tags`, or re-run in a TTY to get the interactive prompt. |
+| `[ERROR] Required tags missing: researcher, seed, task.` | No config file and not a TTY. Either populate `~/.nexus/post_config.json`, pass `--tags`, or re-run in a TTY to get the interactive prompt. |
 | `[ERROR] Multiple run directories detected under: <dir>` | `--tb_dir` pointed at a parent containing multiple runs. Upload each run dir individually (use the shell loop suggested in the error). |
-| `[ERROR] Failed to connect to MLflow server` | Wrong `tracking_uri`. Check `~/.nexus/config.json`; for local testing use `http://127.0.0.1:5100`, for central use `http://<server>:5000`. |
+| `[ERROR] Failed to connect to MLflow server` | Wrong `tracking_uri`. Check `~/.nexus/post_config.json`; for local testing use `http://127.0.0.1:5100`, for central use `http://<server>:5000`. |
 | `[WARN] --repeat-last: no previous upload in history.` | Empty `~/.nexus/history.json`. Do one manual upload first, then `--repeat-last` works. |
 | Auto-verify prints `✗ Verification failed` | Tag list, counts, or values diverge. Compare via MLflow UI + `verify_upload.py --from-last` to inspect which tags/steps differ. |
 | `[yellow]run_meta.json sim_run_id (X) overrides carried-over value (Y)` | `--repeat-last` had a different sim_run_id than the tb_dir's run_meta.json. The file's value wins (ground truth for this dir). If the file is wrong, delete it or override with `--tags sim_run_id=...`. |

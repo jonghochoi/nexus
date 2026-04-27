@@ -508,7 +508,7 @@ def main():
     if missing and not args.force and not args.dry_run:
         console.print(
             f"[red][ERROR] Required tags missing: {', '.join(missing)}.[/red]\n"
-            f"  Supply them via --tags, ~/.nexus/config.json, or -i "
+            f"  Supply them via --tags, ~/.nexus/post_config.json, or -i "
             f"(or re-run with --force to skip this check)."
         )
         sys.exit(1)

@@ -521,6 +521,139 @@ def test_omegaconf_flatten(tracking_uri: str) -> bool:
         return False
 
 
+def test_scheduled_sync_roundtrip(tracking_uri: str) -> bool:
+    """12. scheduled_sync: export_delta -> import_delta round-trip"""
+    section("12. scheduled_sync round-trip (export_delta -> import_delta)")
+    # Validates the same code that runs under cron, end-to-end against a single
+    # MLflow server: log a run in a "source" experiment, export a delta JSON,
+    # rewrite the experiment name in-place to a "destination" experiment, import
+    # the delta, then verify metrics and the new sync-metadata tags landed.
+    # Skips the SCP/SSH transport — that is operator infrastructure, not code
+    # under test — but exercises the JSON contract that ties the two scripts.
+    try:
+        import json as _json
+        import os
+        import subprocess
+        import tempfile
+        from pathlib import Path
+
+        sys.path.insert(0, ".")
+        from nexus.logger import MLflowLogger
+
+        ts          = int(time.time())
+        src_exp     = f"nexus_smoke_sync_src_{ts}"
+        dst_exp     = f"nexus_smoke_sync_dst_{ts}"
+        run_name    = f"sync_roundtrip_{ts}"
+
+        repo_root   = Path(__file__).resolve().parent.parent
+        export_py   = repo_root / "scheduled_sync" / "export_delta.py"
+        import_py   = repo_root / "scheduled_sync" / "import_delta.py"
+
+        # ── 1. Create a source run with deterministic metrics
+        logger = MLflowLogger(
+            run_name=run_name,
+            tracking_uri=tracking_uri,
+            experiment_name=src_exp,
+            params={"lr": 0.0007, "algo": "ppo"},
+            tags={"researcher": "smoke_test", "task": "sync_roundtrip"},
+        )
+        for step in range(1, 6):
+            logger.add_scalar("train/reward", float(step * 7), step)
+            logger.add_scalar("train/loss",   1.0 / step,      step)
+        logger.close()
+        ok(f"Source run logged in {src_exp}")
+
+        # ── 2. export_delta.py — keep state + delta inside a temp dir
+        with tempfile.TemporaryDirectory() as tmp:
+            delta_path = Path(tmp) / "delta.json"
+            state_path = Path(tmp) / "state.json"
+
+            r = subprocess.run(
+                ["python", str(export_py),
+                 "--tracking_uri", tracking_uri,
+                 "--experiment",   src_exp,
+                 "--output",       str(delta_path),
+                 "--state_file",   str(state_path)],
+                capture_output=True, text=True,
+            )
+            if r.returncode != 0:
+                fail(f"export_delta.py failed (exit {r.returncode})")
+                print(r.stdout); print(r.stderr)
+                return False
+            if not delta_path.exists():
+                fail("export_delta.py produced no delta file")
+                return False
+            ok(f"export_delta.py wrote delta ({delta_path.stat().st_size} bytes)")
+
+            # ── 3. Rewrite the delta to target a fresh experiment so import_delta
+            #      creates new runs (instead of resuming the source ones).
+            with open(delta_path) as f:
+                delta = _json.load(f)
+            assert delta.get("source_host"), "source_host missing from delta"
+            delta["experiment"] = dst_exp
+            with open(delta_path, "w") as f:
+                _json.dump(delta, f)
+
+            # ── 4. import_delta.py — same tracking server, fresh experiment
+            r = subprocess.run(
+                ["python", str(import_py),
+                 "--delta_file",   str(delta_path),
+                 "--tracking_uri", tracking_uri],
+                capture_output=True, text=True,
+            )
+            if r.returncode != 0:
+                fail(f"import_delta.py failed (exit {r.returncode})")
+                print(r.stdout); print(r.stderr)
+                return False
+            ok("import_delta.py completed")
+
+        # ── 5. Verify destination run carries metrics + sync metadata tags
+        import mlflow as _mlflow
+        from mlflow.tracking import MlflowClient
+        _mlflow.set_tracking_uri(tracking_uri)
+        client = MlflowClient(tracking_uri=tracking_uri)
+        exp = _mlflow.get_experiment_by_name(dst_exp)
+        if exp is None:
+            fail(f"Destination experiment {dst_exp} was not created on import")
+            return False
+
+        runs = client.search_runs(
+            experiment_ids=[exp.experiment_id],
+            filter_string=f"tags.mlflow.runName = '{run_name}'",
+        )
+        if not runs:
+            fail(f"Imported run {run_name} not found in {dst_exp}")
+            return False
+        imported = runs[0]
+
+        # Last step value should match what the logger recorded (reward 5*7 = 35)
+        if abs(imported.data.metrics.get("train/reward", -1) - 35.0) > 1e-6:
+            fail(f"Imported train/reward mismatch: {imported.data.metrics.get('train/reward')!r}")
+            return False
+        ok("Imported metrics match source values")
+
+        if "lr" not in imported.data.params or "algo" not in imported.data.params:
+            fail(f"Imported params missing: {list(imported.data.params.keys())}")
+            return False
+        ok("Imported params present")
+
+        tags = imported.data.tags
+        if not tags.get("nexus.lastSyncTime"):
+            fail("nexus.lastSyncTime tag was not stamped on import")
+            return False
+        if not tags.get("nexus.syncedFromHost"):
+            fail("nexus.syncedFromHost tag was not stamped on import")
+            return False
+        ok(f"Sync metadata tags present (lastSyncTime={tags['nexus.lastSyncTime']}, "
+           f"syncedFromHost={tags['nexus.syncedFromHost']})")
+        return True
+
+    except Exception as e:
+        fail(f"sync round-trip test failed: {e}")
+        import traceback; traceback.print_exc()
+        return False
+
+
 def test_sweep_logger(tracking_uri: str) -> bool:
     """11. SweepLogger parent-child run test"""
     section("11. SweepLogger (Parent-Child Runs)")
@@ -617,6 +750,7 @@ def main() -> None:
         results["rl_metrics_tb"]         = test_tb_log_rl_metrics()
         results["rl_metrics_fanout"]     = test_dual_log_rl_metrics_fanout(args.tracking_uri)
         results["omegaconf_flatten"]     = test_omegaconf_flatten(args.tracking_uri)
+        results["scheduled_sync"]        = test_scheduled_sync_roundtrip(args.tracking_uri)
         results["sweep_logger"]          = test_sweep_logger(args.tracking_uri)
 
     # ── Summary ───────────────────────────────────────────────────────────────
@@ -632,6 +766,7 @@ def main() -> None:
         "rl_metrics_tb":       "RL metrics logging (TensorBoard)",
         "rl_metrics_fanout":   "RL metrics fan-out (DualLogger -> TB + MLflow)",
         "omegaconf_flatten":   "OmegaConf DictConfig flatten",
+        "scheduled_sync":      "scheduled_sync round-trip (export -> import)",
         "sweep_logger":        "SweepLogger (parent-child runs)",
     }
     all_passed = True

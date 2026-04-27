@@ -68,7 +68,7 @@ PPO.write_stats()
 
 > ✅ **Used when:** training code uses `make_logger()` and the run is actively training (or long-running).
 >
-> 🔁 **Incremental:** per-run, per-tag last-synced step is tracked in `/tmp/nexus_delta_{experiment}.json`.
+> 🔁 **Incremental:** per-run, per-tag last-synced step is tracked in `~/.nexus/sync_state/{experiment}.json`.
 
 ---
 
