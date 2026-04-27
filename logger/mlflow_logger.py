@@ -8,7 +8,6 @@ Key behaviors:
   - Flushes as a single log_batch() when the step advances
   - Creates or resumes an MLflow run by run_name (crash-safe)
   - Logs hyperparameters once at run start
-  - Logs env_cfg and reward_fn as artifacts at run start
   - Captures git_commit / git_dirty tags at run start (track_git=True by default)
   - Uploads git diff HEAD as artifacts/git/git_patch.diff when working tree is dirty
   - Marks run FINISHED on close() or process exit
@@ -50,8 +49,6 @@ class MLflowLogger:
         experiment_name: str = "robot_hand_rl",
         params: Optional[dict] = None,
         tags: Optional[dict] = None,
-        env_cfg_path: Optional[str] = None,
-        reward_fn_path: Optional[str] = None,
         parent_run_id: Optional[str] = None,
         track_git: bool = True,  # set False if not inside a git repo or to suppress git tags
     ):
@@ -75,8 +72,6 @@ class MLflowLogger:
 
         if params:
             self._log_params(params)
-
-        self._log_run_artifacts(env_cfg_path, reward_fn_path)
 
         if track_git:
             self._log_git_patch()
@@ -225,15 +220,6 @@ class MLflowLogger:
             tags=base_tags,
         )
         return run.info.run_id
-
-    def _log_run_artifacts(
-        self,
-        env_cfg_path: Optional[str],
-        reward_fn_path: Optional[str],
-    ) -> None:
-        for path in (env_cfg_path, reward_fn_path):
-            if path:
-                self.log_artifact(path, artifact_path="configs")
 
     def _log_git_patch(self) -> None:
         """Upload git diff HEAD as artifacts/git/git_patch.diff when the tree is dirty."""
