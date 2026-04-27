@@ -138,6 +138,37 @@ nexus-activate                 # works from any directory, any terminal
 
 ---
 
+## 📦 Use as a Python Dependency
+
+External projects (a trainer repo, an inference service) can pip-install the
+logger package directly from this git repo — no need to clone or run
+`setup.sh`. The default install is **client-only** so it slots into
+environments that pin transitive deps (e.g. Isaac Lab pinning `prettytable`,
+`starlette`).
+
+| Install target | `pyproject.toml` entry |
+|---|---|
+| **Trainer / CI** *(default — client only)* | `"nexus-logger @ git+https://github.com/jonghochoi/nexus.git"` |
+| **Central MLflow host** *(adds the server stack)* | `"nexus-logger[server] @ git+https://github.com/jonghochoi/nexus.git"` |
+
+The default pulls **`mlflow-skinny`** — `MlflowClient` and the tracking /
+entities APIs only — without Flask, SQLAlchemy, alembic, gunicorn. Add
+`[server]` only on the host that actually runs `mlflow server`. For
+reproducibility, pin to a tag or commit: `...nexus.git@v0.2.0` or
+`...nexus.git@<sha>`.
+
+> **Isaac Sim / Isaac Lab**: Omniverse ships a partial `mlflow-skinny` stub
+> (`dist-info` only, no module body), so after the install above also run
+> `pip install --upgrade --force-reinstall --no-deps "mlflow-skinny>=2.0,<3"`.
+> The package's import-time guard will tell you the same if you skip it —
+> bake the line into your Dockerfile to avoid the runtime nag.
+
+> The Quick Start above (`bash setup.sh`) is the **operator** path — for
+> people who clone this repo to run `start_local_mlflow.sh`, the sync cron,
+> or `tests/smoke_test.py`. External consumers don't need it.
+
+---
+
 ## 🅰️ Pipeline A — Direct MLflow Logging *(recommended for new runs)*
 
 Requires changes in **3 locations** in your trainer. TensorBoard continues to work unchanged.
