@@ -4,10 +4,23 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nexus-logger"
-version = "0.1.0"
+version = "0.2.0"
 description = "Unified RL logging package: MLflow + TensorBoard"
-dependencies = ["mlflow>=2.0", "tensorboardX"]
+# Default install is client-only (training nodes, CI):
+#   mlflow-skinny ships MlflowClient + tracking APIs without Flask, SQLAlchemy,
+#   alembic, gunicorn, etc. Avoids transitive conflicts with frameworks like
+#   Isaac Lab that pin prettytable/starlette.
+dependencies = [
+    "mlflow-skinny>=2.0,<3",
+    "tensorboardX",
+]
 requires-python = ">=3.10"
+
+[project.optional-dependencies]
+# Install ONLY on the host that runs the central MLflow server / UI.
+# Pulls in the full mlflow distribution (Flask, SQLAlchemy, alembic, ...).
+#   pip install "nexus-logger[server] @ git+https://github.com/jonghochoi/nexus.git"
+server = ["mlflow>=2.0,<3"]
 
 [tool.setuptools.packages.find]
 where = ["."]
