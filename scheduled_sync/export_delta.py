@@ -9,7 +9,7 @@ Unlike `mlflow experiments export` (which always exports everything),
 this script maintains a local state file tracking per-run, per-tag
 last-synced step, and only serializes data points beyond that step.
 
-State file (JSON): /tmp/nexus_delta_{experiment}.json
+State file (JSON): ~/.nexus/sync_state/{experiment}.json
   {
     "runs": {
       "<run_id>": {"reward": 1000, "policy_loss": 500, ...}
@@ -21,11 +21,13 @@ Delta file (JSON): written to --output, then SCP'd by sync_mlflow_to_server.sh
 
 Exit codes:
   0 — delta written successfully, has data to transfer
+  1 — configuration error (e.g. experiment name not found on local MLflow)
   2 — no new data since last sync (caller skips SCP)
 """
 
 import argparse
 import json
+import socket
 import sys
 import time
 from pathlib import Path
@@ -44,8 +46,17 @@ def parse_args():
     p.add_argument("--output",       required=True,
                    help="Path to write delta JSON")
     p.add_argument("--state_file",   default=None,
-                   help="Override state file path (default: /tmp/nexus_delta_{experiment}.json)")
+                   help="Override state file path (default: ~/.nexus/sync_state/{experiment}.json)")
     return p.parse_args()
+
+
+def default_state_path(experiment: str) -> str:
+    """
+    Default state file location — under ~/.nexus/ so it survives reboots.
+    /tmp is wiped on reboot on most distros, which silently triggered a full
+    re-sync on the next cron cycle.
+    """
+    return str(Path.home() / ".nexus" / "sync_state" / f"{experiment}.json")
 
 
 def load_state(path: str) -> dict:
@@ -63,14 +74,22 @@ def save_state(path: str, state: dict) -> None:
 
 def main():
     args = parse_args()
-    state_path = args.state_file or f"/tmp/nexus_delta_{args.experiment}.json"
+    state_path = args.state_file or default_state_path(args.experiment)
 
     client = MlflowClient(tracking_uri=args.tracking_uri)
 
     experiment = client.get_experiment_by_name(args.experiment)
     if experiment is None:
-        print(f"[WARN] Experiment not found: {args.experiment} — nothing to export.", flush=True)
-        sys.exit(2)
+        # Configuration error — distinct from "no new data" (exit 2). The wrapper
+        # script only skips SCP on exit 2, so a typo'd experiment name now
+        # surfaces as a real failure instead of a silent skip on every cron cycle.
+        print(f"[ERROR] Experiment not found on local MLflow: {args.experiment!r}", flush=True)
+        try:
+            available = sorted(e.name for e in client.search_experiments())
+            print(f"[ERROR] Available experiments: {available}", flush=True)
+        except Exception as e:
+            print(f"[ERROR] (could not list experiments: {e})", flush=True)
+        sys.exit(1)
 
     state      = load_state(state_path)
     runs_state = state.get("runs", {})
@@ -148,9 +167,10 @@ def main():
         sys.exit(2)
 
     delta = {
-        "experiment": args.experiment,
-        "sync_time":  time.time(),
-        "runs":       delta_runs,
+        "experiment":  args.experiment,
+        "sync_time":   time.time(),
+        "source_host": socket.gethostname(),
+        "runs":        delta_runs,
     }
     with open(args.output, "w") as f:
         json.dump(delta, f)

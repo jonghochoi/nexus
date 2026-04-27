@@ -1,0 +1,9 @@
+{
+  "experiment":       "robot_hand_rl",
+  "remote":           "user@nexus-server:/data/mlflow_delta_inbox",
+  "remote_nexus_dir": "/opt/nexus",
+  "local_uri":        "http://127.0.0.1:5100",
+  "remote_uri":       "http://127.0.0.1:5000",
+  "ssh_key":          "~/.ssh/id_rsa",
+  "ssh_port":         22
+}

@@ -9,6 +9,8 @@ For each run in the delta:
   - Creates the MLflow run if it does not yet exist (using run_name as key)
   - Logs params and tags only on first appearance
   - Uploads new metric points via log_batch() in chunks of 1000
+  - Stamps `nexus.lastSyncTime` (UTC ISO) and `nexus.syncedFromHost` so the
+    central UI can flag stale GPU servers without an external monitor
 
 Usage:
     python import_delta.py \
@@ -17,6 +19,7 @@ Usage:
 """
 
 import argparse
+import datetime
 import json
 import sys
 
@@ -75,6 +78,8 @@ def main():
 
     experiment_name = delta["experiment"]
     runs            = delta.get("runs", [])
+    source_host     = delta.get("source_host", "unknown")
+    sync_time_iso   = datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
 
     if not runs:
         print("[INFO] Empty delta — nothing to import.", flush=True)
@@ -117,6 +122,12 @@ def main():
             for batch in chunks(metric_entities, BATCH_SIZE):
                 client.log_batch(run_id=run_id, metrics=batch)
             total_uploaded += len(metric_entities)
+
+        # Sync metadata — refreshed every cycle so the central UI can show
+        # "last seen N minutes ago" per run, and operators can spot a GPU
+        # server that has stopped syncing without SSHing into each node.
+        client.set_tag(run_id, "nexus.lastSyncTime",   sync_time_iso)
+        client.set_tag(run_id, "nexus.syncedFromHost", source_host)
 
         print(f"  [OK] {run_name}: {len(metrics_raw)} metric points", flush=True)
 

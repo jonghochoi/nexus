@@ -173,14 +173,14 @@ If the table appears, parsing is working correctly. Verify that metric names and
 
 After reviewing the contents in the dry run, proceed with the actual upload.
 
-#### One-time setup — `~/.nexus/config.json`
+#### One-time setup — `~/.nexus/post_config.json`
 
 Team-fixed values (`tracking_uri`, `isaac_lab_version`, `physx_solver`, `hardware`) and your personal `researcher` tag live in a config file, so you don't retype them for every run:
 
 ```bash
 mkdir -p ~/.nexus
-cp post_upload/config.example.json ~/.nexus/config.json
-$EDITOR ~/.nexus/config.json
+cp post_upload/post_config.example.json ~/.nexus/post_config.json
+$EDITOR ~/.nexus/post_config.json
 ```
 
 For local-testing MLflow (`:5100`), set `"tracking_uri": "http://127.0.0.1:5100"` in the config. The built-in default is `:5000` (central server).
@@ -226,7 +226,7 @@ Pass `--no_verify` to skip the automatic check (e.g. in CI where you verify late
 | `--run_name` | MLflow run name (default: folder name + timestamp) | `--run_name ppo_v1` |
 | `--tracking_uri` | MLflow server address (default: from config) | `--tracking_uri http://127.0.0.1:5100` |
 | `--tags` | Per-run tags (`key=value`, space-separated); overrides config | `--tags seed=42 task=grasp` |
-| `--config` | Path to JSON config file (default: `~/.nexus/config.json`) | `--config ./ci-config.json` |
+| `--config` | Path to JSON config file (default: `~/.nexus/post_config.json`) | `--config ./ci-config.json` |
 | `-i`, `--interactive` | Prompt for researcher/seed/task, with config values as defaults | `-i` |
 | `--force` | Skip required-tag validation (researcher, seed, task) | `--force` |
 | `--no_verify` | Skip automatic post-upload verification | `--no_verify` |
@@ -277,7 +277,7 @@ Select multiple runs and click the **Compare** button to compare curves side by 
 
 ### ✅ Phase 1-B Checklist
 
-- [ ] `~/.nexus/config.json` populated with tracking_uri, researcher, team-fixed tags
+- [ ] `~/.nexus/post_config.json` populated with tracking_uri, researcher, team-fixed tags
 - [ ] Confirmed tfevents file existence with `ls`
 - [ ] Reviewed metric parsing results after `--dry_run`
 - [ ] Ran actual upload; automatic verification printed `✓ All checks passed!`
@@ -553,20 +553,45 @@ After training starts, verify that metrics are accumulating in real time in the 
 
 ### 4-1. Pipeline A — Delta Sync (MLflow incremental)
 
-Run the following command once on the GPU server to test synchronization. Each run uses **delta (incremental)** mode, sending only steps recorded since the last sync.
+#### One-time setup — `~/.nexus/sync_config.json`
+
+The fixed values (experiment, remote inbox, SSH key, remote nexus path) live in a config file, so the cron line is a single bash invocation:
 
 ```bash
-bash scheduled_sync/sync_mlflow_to_server.sh \
-    --experiment       robot_hand_rl \
-    --remote           user@nexus-server:/data/mlflow_delta_inbox \
-    --remote_nexus_dir /opt/nexus
+mkdir -p ~/.nexus
+cp scheduled_sync/sync_config.example.json ~/.nexus/sync_config.json
+$EDITOR ~/.nexus/sync_config.json
+```
+
+Required keys: `experiment`, `remote`, `remote_nexus_dir`. Optional: `ssh_key`, `ssh_port`, `local_uri`, `remote_uri`, `state_file`. The file is auto-loaded from `~/.nexus/sync_config.json` when no `--config` flag is given.
+
+#### Run once manually
+
+```bash
+bash scheduled_sync/sync_mlflow_to_server.sh
+# or, if your config lives elsewhere:
+bash scheduled_sync/sync_mlflow_to_server.sh --config /etc/nexus/sync.json
 ```
 
 > 💡 `--remote_nexus_dir` is the path where nexus is installed on the NEXUS server (e.g., `/opt/nexus`). Required to locate `import_delta.py` on the server.
 
-On success, the run will appear in the NEXUS server's MLflow UI. The local state file (`/tmp/nexus_delta_{experiment}.json`) records the last synced step for each run and tag.
+> 💡 Add `--dry-run` to exercise the local export step only (state file is updated, no SCP, no remote import). Useful before committing the cron entry.
+
+On success, the run will appear in the NEXUS server's MLflow UI. The local state file (`~/.nexus/sync_state/{experiment}.json`) records the last synced step for each run and tag. Each imported run also gets `nexus.lastSyncTime` and `nexus.syncedFromHost` tags so you can spot stale GPU servers from the central UI.
 
 **On second run:** If there are no new metrics, SCP is skipped with the message `[OK] No new data since last sync.`
+
+#### Pre-flight check before registering cron
+
+`validate_sync.sh` runs the same config resolution as `sync_mlflow_to_server.sh`, then verifies SSH, remote inbox writability, presence of `import_delta.py` on the central server, central MLflow `/health`, local MLflow + experiment existence, and finally executes a `--dry-run`. A clean run prints a paste-ready cron line — it never edits your crontab.
+
+```bash
+bash scheduled_sync/validate_sync.sh
+# or with a non-default config path:
+bash scheduled_sync/validate_sync.sh --config /etc/nexus/sync.json
+```
+
+Every failure prints what to fix; the script exits 2 on the first failed step rather than continuing in a broken state.
 
 **Automation (cron registration):**
 
@@ -576,17 +601,21 @@ crontab -e
 # $HOME is set by cron to the crontab owner's home directory, so the same
 # line works for any user without editing /home/<name> paths.
 */5 * * * * bash $HOME/nexus/scheduled_sync/sync_mlflow_to_server.sh \
-    --experiment       robot_hand_rl \
-    --remote           user@nexus-server:/data/mlflow_delta_inbox \
-    --remote_nexus_dir /opt/nexus \
     >> $HOME/nexus_sync.log 2>&1
+```
+
+Need a per-key override (e.g. running an alternate experiment from one cron line)? Add the matching CLI flag — flags win over the config file:
+
+```cron
+*/5 * * * * bash $HOME/nexus/scheduled_sync/sync_mlflow_to_server.sh \
+    --experiment robot_hand_rl_pilot >> $HOME/nexus_sync.log 2>&1
 ```
 
 ### 4-2. Pipeline B — One-time batch upload (post_upload validation)
 
 If you have existing tfevents files, you can upload them one time after training completes. Use Pipeline A for scheduled sync.
 
-With `~/.nexus/config.json` pointing at the central server (`tracking_uri: http://nexus-server:5000`), the upload is one line and verification is automatic:
+With `~/.nexus/post_config.json` pointing at the central server (`tracking_uri: http://nexus-server:5000`), the upload is one line and verification is automatic:
 
 ```bash
 python post_upload/tb_to_mlflow.py \
@@ -599,6 +628,8 @@ See Phase 1-B (B-3, B-4) above for the full options reference and for re-running
 
 ### ✅ Phase 4 Checklist
 
+- [ ] `~/.nexus/sync_config.json` populated with experiment, remote, remote_nexus_dir
+- [ ] `bash scheduled_sync/validate_sync.sh` reports "All checks passed"
 - [ ] `sync_mlflow_to_server.sh` manual run successful
 - [ ] Synced run confirmed in NEXUS server MLflow UI
 - [ ] Auto-run confirmed after cron registration (`cat ~/nexus_sync.log`)

@@ -172,15 +172,25 @@ Replace `SummaryWriter` with `make_logger` at the import, `__init__`, and `train
 
 ### Step 3 — Sync to NEXUS server *(via cron, every 5 min)*
 
-Each sync is **incremental**: only metric points with step beyond the last synced step are transferred. Per-run state is cached in `/tmp/nexus_delta_{experiment}.json`.
+Each sync is **incremental**: only metric points with step beyond the last synced step are transferred. Per-run state is cached in `~/.nexus/sync_state/{experiment}.json` (survives reboots).
+
+#### One-time setup — put your fixed values in `~/.nexus/sync_config.json`
 
 ```bash
-*/5 * * * * bash /path/to/nexus/scheduled_sync/sync_mlflow_to_server.sh \
-    --experiment       robot_hand_rl \
-    --remote           user@nexus-server:/data/mlflow_delta_inbox \
-    --remote_nexus_dir /opt/nexus \
-    >> /path/to/sync_cron.log 2>&1
+mkdir -p ~/.nexus
+cp scheduled_sync/sync_config.example.json ~/.nexus/sync_config.json
+$EDITOR ~/.nexus/sync_config.json   # set experiment, remote, remote_nexus_dir, ssh_key
 ```
+
+The file is auto-discovered when no `--config` flag is given. CLI flags still win on a per-key basis, so cron lines can be a single bash invocation:
+
+```bash
+*/5 * * * * bash $HOME/nexus/scheduled_sync/sync_mlflow_to_server.sh >> $HOME/nexus_sync.log 2>&1
+```
+
+Prefer a different path? Pass `--config /etc/nexus/sync.json`. Want to override a single key for this run? Add the matching CLI flag (e.g. `--experiment robot_hand_rl_pilot`).
+
+> 💡 Run once manually with `--dry-run` (export step only, no SCP) to verify the config before registering the cron entry.
 
 ---
 
@@ -188,12 +198,12 @@ Each sync is **incremental**: only metric points with step beyond the last synce
 
 Use when your trainer has **not** been updated yet, or when you want to upload a completed tfevents run in a single batch. This is a manual, one-time operation — run it once after training ends.
 
-### One-time setup — put your fixed values in `~/.nexus/config.json`
+### One-time setup — put your fixed values in `~/.nexus/post_config.json`
 
 ```bash
 mkdir -p ~/.nexus
-cp post_upload/config.example.json ~/.nexus/config.json
-$EDITOR ~/.nexus/config.json   # set tracking_uri, researcher, team-fixed tags
+cp post_upload/post_config.example.json ~/.nexus/post_config.json
+$EDITOR ~/.nexus/post_config.json   # set tracking_uri, researcher, team-fixed tags
 ```
 
 Example:
@@ -236,7 +246,7 @@ After upload completes, `verify_upload.py` runs automatically against the return
 | `--tags k=v ...` | Per-run tag overrides (wins over config) |
 | `--repeat-last` | Inherit experiment/run_name/tags from the last upload (for seed sweeps) |
 | `--history` | List recent uploads (`~/.nexus/history.json`) and exit |
-| `--config <path>` | Use a config file other than `~/.nexus/config.json` |
+| `--config <path>` | Use a config file other than `~/.nexus/post_config.json` |
 | `--force` | Skip required-tag validation |
 | `--no_verify` | Skip automatic post-upload verification |
 | `--dry_run` | Parse and preview only; don't upload |

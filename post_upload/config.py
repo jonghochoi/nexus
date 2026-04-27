@@ -1,6 +1,6 @@
 """Config loader for the nexus post-upload CLI.
 
-Reads ~/.nexus/config.json (or a custom path) and returns a merged dict
+Reads ~/.nexus/post_config.json (or a custom path) and returns a merged dict
 with defaults for tracking_uri, experiment, and team-fixed tags.
 Command-line flags override these defaults.
 """
@@ -9,12 +9,13 @@ import json
 from pathlib import Path
 from typing import Optional
 
-DEFAULT_CONFIG_PATH = Path.home() / ".nexus" / "config.json"
+DEFAULT_CONFIG_PATH = Path.home() / ".nexus" / "post_config.json"
+LEGACY_CONFIG_PATH  = Path.home() / ".nexus" / "config.json"
 HISTORY_PATH = Path.home() / ".nexus" / "history.json"
 HISTORY_LIMIT = 20
 
 # Team-wide fixed values. These mirror the current NEXUS deployment so the
-# CLI works with zero setup; override per user via ~/.nexus/config.json.
+# CLI works with zero setup; override per user via ~/.nexus/post_config.json.
 BUILTIN_DEFAULTS = {
     "tracking_uri": "http://127.0.0.1:5000",
     "experiment": "robot_hand_rl",
@@ -26,7 +27,7 @@ BUILTIN_DEFAULTS = {
 }
 
 # Tags that must be present on every uploaded run (seed & task are per-run;
-# researcher is per-user but is typically set in ~/.nexus/config.json).
+# researcher is per-user but is typically set in ~/.nexus/post_config.json).
 _BASE_REQUIRED = ("researcher", "seed", "task")
 
 # Experiments where sim_run_id becomes required for Sim-to-Real traceability
@@ -61,6 +62,16 @@ def load_config(path: Optional[str] = None) -> dict:
     }
 
     if not config_path.exists():
+        # One-time migration nudge — the file was renamed to disambiguate from
+        # the new ~/.nexus/sync_config.json (Pipeline A). Print once and fall
+        # through to defaults so the user can act on the message.
+        if path is None and LEGACY_CONFIG_PATH.exists():
+            print(
+                f"[WARN] Found legacy config at {LEGACY_CONFIG_PATH}. "
+                f"Rename it to {DEFAULT_CONFIG_PATH} (one-time):\n"
+                f"       mv {LEGACY_CONFIG_PATH} {DEFAULT_CONFIG_PATH}",
+                flush=True,
+            )
         return merged
 
     with open(config_path) as f:
