@@ -1,7 +1,6 @@
 # 🧪 NEXUS Step-by-Step Validation Guide
 
-> Verify functionality locally first, then proceed to the GPU server.  
-> Check the checklist after completing each Phase.
+> Verify functionality locally first, then proceed to the GPU server. Check the checklist after completing each Phase.
 
 ---
 
@@ -49,9 +48,7 @@ source ~/.nexus/activate.sh
 nexus-activate
 ```
 
-> When `(venv)` appears at the start of the terminal prompt, the environment is activated.
-> The venv itself lives at `~/.nexus/venv` — outside the repo — so replacing or
-> re-cloning nexus sources does not wipe it.
+> When `(venv)` appears at the start of the terminal prompt, the environment is activated. The venv itself lives at `~/.nexus/venv` — outside the repo — so replacing or re-cloning nexus sources does not wipe it.
 
 ### A-4. Verify installation
 
@@ -116,8 +113,7 @@ After the test completes, the MLflow UI (`http://localhost:5100`) should show ne
 
 ## 📤 Phase 1-B — Actual Upload Test with Existing TensorBoard Files
 
-> **Purpose:** Upload existing tfevents files to MLflow and validate that data was transferred accurately.  
-> Complete all Phase 1 checklist items before proceeding (MLflow server must be running).
+> **Purpose:** Upload existing tfevents files to MLflow and validate that data was transferred accurately. Complete all Phase 1 checklist items before proceeding (MLflow server must be running).
 
 ---
 
@@ -135,8 +131,7 @@ Expected output:
 events.out.tfevents.1700000000.hostname.12345.0
 ```
 
-> tfevents files typically start with `events.out.tfevents.`.  
-> Having multiple files is fine — the script recursively searches the folder.
+> tfevents files typically start with `events.out.tfevents.`. Having multiple files is fine — the script recursively searches the folder.
 
 ---
 
@@ -292,7 +287,8 @@ Select multiple runs and click the **Compare** button to compare curves side by 
 
 ## 📦 Phase 2 — GPU Server Dependency Installation (Offline Environment)
 
-> **Problem:** The GPU server has no internet access, so `pip install` does not work.  
+> **Problem:** The GPU server has no internet access, so `pip install` does not work.
+>
 > **Solution:** Download package files (.whl) in advance on an internet-connected machine and transfer them via SCP.
 
 Choose the appropriate method for your situation from the two options below.
@@ -303,10 +299,7 @@ Choose the appropriate method for your situation from the two options below.
 
 This method works without Docker and transfers only Python packages, so the file size is small.
 
-> **Critical — wheels must match the GPU server's Python, not your local Python.**  
-> The OS/Python version on your local PC and the GPU server almost always differ.  
-> The `--python-version` flag below refers to the **target (GPU server) Python**, not your local one.  
-> Your local Python only needs to be new enough to run `pip download` (any 3.8+ is fine).
+> **Critical — wheels must match the GPU server's Python, not your local Python.** The OS/Python version on your local PC and the GPU server almost always differ. The `--python-version` flag below refers to the **target (GPU server) Python**, not your local one. Your local Python only needs to be new enough to run `pip download` (any 3.8+ is fine).
 
 #### A-1. On local machine — Download wheel files
 
@@ -356,13 +349,11 @@ scp -r nexus_wheels user@gpu-server:~/
 scp -r nexus        user@gpu-server:~/
 ```
 
-> If SSH uses a non-standard port, add the `-P port_number` option.  
-> Example: `scp -P 22222 -r nexus_wheels user@gpu-server:~/`
+> If SSH uses a non-standard port, add the `-P port_number` option. Example: `scp -P 22222 -r nexus_wheels user@gpu-server:~/`
 
 #### A-3. On GPU server — Offline installation
 
-After SSH-ing into the GPU server. `~` below automatically expands to the current
-login user's home directory, so these commands work regardless of your username.
+After SSH-ing into the GPU server. `~` below automatically expands to the current login user's home directory, so these commands work regardless of your username.
 
 ```bash
 cd ~/nexus
@@ -398,9 +389,7 @@ pip install \
     rich
 ```
 
-> **Why `virtualenv`:**  
-> On Ubuntu/Debian, the `pythonX.Y-venv` package (e.g. `python3.12-venv`) ships via apt and cannot be transferred as a pip wheel.  
-> `virtualenv` is a pip package that can be transferred offline as a wheel, and its usage is identical to venv.
+> **Why `virtualenv`:** On Ubuntu/Debian, the `pythonX.Y-venv` package (e.g. `python3.12-venv`) ships via apt and cannot be transferred as a pip wheel. `virtualenv` is a pip package that can be transferred offline as a wheel, and its usage is identical to venv.
 
 ---
 
@@ -410,10 +399,7 @@ If Docker is installed on the GPU server, this method is the most reliable.
 
 #### B-1. On local machine — Write Dockerfile
 
-Create the following `Dockerfile` in the `nexus/` folder. The base image's Python
-version is self-contained inside the container — it does **not** need to match
-the GPU server's system Python. Pick any 3.10+ tag that your code is tested on
-(`python:3.10-slim`, `python:3.11-slim`, `python:3.12-slim`, etc.).
+Create the following `Dockerfile` in the `nexus/` folder. The base image's Python version is self-contained inside the container — it does **not** need to match the GPU server's system Python. Pick any 3.10+ tag that your code is tested on (`python:3.10-slim`, `python:3.11-slim`, `python:3.12-slim`, etc.).
 
 ```dockerfile
 FROM python:3.10-slim
@@ -509,8 +495,7 @@ Start a local MLflow on the GPU server (no internet required, loopback only):
 bash scheduled_sync/start_local_mlflow.sh
 ```
 
-> This MLflow is only accessible from within the GPU server (`127.0.0.1:5100`).  
-> To access it externally, use SSH tunneling:
+> This MLflow is only accessible from within the GPU server (`127.0.0.1:5100`). To access it externally, use SSH tunneling:
 >
 > ```bash
 > # On local PC terminal (tunnel GPU server MLflow to local)
@@ -564,8 +549,7 @@ After training starts, verify that metrics are accumulating in real time in the 
 
 ## 🔄 Phase 4 — Cross-Server Sync Validation
 
-> This step synchronizes experiment data from the GPU server to the central MLflow server (NEXUS server).  
-> Proceed after the NEXUS server is ready.
+> This step synchronizes experiment data from the GPU server to the central MLflow server (NEXUS server). Proceed after the NEXUS server is ready.
 
 ### 4-1. Pipeline A — Delta Sync (MLflow incremental)
 
@@ -635,10 +619,7 @@ lsof -ti :5100 | xargs kill
 bash scheduled_sync/start_local_mlflow.sh
 ```
 
-> **Why `kill $(cat .mlflow_local.pid)` doesn't work:**  
-> MLflow uses gunicorn internally to spawn multiple worker processes.  
-> The PID file only stores the master PID, so killing only the master leaves workers as orphan processes.  
-> Terminating by port kills both master and all workers at once.
+> **Why `kill $(cat .mlflow_local.pid)` doesn't work:** MLflow uses gunicorn internally to spawn multiple worker processes. The PID file only stores the master PID, so killing only the master leaves workers as orphan processes. Terminating by port kills both master and all workers at once.
 
 ### ⚠️ `externally-managed-environment` error during `pip install`
 
@@ -648,13 +629,11 @@ This error (PEP 668) is raised by distros that mark the system Python as externa
 pip install --no-index --find-links ~/nexus_wheels --break-system-packages virtualenv
 ```
 
-After creating and activating a virtual environment (e.g. `python3 -m virtualenv venv`, or `python3.X -m virtualenv venv` to pin a specific version),  
-the venv's internal pip is used and this error will not occur again.
+After creating and activating a virtual environment (e.g. `python3 -m virtualenv venv`, or `python3.X -m virtualenv venv` to pin a specific version), the venv's internal pip is used and this error will not occur again.
 
 ### ⚠️ `ModuleNotFoundError: No module named 'pkg_resources'`
 
-Starting from setuptools version 70+, `pkg_resources` has been removed from wheels.  
-Switch to the last stable version that includes `pkg_resources` (69.5.1):
+Starting from setuptools version 70+, `pkg_resources` has been removed from wheels. Switch to the last stable version that includes `pkg_resources` (69.5.1):
 
 ```bash
 # On local machine: download pinned version (uses GPU_PY / GPU_PLATFORM from A-1)
@@ -672,8 +651,7 @@ python -c "import pkg_resources; print('OK')"
 
 ### ⚠️ Some packages fail with `pip download --only-binary`
 
-Some packages don't have binary wheels and require source compilation.  
-Separate individual packages instead of using `--only-binary=:all:`:
+Some packages don't have binary wheels and require source compilation. Separate individual packages instead of using `--only-binary=:all:`:
 
 ```bash
 # Packages with binary wheels (uses GPU_PY / GPU_PLATFORM from A-1)

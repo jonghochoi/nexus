@@ -2,8 +2,7 @@
 
 How to replace `tensorboardX.SummaryWriter` with the unified logger in any training class.
 
-> ✅ Only **3 locations** in your training code need to be modified.
-> `write_stats()` and the rest of the training loop require **zero changes**.
+> ✅ Only **3 locations** in your training code need to be modified. `write_stats()` and the rest of the training loop require **zero changes**.
 
 ---
 
@@ -57,8 +56,7 @@ self.writer = make_logger(
 )
 ```
 
-`env_cfg_path` / `reward_fn_path` are silently skipped if the files do not exist
-or if `mode="tensorboard"` is selected.
+`env_cfg_path` / `reward_fn_path` are silently skipped if the files do not exist or if `mode="tensorboard"` is selected.
 
 ---
 
@@ -89,9 +87,7 @@ def train(self) -> None:
     self.writer.close()
 ```
 
-`log_checkpoint(path, kind)` renames the file on upload so MLflow always stores
-exactly two checkpoint files: `checkpoints/best.pth` and `checkpoints/last.pth`.
-Each call silently overwrites the previous version for that kind.
+`log_checkpoint(path, kind)` renames the file on upload so MLflow always stores exactly two checkpoint files: `checkpoints/best.pth` and `checkpoints/last.pth`. Each call silently overwrites the previous version for that kind.
 
 ---
 
@@ -118,8 +114,7 @@ In `"tensorboard"` mode, `log_checkpoint()` and `log_artifact()` are silently ig
 bash scheduled_sync/start_local_mlflow.sh
 ```
 
-This starts a local MLflow server on `127.0.0.1:5100`.
-All GPU processes on the server share this single server via loopback HTTP — no internet required.
+This starts a local MLflow server on `127.0.0.1:5100`. All GPU processes on the server share this single server via loopback HTTP — no internet required.
 
 ---
 

@@ -199,8 +199,7 @@ pip install psutil pynvml
 
 ## 5. Git Commit Tracking
 
-`MLflowLogger` automatically captures the git state of the training code at run
-start. No extra code is needed — it is on by default.
+`MLflowLogger` automatically captures the git state of the training code at run start. No extra code is needed — it is on by default.
 
 ### What gets recorded
 
@@ -212,8 +211,7 @@ start. No extra code is needed — it is on by default.
 
 ### Restoring a dirty-tree run
 
-If training was launched with uncommitted changes, the exact state can be
-recovered from any machine that has the base commit:
+If training was launched with uncommitted changes, the exact state can be recovered from any machine that has the base commit:
 
 ```bash
 git checkout <git_commit>
@@ -223,9 +221,7 @@ git apply git_patch.diff
 
 ### Opting out
 
-Pass `track_git=False` to suppress all git tags and artifacts — useful when
-training outside a git repo or in CI environments where the working tree is
-intentionally untracked:
+Pass `track_git=False` to suppress all git tags and artifacts — useful when training outside a git repo or in CI environments where the working tree is intentionally untracked:
 
 ```python
 logger = MLflowLogger(

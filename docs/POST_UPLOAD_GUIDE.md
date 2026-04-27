@@ -1,13 +1,8 @@
 # Post-Upload Guide (Pipeline B)
 
-This guide covers the ergonomic features of the post-upload CLI
-(`post_upload/tb_to_mlflow.py`) beyond the basic invocation in the README:
-the config file, interactive tag entry, automatic verification, upload
-history, and Sim-to-Real `sim_run_id` auto-detection.
+This guide covers the ergonomic features of the post-upload CLI (`post_upload/tb_to_mlflow.py`) beyond the basic invocation in the README: the config file, interactive tag entry, automatic verification, upload history, and Sim-to-Real `sim_run_id` auto-detection.
 
-> For the high-level "what is Pipeline B" overview, see
-> [`README.md`](../README.md#-pipeline-b--tensorboard-post-upload-one-shot-no-code-changes)
-> and [`VALIDATION_GUIDE.md`](./VALIDATION_GUIDE.md) Phase 1-B.
+> For the high-level "what is Pipeline B" overview, see [`README.md`](../README.md#-pipeline-b--tensorboard-post-upload-one-shot-no-code-changes) and [`VALIDATION_GUIDE.md`](./VALIDATION_GUIDE.md) Phase 1-B.
 
 ---
 
@@ -40,8 +35,7 @@ python post_upload/verify_upload.py --from-last
 
 ## 1. `~/.nexus/config.json` — team-fixed values
 
-The CLI reads defaults from `~/.nexus/config.json`. Ship the example file
-to every team member:
+The CLI reads defaults from `~/.nexus/config.json`. Ship the example file to every team member:
 
 ```bash
 mkdir -p ~/.nexus
@@ -70,15 +64,13 @@ Example:
 | `tags.researcher` | Your name — per-user, set once and forget |
 | `tags.isaac_lab_version`, `physx_solver`, `hardware` | Team-fixed reproducibility tags |
 
-Override the config path with `--config /path/to/other.json` (useful for
-CI or second-machine setups).
+Override the config path with `--config /path/to/other.json` (useful for CI or second-machine setups).
 
 ---
 
 ## 2. Required tags & interactive mode
 
-Every uploaded run must carry these tags — the CLI blocks the upload
-otherwise (pass `--force` to bypass):
+Every uploaded run must carry these tags — the CLI blocks the upload otherwise (pass `--force` to bypass):
 
 | Tag | Source | Notes |
 |---|---|---|
@@ -89,9 +81,7 @@ otherwise (pass `--force` to bypass):
 
 ### Interactive prompting
 
-- **Automatic** — if any required tag is missing and `stdin` is a TTY,
-  the CLI enters interactive mode and prompts only for the missing
-  values, showing config values as defaults:
+- **Automatic** — if any required tag is missing and `stdin` is a TTY, the CLI enters interactive mode and prompts only for the missing values, showing config values as defaults:
 
   ```
   Missing required tags: seed, task — entering interactive mode.
@@ -101,8 +91,7 @@ otherwise (pass `--force` to bypass):
     task: in_hand_reorientation
   ```
 
-- **Explicit** — `-i` / `--interactive` prompts for every required tag
-  regardless, which is handy for editing a repeated set (see §4):
+- **Explicit** — `-i` / `--interactive` prompts for every required tag regardless, which is handy for editing a repeated set (see §4):
 
   ```bash
   python post_upload/tb_to_mlflow.py --tb_dir /path/to/run_003 --repeat-last -i
@@ -120,18 +109,13 @@ otherwise (pass `--force` to bypass):
 | 6 | `--git_commit HASH` | `git_commit` only |
 | 7 | `-i` interactive input | required tags |
 
-> **Note:** `--git_commit` is a convenience shorthand for `--tags git_commit=<hash>`.
-> Use it for post-hoc uploads where the training commit is known but the working
-> tree is no longer in that state. For scheduled-sync runs (Pipeline A), the commit
-> is captured automatically — no flag needed.
+> **Note:** `--git_commit` is a convenience shorthand for `--tags git_commit=<hash>`. Use it for post-hoc uploads where the training commit is known but the working tree is no longer in that state. For scheduled-sync runs (Pipeline A), the commit is captured automatically — no flag needed.
 
 ---
 
 ## 3. Automatic verification
 
-After every successful upload, `tb_to_mlflow.py` runs `verify_upload.py`
-against the returned `run_id` automatically. You don't need to copy the
-run_id anywhere.
+After every successful upload, `tb_to_mlflow.py` runs `verify_upload.py` against the returned `run_id` automatically. You don't need to copy the run_id anywhere.
 
 ```
 ✓ Upload complete!
@@ -160,8 +144,7 @@ python post_upload/verify_upload.py \
 
 ## 4. Upload history — `~/.nexus/history.json`
 
-Every upload is recorded in `~/.nexus/history.json` (newest first,
-capped at 20 entries) with its run_id, tags, and verification result.
+Every upload is recorded in `~/.nexus/history.json` (newest first, capped at 20 entries) with its run_id, tags, and verification result.
 
 ### `--history` — list recent uploads
 
@@ -177,8 +160,7 @@ $ python post_upload/tb_to_mlflow.py --history
 
 ### `--repeat-last` — reuse the last tag set
 
-Inherit `experiment`, `run_name`, and `tags` from the most recent upload
-— perfect for seed sweeps where only one value changes:
+Inherit `experiment`, `run_name`, and `tags` from the most recent upload — perfect for seed sweeps where only one value changes:
 
 ```bash
 # Upload 10 seeds of the same task without re-typing everything:
@@ -188,8 +170,7 @@ python post_upload/tb_to_mlflow.py --tb_dir ./runs/seed3 --repeat-last --tags se
 ...
 ```
 
-Combine with `-i` to edit a tag interactively with the previous value
-prefilled:
+Combine with `-i` to edit a tag interactively with the previous value prefilled:
 
 ```bash
 python post_upload/tb_to_mlflow.py --tb_dir ./runs/seed2 --repeat-last -i
@@ -209,13 +190,9 @@ python post_upload/verify_upload.py --from-last
 
 ## 5. Real-robot evaluation — `sim_run_id` auto-detection
 
-Sim-to-Real traceability requires every real-robot eval run to carry a
-`sim_run_id` tag pointing at the sim training run whose policy was deployed
-(see [`EXPERIMENT_STANDARD_KO.md`](./EXPERIMENT_STANDARD_KO.md) §
-"Sim-to-Real 연결").
+Sim-to-Real traceability requires every real-robot eval run to carry a `sim_run_id` tag pointing at the sim training run whose policy was deployed (see [`EXPERIMENT_STANDARD_KO.md`](./EXPERIMENT_STANDARD_KO.md) § "Sim-to-Real 연결").
 
-When `--experiment real_robot_eval`, `sim_run_id` is **required** —
-the CLI will prompt for it just like `seed` and `task`.
+When `--experiment real_robot_eval`, `sim_run_id` is **required** — the CLI will prompt for it just like `seed` and `task`.
 
 To avoid manual lookups, drop a `run_meta.json` file next to the tfevents:
 
@@ -231,14 +208,11 @@ On upload, the CLI detects and prefills:
 Detected sim_run_id from run_meta.json: abc123def456
 ```
 
-`run_meta.json` is treated as ground truth for that tb_dir — it
-overrides any value carried over by `--repeat-last`, but can still be
-overridden by explicit `--tags sim_run_id=...`.
+`run_meta.json` is treated as ground truth for that tb_dir — it overrides any value carried over by `--repeat-last`, but can still be overridden by explicit `--tags sim_run_id=...`.
 
 ### Recommended real-eval pipeline integration
 
-Have your real-robot eval launcher script drop `run_meta.json` at the
-same moment it starts writing tfevents. Minimal Python:
+Have your real-robot eval launcher script drop `run_meta.json` at the same moment it starts writing tfevents. Minimal Python:
 
 ```python
 import json, pathlib, mlflow
@@ -289,13 +263,11 @@ with open(log_dir / "run_meta.json", "w") as f:
 
 ## 7. Workflows
 
-Concrete end-to-end walkthroughs of common situations. Each section
-shows the setup, the exact commands, and what you'd see in the terminal.
+Concrete end-to-end walkthroughs of common situations. Each section shows the setup, the exact commands, and what you'd see in the terminal.
 
 ### 7.1 Day 1 — a new researcher onboards
 
-You've just joined the team and cloned the repo. Get set up and do your
-first upload:
+You've just joined the team and cloned the repo. Get set up and do your first upload:
 
 ```bash
 # Install — venv is created at ~/.nexus/venv (outside the repo)
@@ -377,8 +349,7 @@ python post_upload/tb_to_mlflow.py \
     --tags     seed=1 task=in_hand_reorientation
 ```
 
-For seeds 2–5, `--repeat-last` inherits experiment/tags from history
-— just override the seed and run_name:
+For seeds 2–5, `--repeat-last` inherits experiment/tags from history — just override the seed and run_name:
 
 ```bash
 for S in 2 3 4 5; do
@@ -403,8 +374,7 @@ $ python post_upload/tb_to_mlflow.py --history
   2026-04-23T18:35    robot_hand_rl  ppo_v17_seed1    mno...      ✓      seed=1, task=in_hand_...
 ```
 
-> 💡 Prefer editing interactively? `--repeat-last -i` prefills each tag
-> with the previous value so you can step through and accept or change:
+> 💡 Prefer editing interactively? `--repeat-last -i` prefills each tag with the previous value so you can step through and accept or change:
 >
 > ```
 > seed [1]: 2              ← type new value
@@ -446,11 +416,9 @@ Detected sim_run_id from run_meta.json: 7f3a9c8d2e1b4f6a
 ✓ All checks passed!
 ```
 
-The MLflow run now carries `sim_run_id=7f3a9c...`; click through and
-you land on the exact sim training run whose policy was deployed.
+The MLflow run now carries `sim_run_id=7f3a9c...`; click through and you land on the exact sim training run whose policy was deployed.
 
-If `run_meta.json` is missing, you can't forget `sim_run_id` silently
-— `--experiment real_robot_eval` promotes it to a required tag:
+If `run_meta.json` is missing, you can't forget `sim_run_id` silently — `--experiment real_robot_eval` promotes it to a required tag:
 
 ```
 Missing required tags: sim_run_id — entering interactive mode.
@@ -472,9 +440,7 @@ $ python post_upload/tb_to_mlflow.py --tb_dir ~/runs/ppo_v19_seed1 \
 [ERROR] Failed to connect to MLflow server: HTTPConnectionPool(...)
 ```
 
-Nothing gets saved to history on connect failure, so the command works
-to replay as-is once the server is back. If you just want to retry with
-the same tags you used 10 minutes ago on a previous run:
+Nothing gets saved to history on connect failure, so the command works to replay as-is once the server is back. If you just want to retry with the same tags you used 10 minutes ago on a previous run:
 
 ```bash
 # Confirm what the last successful upload looked like
@@ -487,9 +453,7 @@ python post_upload/tb_to_mlflow.py \
     --repeat-last --tags seed=1
 ```
 
-**Upload succeeded, verification failed** (network hiccup during the
-verify step): the record IS saved with `verify_ok=False`. Re-verify
-later without copy-paste:
+**Upload succeeded, verification failed** (network hiccup during the verify step): the record IS saved with `verify_ok=False`. Re-verify later without copy-paste:
 
 ```bash
 python post_upload/verify_upload.py --from-last
@@ -510,18 +474,15 @@ $ python post_upload/tb_to_mlflow.py --history
   2026-04-23T12:12    robot_hand_rl   ppo_v17_seed1   ghi...   ✓   seed=1, task=in_hand_...
 ```
 
-Yes — 12:18, verified. The Run ID is shown; click through in MLflow UI
-at `http://nexus-server:5000/#/experiments/.../runs/abc...` to inspect.
+Yes — 12:18, verified. The Run ID is shown; click through in MLflow UI at `http://nexus-server:5000/#/experiments/.../runs/abc...` to inspect.
 
-History persists across shells and terminals, so you can check from a
-different tmux pane or a freshly-opened session.
+History persists across shells and terminals, so you can check from a different tmux pane or a freshly-opened session.
 
 ---
 
 ### 7.6 CI / non-interactive usage
 
-In CI (no TTY) every required tag must be explicit; there's no
-interactive fallback. A typical GitHub Actions step:
+In CI (no TTY) every required tag must be explicit; there's no interactive fallback. A typical GitHub Actions step:
 
 ```yaml
 - name: Upload run to MLflow
@@ -546,10 +507,7 @@ Exit codes you can branch on:
 | `1` | Connection error, missing tfevents, missing required tags, etc. |
 | `2` | Upload succeeded but auto-verify failed |
 
-If a separate CI job handles verification, add `--no_verify` and fail
-the pipeline later on the verify step instead. For leaner configuration
-on a long-lived runner, keep `~/.nexus/config.json` populated and drop
-the fixed flags:
+If a separate CI job handles verification, add `--no_verify` and fail the pipeline later on the verify step instead. For leaner configuration on a long-lived runner, keep `~/.nexus/config.json` populated and drop the fixed flags:
 
 ```bash
 python post_upload/tb_to_mlflow.py \

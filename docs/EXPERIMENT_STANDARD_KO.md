@@ -1,7 +1,6 @@
 # 🧭 팀 실험 관리 표준 (NEXUS Experiment Standard)
 
-> **문서 목적:** NEXUS MLflow 서버에 쌓이는 실험 데이터를 팀 전체가 일관되게 관리하기 위한 표준입니다.
-> 이 문서에 정의된 규칙은 모든 팀원이 준수해야 합니다.
+> **문서 목적:** NEXUS MLflow 서버에 쌓이는 실험 데이터를 팀 전체가 일관되게 관리하기 위한 표준입니다. 이 문서에 정의된 규칙은 모든 팀원이 준수해야 합니다.
 >
 > **최초 작성:** YYYY-MM-DD · **최종 수정:** YYYY-MM-DD · **관리자:** @jonghochoi
 
@@ -33,8 +32,7 @@
 
 ## 🔀 0. 도구 역할 분리 원칙
 
-> **MLflow와 Confluence의 역할을 절대로 섞지 않습니다.**
-> MLflow에 해석을 쓰거나, Confluence에 수치를 나열하면 둘 다 쓸모없어집니다.
+> **MLflow와 Confluence의 역할을 절대로 섞지 않습니다.** MLflow에 해석을 쓰거나, Confluence에 수치를 나열하면 둘 다 쓸모없어집니다.
 
 | | 📊 MLflow | 📝 Confluence |
 |---|---|---|
@@ -109,8 +107,7 @@
 
 ### 1-1. Experiment 계층 설계 원칙
 
-Experiment는 **"함께 비교하고 싶은 Run들의 묶음"** 입니다.
-서로 다른 Experiment에 있는 Run은 MLflow UI에서 나란히 비교하기 어렵습니다.
+Experiment는 **"함께 비교하고 싶은 Run들의 묶음"** 입니다. 서로 다른 Experiment에 있는 Run은 MLflow UI에서 나란히 비교하기 어렵습니다.
 
 ```
 NEXUS MLflow
@@ -372,14 +369,9 @@ self.writer = make_logger(
 )
 ```
 
-> `sim_run_id` 없이 Real 평가 Run을 만들지 않습니다.
-> Sim-to-Real 실패 시 원인 추적이 불가능해집니다.
+> `sim_run_id` 없이 Real 평가 Run을 만들지 않습니다. Sim-to-Real 실패 시 원인 추적이 불가능해집니다.
 
-> 💡 **Pipeline B 업로드 시**: tfevents 디렉토리 옆에 `run_meta.json`
-> (`{"sim_run_id": "..."}`)을 떨어뜨려 두면 `tb_to_mlflow.py`가 자동으로
-> 감지합니다. `--experiment real_robot_eval`로 업로드하면 `sim_run_id`가
-> 필수 태그로 격상되어 누락 시 업로드가 차단됩니다. 상세:
-> [`POST_UPLOAD_GUIDE.md`](./POST_UPLOAD_GUIDE.md) §5.
+> 💡 **Pipeline B 업로드 시**: tfevents 디렉토리 옆에 `run_meta.json` (`{"sim_run_id": "..."}`)을 떨어뜨려 두면 `tb_to_mlflow.py`가 자동으로 감지합니다. `--experiment real_robot_eval`로 업로드하면 `sim_run_id`가 필수 태그로 격상되어 누락 시 업로드가 차단됩니다. 상세: [`POST_UPLOAD_GUIDE.md`](./POST_UPLOAD_GUIDE.md) §5.
 
 ---
 
@@ -410,8 +402,7 @@ self.writer = make_logger(
 2. 상단 **"Compare"** 버튼 클릭
 3. Params diff / Metrics 곡선 겹쳐보기 가능
 
-> ⚠️ 서로 다른 Experiment의 Run은 Compare가 되지 않습니다.
-> 비교하려면 같은 Experiment 안에 있어야 합니다.
+> ⚠️ 서로 다른 Experiment의 Run은 Compare가 되지 않습니다. 비교하려면 같은 Experiment 안에 있어야 합니다.
 
 ---
 
