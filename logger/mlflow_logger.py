@@ -29,7 +29,7 @@ import mlflow.entities
 from mlflow.entities import Metric
 from mlflow.tracking import MlflowClient
 
-from git_utils import get_git_info, get_git_patch
+from .git_utils import get_git_info, get_git_patch
 
 _BATCH_SIZE = 1000   # MLflow hard limit per log_batch() call
 
