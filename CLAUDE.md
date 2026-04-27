@@ -83,7 +83,7 @@ from logger.system_metrics import SystemMetricsLogger  # background thread, 30s 
 from logger                import rl_metrics           # pure-numpy explained_variance, approx_kl, clip_fraction, grad_norm
 ```
 
-`logger/git_utils.py` is imported via top-level `from git_utils import ...` inside `mlflow_logger.py` (not `from .git_utils import`). This means `mlflow_logger` only resolves correctly when the repo root is on `sys.path` — which `smoke_test.py` ensures explicitly. Keep this in mind when refactoring.
+All intra-package imports use the relative form (`from .git_utils import ...`, `from .mlflow_logger import ...`). Do not introduce bare top-level imports between sibling modules — they break when the package is installed via `pip install nexus-logger` because the repo root is not on `sys.path` in that case.
 
 `TBLogger` is **not** interface-equivalent to `MLflowLogger` / `DualLogger` — it implements only the `SummaryWriter` core (`add_scalar`, `add_histogram`, `add_image`, `log_artifact` no-op, `close`). It has **no** `log_checkpoint`, `log_rl_metrics`, `register_checkpoint`, or `promote_model`. So a trainer written against the full logger API will `AttributeError` when `make_logger(mode="tensorboard")` is selected as a rollback path. (`docs/LOGGER_SETUP.md` currently says these are "silently ignored" — that's true for `log_artifact` only.) When adding a new method to `MLflowLogger`, decide whether `DualLogger` should forward it (almost always yes) and whether `TBLogger` should stub it (depends on whether you want `mode="tensorboard"` to stay viable).
 
