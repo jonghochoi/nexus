@@ -102,9 +102,7 @@ PPO.write_stats()
 │                    PPO Training Process                 │
 │                                                         │
 │  __init__()                                             │
-│  ├── make_logger(params=agent_cfg,                      │
-│  │               env_cfg_path="cfg/env_cfg.yaml",       │
-│  │               reward_fn_path="tasks/reward_fn.py")   │
+│  ├── make_logger(params=agent_cfg)                      │
 │  │                                                      │
 │  train()  ──── write_stats() ──── add_scalar(tag, val)  │
 │  │                                                      │
@@ -238,9 +236,6 @@ Run: "ShadowHand_PPO_seed42_20240315_143022"
 │   └── ...
 │
 └── Artifacts (file storage)
-    ├── configs/
-    │   ├── env_cfg.yaml       ← environment config (logged once at run start)
-    │   └── reward_fn.py       ← reward function code (logged once at run start)
     └── checkpoints/
         ├── best.pth           ← best checkpoint (overwritten whenever score improves)
         └── last.pth           ← latest epoch checkpoint (overwritten each epoch)
@@ -304,9 +299,8 @@ MLflow UI (Central Server :5000)
 │       └── Run D  seed=7   reward_fn_v2  lr=3e-4  → best_score=0.43
 │
 └── Compare Runs (A vs B)
-    ├── Parameters diff: check reward_fn_path → verify via configs/reward_fn.py archive
-    ├── Metrics chart:   episode/reward_mean curves side by side
-    └── Artifacts:       download reward_fn.py from both runs and diff directly
+    ├── Parameters diff: agent_cfg keys side by side (lr, gamma, e_clip, ...)
+    └── Metrics chart:   episode/reward_mean curves side by side
 ```
 
 ---

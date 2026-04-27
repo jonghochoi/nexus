@@ -197,7 +197,7 @@ tree /opt/nexus-mlflow
 
 ```
 /opt/nexus-mlflow
-├── artifacts/       ← Where best.pth, env_cfg.yaml, etc. will be stored
+├── artifacts/       ← Where best.pth, last.pth, etc. will be stored
 ├── mlruns/          ← MLflow experiment DB (metrics, params, tags)
 ├── sync_inbox/      ← Temporary receive folder for SCP transfers from Blackwell
 └── venv/            ← Python virtual environment
@@ -685,11 +685,8 @@ After setup is complete, the structure will be as follows:
   Storage locations:
   /opt/nexus-mlflow/
   ├── mlruns/          ← Experiment metadata (metrics, params, tags)
-  ├── artifacts/       ← Checkpoints, config files
+  ├── artifacts/       ← Checkpoints
   │   └── <run_id>/
-  │       ├── configs/
-  │       │   ├── env_cfg.yaml
-  │       │   └── reward_fn.py
   │       └── checkpoints/
   │           ├── best.pth
   │           └── last.pth

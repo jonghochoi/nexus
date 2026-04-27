@@ -48,8 +48,6 @@ class DualLogger:
         experiment_name: str = "robot_hand_rl",
         params: Optional[dict] = None,
         tags: Optional[dict] = None,
-        env_cfg_path: Optional[str] = None,
-        reward_fn_path: Optional[str] = None,
         parent_run_id: Optional[str] = None,
     ):
         self._tb = TBLogger(log_dir=log_dir)
@@ -59,8 +57,6 @@ class DualLogger:
             experiment_name=experiment_name,
             params=params,
             tags=tags,
-            env_cfg_path=env_cfg_path,
-            reward_fn_path=reward_fn_path,
             parent_run_id=parent_run_id,
         )
         print("[DualLogger] Active: TensorBoard + MLflow")
@@ -131,8 +127,6 @@ def make_logger(
     experiment_name: str = "robot_hand_rl",
     params: Optional[dict] = None,
     tags: Optional[dict] = None,
-    env_cfg_path: Optional[str] = None,
-    reward_fn_path: Optional[str] = None,
     parent_run_id: Optional[str] = None,
 ):
     """
@@ -143,17 +137,11 @@ def make_logger(
       "mlflow"      → MLflow only
       "tensorboard" → TensorBoard only (legacy, no changes to existing code)
 
-    env_cfg_path and reward_fn_path are uploaded once at run start as
-    configs/env_cfg.yaml and configs/reward_fn.py respectively.
-    Silently skipped if the files do not exist or mode is "tensorboard".
-
     Example:
         self.writer = make_logger(
             mode="dual",
             log_dir=...,
             run_name=...,
-            env_cfg_path="cfg/env_cfg.yaml",
-            reward_fn_path="tasks/reward_fn.py",
         )
     """
     mode = mode.lower().strip()
@@ -166,8 +154,6 @@ def make_logger(
             experiment_name=experiment_name,
             params=params,
             tags=tags,
-            env_cfg_path=env_cfg_path,
-            reward_fn_path=reward_fn_path,
             parent_run_id=parent_run_id,
         )
     elif mode == "mlflow":
@@ -177,8 +163,6 @@ def make_logger(
             experiment_name=experiment_name,
             params=params,
             tags=tags,
-            env_cfg_path=env_cfg_path,
-            reward_fn_path=reward_fn_path,
             parent_run_id=parent_run_id,
         )
     elif mode == "tensorboard":

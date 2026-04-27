@@ -51,12 +51,8 @@ self.writer = make_logger(
         "isaac_lab_version": agent_cfg.get("isaac_lab_version", "unknown"),
         "physx_solver":      agent_cfg.get("physx_solver", "TGS"),
     },
-    env_cfg_path=agent_cfg.get("env_cfg_path"),     # uploaded once as configs/env_cfg.yaml
-    reward_fn_path=agent_cfg.get("reward_fn_path"), # uploaded once as configs/reward_fn.py
 )
 ```
-
-`env_cfg_path` / `reward_fn_path` are silently skipped if the files do not exist or if `mode="tensorboard"` is selected.
 
 ---
 
@@ -126,8 +122,6 @@ This starts a local MLflow server on `127.0.0.1:5100`. All GPU processes on the 
 | Tags (researcher, task, seed …) | Run start | Tags tab |
 | `git_commit`, `git_dirty` tags | Run start | Tags tab |
 | `git_patch.diff` | Run start *(dirty tree only)* | `git/git_patch.diff` |
-| `env_cfg.yaml` | Run start | `configs/env_cfg.yaml` |
-| `reward_fn.py` | Run start | `configs/reward_fn.py` |
 | Metrics (loss, FPS, reward …) | Every step | Metrics tab |
 | `best.pth` | When best score improves | `checkpoints/best.pth` |
 | `last.pth` | Every epoch end | `checkpoints/last.pth` |
@@ -159,8 +153,6 @@ This starts a local MLflow server on `127.0.0.1:5100`. All GPU processes on the 
 +                "isaac_lab_version": agent_cfg.get("isaac_lab_version", "unknown"),
 +                "physx_solver":      agent_cfg.get("physx_solver", "TGS"),
 +            },
-+            env_cfg_path=agent_cfg.get("env_cfg_path"),
-+            reward_fn_path=agent_cfg.get("reward_fn_path"),
 +        )
 
      def write_stats(self, ...):

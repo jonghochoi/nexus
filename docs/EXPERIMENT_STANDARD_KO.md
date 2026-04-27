@@ -50,7 +50,7 @@
 | 📈 **Metrics (시계열)** | `losses/actor_loss`, `performance/RLTrainFPS`, `info/kl` |
 | ⚙️ **하이퍼파라미터** | `lr`, `gamma`, `e_clip`, reward weights |
 | 🏷️ **재현성 Tags** | `seed`, `isaac_lab_version`, `physx_solver`, `researcher` |
-| 💾 **Artifacts** | `best.pth`, `reward_fn.py`, `env_cfg.yaml` |
+| 💾 **Artifacts** | `best.pth`, `last.pth` |
 | ℹ️ **Run 메타데이터** | 시작 시각, 소요 시간, 사용 GPU, status |
 | 🔗 **Sim-to-Real 연결** | Real 평가 Run의 `sim_run_id` tag |
 
@@ -274,8 +274,6 @@ with mlflow.start_run(run_name="kim_contact_weight_sweep") as parent:
 
 | Artifact | MLflow 경로 | 저장 시점 | 보존 기간 |
 |---|---|---|---|
-| `env_cfg.yaml` | `configs/env_cfg.yaml` | 학습 시작 시 1회 | 영구 |
-| `reward_fn.py` | `configs/reward_fn.py` | 학습 시작 시 1회 | 영구 |
 | `best.pth` | `checkpoints/best.pth` | best reward 갱신 시 (덮어쓰기) | 영구 |
 | `last.pth` | `checkpoints/last.pth` | `save_freq` 마다 (덮어쓰기) | 30일 |
 
@@ -313,7 +311,7 @@ artifacts가 **50GB를 초과하면 팀 회의**를 통해 오래된 run의 `las
 
 2️⃣  학습 실행
     └─ make_logger() 호출 시 자동으로:
-       params, tags, env_cfg.yaml, reward_fn.py 기록
+       params, tags 기록
     └─ 학습 중: status=running, metrics 실시간 기록
     └─ 5분마다 NEXUS 서버로 자동 동기화 (cron)
 
@@ -434,8 +432,6 @@ self.writer = make_logger(
   - [ ] `isaac_lab_version`
   - [ ] `physx_solver`
   - [ ] `method`
-  - [ ] `env_cfg_path`
-  - [ ] `reward_fn_path`
 - [ ] 로컬 MLflow 서버 실행 확인 (`bash start_local_mlflow.sh`)
 
 ### 실험 완료 후
