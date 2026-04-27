@@ -107,8 +107,7 @@ Python 3.10.12
 pip 22.0.2 from /usr/lib/python3/dist-packages/pip (python 3.10)
 ```
 
-> ⚠️ MLflow will not work with Python versions below 3.8.
-> Ubuntu 22.04 comes with Python 3.10 by default, so this should not be an issue in most cases.
+> ⚠️ MLflow will not work with Python versions below 3.8. Ubuntu 22.04 comes with Python 3.10 by default, so this should not be an issue in most cases.
 
 ---
 
@@ -232,19 +231,11 @@ mlflow server \
 
 > 🔑 **Why `--serve-artifacts` (proxied artifact storage)?**
 >
-> With `--default-artifact-root <local-path>` (the old style), MLflow **clients**
-> (e.g. the GPU server running `mlflow.log_artifacts()` or
-> `tb_to_mlflow.py --upload_artifacts`) try to write directly to that local
-> filesystem path. Remote clients have no access to `/opt/nexus-mlflow/artifacts`
-> on the server, so the upload fails with `Permission denied`.
+> With `--default-artifact-root <local-path>` (the old style), MLflow **clients** (e.g. the GPU server running `mlflow.log_artifacts()` or `tb_to_mlflow.py --upload_artifacts`) try to write directly to that local filesystem path. Remote clients have no access to `/opt/nexus-mlflow/artifacts` on the server, so the upload fails with `Permission denied`.
 >
-> `--serve-artifacts` combined with `--artifacts-destination` makes the **server**
-> accept artifact uploads over HTTP and persist them on its own disk. New runs
-> get an `mlflow-artifacts:/` URI automatically; clients need no extra config.
+> `--serve-artifacts` combined with `--artifacts-destination` makes the **server** accept artifact uploads over HTTP and persist them on its own disk. New runs get an `mlflow-artifacts:/` URI automatically; clients need no extra config.
 >
-> If you previously ran with `--default-artifact-root`, runs created before the
-> switch keep their original on-disk `artifact_uri` — they continue to work via
-> the server's filesystem access; only new runs use the proxied path.
+> If you previously ran with `--default-artifact-root`, runs created before the switch keep their original on-disk `artifact_uri` — they continue to work via the server's filesystem access; only new runs use the proxied path.
 
 **Expected output:**
 
@@ -267,10 +258,7 @@ Press `Ctrl + C` to stop when done.
 
 ### 5-1. Install and verify SSH server (sshd)
 
-> ⚠️ **Freshly formatted PCs often do not have `openssh-server` installed.**
-> If the SSH daemon is not running, Blackwell will encounter a
-> `ssh: connect to host 192.168.1.42 port 22: Connection refused` error in Step 8.
-> Verify that sshd is actually running before opening the firewall.
+> ⚠️ **Freshly formatted PCs often do not have `openssh-server` installed.** If the SSH daemon is not running, Blackwell will encounter a `ssh: connect to host 192.168.1.42 port 22: Connection refused` error in Step 8. Verify that sshd is actually running before opening the firewall.
 
 **1) Check SSH daemon status:**
 
@@ -503,9 +491,7 @@ sudo journalctl -u nexus-mlflow --since today
 
 #### Register the commands above as bash aliases
 
-Run the following block once on the MLflow server. It appends a set of
-`mlflow-*` aliases to `~/.bashrc` so the commands above can be invoked with a
-short name.
+Run the following block once on the MLflow server. It appends a set of `mlflow-*` aliases to `~/.bashrc` so the commands above can be invoked with a short name.
 
 ```bash
 cat >> ~/.bashrc <<'EOF'
@@ -537,8 +523,7 @@ source ~/.bashrc
 
 > 💡 Verify the aliases are registered with `alias | grep mlflow-`.
 >
-> 💡 To remove them later, open `~/.bashrc` and delete the block between the
-> `NEXUS MLflow service aliases` markers, then run `source ~/.bashrc`.
+> 💡 To remove them later, open `~/.bashrc` and delete the block between the `NEXUS MLflow service aliases` markers, then run `source ~/.bashrc`.
 
 ---
 

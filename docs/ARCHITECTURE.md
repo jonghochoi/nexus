@@ -16,8 +16,7 @@ RL training is hard to reproduce — even small differences in hyperparameters, 
 | Cross-experiment parameter comparison | ❌ | ✅ |
 | Run search / filtering | ❌ | ✅ |
 
-NEXUS uses `DualLogger` to run both tools simultaneously.
-TensorBoard handles real-time training curve monitoring; MLflow stores the full experiment record.
+NEXUS uses `DualLogger` to run both tools simultaneously. TensorBoard handles real-time training curve monitoring; MLflow stores the full experiment record.
 
 ---
 
@@ -30,8 +29,7 @@ TensorBoard handles real-time training curve monitoring; MLflow stores the full 
   Isaac Lab training                  http://<server>:5000
 ```
 
-> The GPU Server **cannot** make outbound HTTP calls to the MLflow server.
-> All data transfer happens exclusively via SCP/SSH.
+> The GPU Server **cannot** make outbound HTTP calls to the MLflow server. All data transfer happens exclusively via SCP/SSH.
 
 ---
 
@@ -69,6 +67,7 @@ PPO.write_stats()
 ```
 
 > ✅ **Used when:** training code uses `make_logger()` and the run is actively training (or long-running).
+>
 > 🔁 **Incremental:** per-run, per-tag last-synced step is tracked in `/tmp/nexus_delta_{experiment}.json`.
 
 ---
@@ -91,6 +90,7 @@ PPO.write_stats()
 ```
 
 > ✅ **Used when:** training code is unchanged (no `make_logger()` integration yet), or to back-fill completed legacy runs.
+>
 > ⚠️ **Not scheduled:** this is a one-shot batch upload. For ongoing sync during training, use Pipeline A.
 
 ---
@@ -263,8 +263,7 @@ MLflow artifacts/checkpoints/ always contains exactly 2 files:
   last.pth  ← most recent epoch
 ```
 
-By keeping only two checkpoints instead of stacking every epoch, storage waste is avoided
-while still covering both use cases: resuming training and deployment.
+By keeping only two checkpoints instead of stacking every epoch, storage waste is avoided while still covering both use cases: resuming training and deployment.
 
 ---
 
@@ -288,8 +287,7 @@ MLflow Central Server
         └── Tags: sim_run_id=<run_id>    ← links back to training run
 ```
 
-> ⚠️ **Always set `sim_run_id`** on real-robot eval runs.
-> This is the only way to trace a Sim-to-Real failure back to its training origin.
+> ⚠️ **Always set `sim_run_id`** on real-robot eval runs. This is the only way to trace a Sim-to-Real failure back to its training origin.
 
 ---
 
