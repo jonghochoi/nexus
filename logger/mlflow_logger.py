@@ -258,7 +258,8 @@ class MLflowLogger:
         out: dict[str, Any] = {}
         for k, v in d.items():
             key = f"{parent}{sep}{k}" if parent else k
-            if isinstance(v, dict):
+            # Accept plain dicts and any dict-like object (e.g. OmegaConf DictConfig)
+            if isinstance(v, dict) or (hasattr(v, "items") and not isinstance(v, str)):
                 out.update(MLflowLogger._flatten(v, key, sep))
             else:
                 out[key] = v
