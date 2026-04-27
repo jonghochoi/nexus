@@ -8,7 +8,8 @@
 #
 # Steps (each must pass before the next runs):
 #   1. Resolve config (same precedence as sync_mlflow_to_server.sh):
-#        --config <path> > ~/.nexus/sync_config.json > exit 1
+#        CLI flag > --config <path> > ~/.nexus/sync_config.json (per-user) >
+#        /etc/nexus/sync_config.json (system) > exit 1
 #      Required keys present: experiment, remote, remote_nexus_dir.
 #   2. SSH reachability — non-interactive `ssh true` with 5s timeout.
 #   3. Remote inbox writable — `mkdir -p` + write+read a marker file.
@@ -21,7 +22,7 @@
 # crontab — that is a hard-to-reverse action and is left to the operator.
 #
 # Usage:
-#   bash validate_sync.sh                          # uses ~/.nexus/sync_config.json
+#   bash validate_sync.sh                          # uses ~/.nexus/sync_config.json (+ /etc fallback)
 #   bash validate_sync.sh --config /path/to.json   # explicit config file
 #   bash validate_sync.sh --experiment foo --remote ... --remote_nexus_dir ...
 # ============================================================
@@ -30,6 +31,7 @@ set -euo pipefail
 
 # ── Empty placeholders (filled from CLI / config / defaults below)
 EXPERIMENT=""
+RESEARCHER=""
 REMOTE=""
 LOCAL_MLFLOW_URI=""
 REMOTE_MLFLOW_URI=""
@@ -43,6 +45,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --config)           CONFIG_FILE="$2";       shift 2 ;;
         --experiment)       EXPERIMENT="$2";        shift 2 ;;
+        --researcher)       RESEARCHER="$2";        shift 2 ;;
         --remote)           REMOTE="$2";            shift 2 ;;
         --local_uri)        LOCAL_MLFLOW_URI="$2";  shift 2 ;;
         --remote_uri)       REMOTE_MLFLOW_URI="$2"; shift 2 ;;
@@ -55,22 +58,27 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-DEFAULT_CONFIG="${HOME}/.nexus/sync_config.json"
-if [[ -z "$CONFIG_FILE" && -f "$DEFAULT_CONFIG" ]]; then
-    CONFIG_FILE="$DEFAULT_CONFIG"
+# Same multi-source resolution as sync_mlflow_to_server.sh: explicit --config
+# disables auto-discovery; otherwise system → user, with later overriding earlier.
+USER_CONFIG="${HOME}/.nexus/sync_config.json"
+SYSTEM_CONFIG="/etc/nexus/sync_config.json"
+CONFIG_SOURCES=()
+if [[ -n "$CONFIG_FILE" ]]; then
+    CONFIG_SOURCES=("$CONFIG_FILE")
+else
+    [[ -f "$SYSTEM_CONFIG" ]] && CONFIG_SOURCES+=("$SYSTEM_CONFIG")
+    [[ -f "$USER_CONFIG"   ]] && CONFIG_SOURCES+=("$USER_CONFIG")
 fi
 
-if [[ -n "$CONFIG_FILE" ]]; then
-    if [[ ! -f "$CONFIG_FILE" ]]; then
-        echo "[ERROR] Config file not found: $CONFIG_FILE"
-        exit 1
-    fi
-    # See sync_mlflow_to_server.sh for the rationale on `|| CFG_EXIT=$?`.
-    CFG_EXIT=0
-    CONFIG_VARS=$(python - "$CONFIG_FILE" <<'PYEOF'
+parse_config_file() {
+    local file="$1"
+    local exit_code=0
+    local out
+    out=$(python - "$file" <<'PYEOF'
 import json, shlex, sys
 KEY_MAP = {
     "experiment":       "EXPERIMENT",
+    "researcher":       "RESEARCHER",
     "remote":           "REMOTE",
     "local_uri":        "LOCAL_MLFLOW_URI",
     "remote_uri":       "REMOTE_MLFLOW_URI",
@@ -91,20 +99,30 @@ for k, var in KEY_MAP.items():
     if k in cfg:
         print(f"CFG_{var}={shlex.quote(str(cfg[k]))}")
 PYEOF
-    ) || CFG_EXIT=$?
-    if [[ $CFG_EXIT -ne 0 ]]; then
-        echo "[ERROR] Failed to parse config file: $CONFIG_FILE"
+    ) || exit_code=$?
+    if [[ $exit_code -ne 0 ]]; then
+        echo "[ERROR] Failed to parse config file: $file"
         exit 1
     fi
-    eval "$CONFIG_VARS"
-    EXPERIMENT="${EXPERIMENT:-${CFG_EXPERIMENT:-}}"
-    REMOTE="${REMOTE:-${CFG_REMOTE:-}}"
-    LOCAL_MLFLOW_URI="${LOCAL_MLFLOW_URI:-${CFG_LOCAL_MLFLOW_URI:-}}"
-    REMOTE_MLFLOW_URI="${REMOTE_MLFLOW_URI:-${CFG_REMOTE_MLFLOW_URI:-}}"
-    REMOTE_NEXUS_DIR="${REMOTE_NEXUS_DIR:-${CFG_REMOTE_NEXUS_DIR:-}}"
-    SSH_KEY="${SSH_KEY:-${CFG_SSH_KEY:-}}"
-    SSH_PORT="${SSH_PORT:-${CFG_SSH_PORT:-}}"
-fi
+    eval "$out"
+}
+
+for src in "${CONFIG_SOURCES[@]}"; do
+    if [[ ! -f "$src" ]]; then
+        echo "[ERROR] Config file not found: $src"
+        exit 1
+    fi
+    parse_config_file "$src"
+done
+
+EXPERIMENT="${EXPERIMENT:-${CFG_EXPERIMENT:-}}"
+RESEARCHER="${RESEARCHER:-${CFG_RESEARCHER:-}}"
+REMOTE="${REMOTE:-${CFG_REMOTE:-}}"
+LOCAL_MLFLOW_URI="${LOCAL_MLFLOW_URI:-${CFG_LOCAL_MLFLOW_URI:-}}"
+REMOTE_MLFLOW_URI="${REMOTE_MLFLOW_URI:-${CFG_REMOTE_MLFLOW_URI:-}}"
+REMOTE_NEXUS_DIR="${REMOTE_NEXUS_DIR:-${CFG_REMOTE_NEXUS_DIR:-}}"
+SSH_KEY="${SSH_KEY:-${CFG_SSH_KEY:-}}"
+SSH_PORT="${SSH_PORT:-${CFG_SSH_PORT:-}}"
 
 LOCAL_MLFLOW_URI="${LOCAL_MLFLOW_URI:-http://127.0.0.1:5100}"
 REMOTE_MLFLOW_URI="${REMOTE_MLFLOW_URI:-http://127.0.0.1:5000}"
@@ -129,13 +147,27 @@ fail()    { echo "  [FAIL]  $*"; exit 2; }
 
 echo "validate_sync.sh — pre-flight check"
 echo "  experiment       : $EXPERIMENT"
+[[ -n "$RESEARCHER" ]] && echo "  researcher       : $RESEARCHER"
 echo "  remote           : $REMOTE"
 echo "  remote_nexus_dir : $REMOTE_NEXUS_DIR"
 echo "  local_uri        : $LOCAL_MLFLOW_URI"
 echo "  remote_uri       : $REMOTE_MLFLOW_URI"
 [[ -n "$SSH_KEY" ]] && echo "  ssh_key          : $SSH_KEY"
 [[ "$SSH_PORT" != "22" ]] && echo "  ssh_port         : $SSH_PORT"
-[[ -n "$CONFIG_FILE" ]] && echo "  config source    : $CONFIG_FILE"
+if [[ -n "$CONFIG_FILE" ]]; then
+    echo "  config source    : $CONFIG_FILE"
+else
+    [[ ${#CONFIG_SOURCES[@]} -gt 0 ]] && \
+        echo "  config sources   : ${CONFIG_SOURCES[*]}"
+fi
+if [[ -z "$RESEARCHER" ]]; then
+    echo ""
+    echo "  [WARN] --researcher is not set. On a shared GPU server this means"
+    echo "         every cron will export every other user's runs and the"
+    echo "         central server will collect duplicate metric points at"
+    echo "         identical steps. Set researcher in ~/.nexus/sync_config.json"
+    echo "         (or pass --researcher) unless you know you're the only user."
+fi
 
 # ── 1. SSH reachability
 step "1/6  SSH reachability — $REMOTE_HOST"
@@ -175,31 +207,52 @@ else
     fail "Central MLflow at $REMOTE_MLFLOW_URI is not reachable from $REMOTE_HOST."
 fi
 
-# ── 5. Local MLflow /health and experiment exists
+# ── 5. Local MLflow /health and experiment exists (+ researcher coverage)
 step "5/6  Local MLflow + experiment '$EXPERIMENT'"
 if ! curl -sS -m 5 "${LOCAL_MLFLOW_URI%/}/health" >/dev/null 2>&1; then
     fail "Local MLflow at $LOCAL_MLFLOW_URI not reachable. Run start_local_mlflow.sh first."
 fi
 ok "Local MLflow is reachable"
-EXP_OK=$(python - "$LOCAL_MLFLOW_URI" "$EXPERIMENT" <<'PYEOF'
+EXP_OK=$(python - "$LOCAL_MLFLOW_URI" "$EXPERIMENT" "$RESEARCHER" <<'PYEOF'
 import sys
 from mlflow.tracking import MlflowClient
 uri, name = sys.argv[1], sys.argv[2]
+researcher = sys.argv[3] if len(sys.argv) > 3 else ""
 client = MlflowClient(tracking_uri=uri)
 exp = client.get_experiment_by_name(name)
 if exp is None:
     avail = sorted(e.name for e in client.search_experiments())
-    print(f"NO|{avail}")
+    print(f"NO_EXP|{avail}")
+elif researcher:
+    runs = client.search_runs(
+        experiment_ids=[exp.experiment_id],
+        filter_string=f"tags.researcher = '{researcher}'",
+        max_results=1,
+    )
+    if runs:
+        print("YES")
+    else:
+        print("NO_RUNS_FOR_RESEARCHER")
 else:
     print("YES")
 PYEOF
 )
-if [[ "$EXP_OK" == YES ]]; then
-    ok "Experiment '$EXPERIMENT' exists on local MLflow"
-else
-    AVAIL="${EXP_OK#NO|}"
-    fail "Experiment '$EXPERIMENT' not found on local MLflow. Available: $AVAIL"
-fi
+case "$EXP_OK" in
+    YES)
+        if [[ -n "$RESEARCHER" ]]; then
+            ok "Experiment '$EXPERIMENT' exists and has runs tagged researcher=$RESEARCHER"
+        else
+            ok "Experiment '$EXPERIMENT' exists on local MLflow"
+        fi ;;
+    NO_RUNS_FOR_RESEARCHER)
+        # Not fatal — operator may be validating before any training has run.
+        echo "  [WARN]  Experiment '$EXPERIMENT' exists, but no runs are tagged"
+        echo "          researcher=$RESEARCHER yet. The first sync after you"
+        echo "          start training will pick them up." ;;
+    *)
+        AVAIL="${EXP_OK#NO_EXP|}"
+        fail "Experiment '$EXPERIMENT' not found on local MLflow. Available: $AVAIL" ;;
+esac
 
 # ── 6. End-to-end dry run
 step "6/6  Dry-run sync (export only — no SCP, no remote import)"
@@ -208,6 +261,7 @@ DRY_ARGS=()
 DRY_ARGS+=("--dry-run")
 # Pass through any per-key overrides so the dry-run sees the same values we validated.
 [[ -n "$EXPERIMENT"        ]] && DRY_ARGS+=("--experiment" "$EXPERIMENT")
+[[ -n "$RESEARCHER"        ]] && DRY_ARGS+=("--researcher" "$RESEARCHER")
 [[ -n "$REMOTE"            ]] && DRY_ARGS+=("--remote" "$REMOTE")
 [[ -n "$REMOTE_NEXUS_DIR"  ]] && DRY_ARGS+=("--remote_nexus_dir" "$REMOTE_NEXUS_DIR")
 if bash "${SCRIPT_DIR}/sync_mlflow_to_server.sh" "${DRY_ARGS[@]}"; then

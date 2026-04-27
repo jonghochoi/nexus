@@ -13,22 +13,31 @@
 #   Tracks per-run, per-tag last-synced step.
 #   On the first sync all data is transferred; subsequent syncs are incremental.
 #
-# Config file (optional): ~/.nexus/sync_config.json
-#   Holds the fixed values (experiment, remote, remote_nexus_dir, ssh_key, ...)
-#   so cron lines can be a single bash invocation. Auto-loaded when no
-#   --config is passed; an explicit --config <path> wins. CLI flags always
-#   override values from the config file.
+# Config files (optional): two-tier, system + user
+#   /etc/nexus/sync_config.json     — operator-provided, team-wide values
+#                                     (remote, remote_nexus_dir, ssh_port, ...)
+#   ~/.nexus/sync_config.json       — per-user overrides (researcher, ssh_key)
+#
+#   Both are auto-discovered when --config is not passed. Per-key merge:
+#   user file's keys override system file's keys.
 #
 # Resolution order — first non-empty wins per key:
-#   1. CLI flag                      (e.g. --experiment foo)
-#   2. --config <path>               (explicit JSON file)
-#   3. ~/.nexus/sync_config.json     (auto-discovered if it exists)
-#   4. Built-in default              (only for local_uri / remote_uri / ssh_port)
+#   1. CLI flag                       (e.g. --experiment foo)
+#   2. --config <path>                (explicit JSON file — replaces auto-discovery)
+#   3. ~/.nexus/sync_config.json      (per-user)
+#   4. /etc/nexus/sync_config.json    (system / team-wide)
+#   5. Built-in default               (only for local_uri / remote_uri / ssh_port)
+#
+# Multi-user note: when several researchers share one GPU server, each user
+# MUST set `researcher` (in their ~/.nexus/sync_config.json or via CLI). Without
+# it, every cron job exports every other user's runs and the central server
+# logs duplicate metric points at identical steps.
 #
 # Usage (cron every 5 minutes):
 #   bash sync_mlflow_to_server.sh \
 #       [--config          ~/.nexus/sync_config.json]   # or set keys directly:
 #       [--experiment      robot_hand_rl] \
+#       [--researcher      kim] \
 #       [--remote          user@mlflow-server:/data/mlflow_delta_inbox] \
 #       [--remote_nexus_dir /opt/nexus] \
 #       [--local_uri       http://127.0.0.1:5100] \
@@ -54,6 +63,7 @@ set -euo pipefail
 
 # ── Empty placeholders (defaults are applied AFTER config-file merge)
 EXPERIMENT=""
+RESEARCHER=""
 REMOTE=""
 LOCAL_MLFLOW_URI=""
 REMOTE_MLFLOW_URI=""
@@ -69,6 +79,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --config)           CONFIG_FILE="$2";       shift 2 ;;
         --experiment)       EXPERIMENT="$2";        shift 2 ;;
+        --researcher)       RESEARCHER="$2";        shift 2 ;;
         --remote)           REMOTE="$2";            shift 2 ;;
         --local_uri)        LOCAL_MLFLOW_URI="$2";  shift 2 ;;
         --remote_uri)       REMOTE_MLFLOW_URI="$2"; shift 2 ;;
@@ -81,28 +92,31 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# ── Auto-discover ~/.nexus/sync_config.json when --config is not given
-DEFAULT_CONFIG="${HOME}/.nexus/sync_config.json"
-if [[ -z "$CONFIG_FILE" && -f "$DEFAULT_CONFIG" ]]; then
-    CONFIG_FILE="$DEFAULT_CONFIG"
+# ── Determine config sources, ordered low-to-high priority
+USER_CONFIG="${HOME}/.nexus/sync_config.json"
+SYSTEM_CONFIG="/etc/nexus/sync_config.json"
+CONFIG_SOURCES=()
+if [[ -n "$CONFIG_FILE" ]]; then
+    # Explicit --config disables auto-discovery — operator wants exactly this file.
+    CONFIG_SOURCES=("$CONFIG_FILE")
+else
+    [[ -f "$SYSTEM_CONFIG" ]] && CONFIG_SOURCES+=("$SYSTEM_CONFIG")
+    [[ -f "$USER_CONFIG"   ]] && CONFIG_SOURCES+=("$USER_CONFIG")
 fi
 
-# ── Merge config-file values into any still-empty CLI variables.
-# CLI flags win because they were assigned first; we only fill blanks.
-if [[ -n "$CONFIG_FILE" ]]; then
-    if [[ ! -f "$CONFIG_FILE" ]]; then
-        echo "[ERROR] Config file not found: $CONFIG_FILE"
-        exit 1
-    fi
-    # Emit `CFG_<VAR>=<shell-quoted-value>` for each known key in the JSON.
-    # `|| CFG_EXIT=$?` keeps `set -e` from killing us before we can react —
-    # under bash, a failing command substitution propagates errexit unless
-    # part of a list/conditional, and `inherit_errexit` is off by default.
-    CFG_EXIT=0
-    CONFIG_VARS=$(python - "$CONFIG_FILE" <<'PYEOF'
-import json, shlex, sys, traceback
+# ── Read each config in order — later files overwrite earlier ones, so user
+# overrides system. CLI flags still win because they were assigned first;
+# we only ever fill blanks. The shared python script returns shell-quoted
+# `CFG_<VAR>=<value>` lines for known keys; unknown keys produce a warning.
+parse_config_file() {
+    local file="$1"
+    local exit_code=0
+    local out
+    out=$(python - "$file" <<'PYEOF'
+import json, shlex, sys
 KEY_MAP = {
     "experiment":       "EXPERIMENT",
+    "researcher":       "RESEARCHER",
     "remote":           "REMOTE",
     "local_uri":        "LOCAL_MLFLOW_URI",
     "remote_uri":       "REMOTE_MLFLOW_URI",
@@ -122,26 +136,37 @@ if not isinstance(cfg, dict):
     sys.exit(2)
 unknown = sorted(set(cfg) - set(KEY_MAP))
 if unknown:
-    print(f"[WARN] Ignoring unknown config keys: {unknown}", file=sys.stderr)
+    print(f"[WARN] {sys.argv[1]}: ignoring unknown keys: {unknown}", file=sys.stderr)
 for k, var in KEY_MAP.items():
     if k in cfg:
         print(f"CFG_{var}={shlex.quote(str(cfg[k]))}")
 PYEOF
-    ) || CFG_EXIT=$?
-    if [[ $CFG_EXIT -ne 0 ]]; then
-        echo "[ERROR] Failed to parse config file: $CONFIG_FILE"
+    ) || exit_code=$?
+    if [[ $exit_code -ne 0 ]]; then
+        echo "[ERROR] Failed to parse config file: $file"
         exit 1
     fi
-    eval "$CONFIG_VARS"
-    EXPERIMENT="${EXPERIMENT:-${CFG_EXPERIMENT:-}}"
-    REMOTE="${REMOTE:-${CFG_REMOTE:-}}"
-    LOCAL_MLFLOW_URI="${LOCAL_MLFLOW_URI:-${CFG_LOCAL_MLFLOW_URI:-}}"
-    REMOTE_MLFLOW_URI="${REMOTE_MLFLOW_URI:-${CFG_REMOTE_MLFLOW_URI:-}}"
-    REMOTE_NEXUS_DIR="${REMOTE_NEXUS_DIR:-${CFG_REMOTE_NEXUS_DIR:-}}"
-    SSH_KEY="${SSH_KEY:-${CFG_SSH_KEY:-}}"
-    SSH_PORT="${SSH_PORT:-${CFG_SSH_PORT:-}}"
-    STATE_FILE="${STATE_FILE:-${CFG_STATE_FILE:-}}"
-fi
+    eval "$out"
+}
+
+for src in "${CONFIG_SOURCES[@]}"; do
+    if [[ ! -f "$src" ]]; then
+        echo "[ERROR] Config file not found: $src"
+        exit 1
+    fi
+    parse_config_file "$src"
+done
+
+# CLI > merged config: only fill where CLI didn't already set a value.
+EXPERIMENT="${EXPERIMENT:-${CFG_EXPERIMENT:-}}"
+RESEARCHER="${RESEARCHER:-${CFG_RESEARCHER:-}}"
+REMOTE="${REMOTE:-${CFG_REMOTE:-}}"
+LOCAL_MLFLOW_URI="${LOCAL_MLFLOW_URI:-${CFG_LOCAL_MLFLOW_URI:-}}"
+REMOTE_MLFLOW_URI="${REMOTE_MLFLOW_URI:-${CFG_REMOTE_MLFLOW_URI:-}}"
+REMOTE_NEXUS_DIR="${REMOTE_NEXUS_DIR:-${CFG_REMOTE_NEXUS_DIR:-}}"
+SSH_KEY="${SSH_KEY:-${CFG_SSH_KEY:-}}"
+SSH_PORT="${SSH_PORT:-${CFG_SSH_PORT:-}}"
+STATE_FILE="${STATE_FILE:-${CFG_STATE_FILE:-}}"
 
 # ── Built-in defaults (lowest precedence) for purely-optional knobs
 LOCAL_MLFLOW_URI="${LOCAL_MLFLOW_URI:-http://127.0.0.1:5100}"
@@ -151,8 +176,11 @@ SSH_PORT="${SSH_PORT:-22}"
 if [[ -z "$EXPERIMENT" || -z "$REMOTE" || -z "$REMOTE_NEXUS_DIR" ]]; then
     echo "Usage: bash sync_mlflow_to_server.sh \\"
     echo "    [--config          <path>]           Path to sync config JSON"
-    echo "                                         (default: ~/.nexus/sync_config.json if it exists)"
+    echo "                                         (auto-discovers /etc/nexus/sync_config.json"
+    echo "                                         and ~/.nexus/sync_config.json when omitted)"
     echo "    --experiment       <name>            MLflow experiment name"
+    echo "    [--researcher      <name>]           Filter runs by this researcher tag"
+    echo "                                         (REQUIRED on shared GPU servers)"
     echo "    --remote           <user@host:/path> SCP destination for delta files"
     echo "    --remote_nexus_dir <path>            nexus installation path on MLflow server"
     echo "    [--local_uri       <uri>]            Local MLflow URI  (default: http://127.0.0.1:5100)"
@@ -162,7 +190,7 @@ if [[ -z "$EXPERIMENT" || -z "$REMOTE" || -z "$REMOTE_NEXUS_DIR" ]]; then
     echo "    [--state_file      <path>]           Override local state file path"
     echo "    [--dry-run]                          Export only; skip SCP + remote import"
     echo ""
-    echo "Required values may come from CLI flags or from the config file"
+    echo "Required values may come from CLI flags or from a config file"
     echo "(experiment, remote, remote_nexus_dir)."
     exit 1
 fi
@@ -178,11 +206,15 @@ REMOTE_HOST="${REMOTE%%:*}"
 REMOTE_PATH="${REMOTE##*:}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# `${USER}_..._${PID}` makes the filename unique even when several users on
+# the same GPU server fire `*/5 * * * *` cron jobs in the same second. The
+# previous `delta_<TS>.json` collided in /tmp and on the remote inbox.
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
-DELTA_FILENAME="delta_$(date '+%Y%m%d_%H%M%S').json"
+DELTA_USER="${USER:-$(id -un)}"
+DELTA_FILENAME="delta_${DELTA_USER}_$(date '+%Y%m%d_%H%M%S')_$$.json"
 DELTA_FILE="/tmp/${DELTA_FILENAME}"
 
-echo "[$TIMESTAMP] MLflow delta sync: $EXPERIMENT"
+echo "[$TIMESTAMP] MLflow delta sync: $EXPERIMENT${RESEARCHER:+ (researcher=$RESEARCHER)}"
 
 # ── Activate venv if present (prefer shared ~/.nexus/venv, fall back to ./venv)
 if [ -f "${HOME}/.nexus/venv/bin/activate" ]; then
@@ -196,19 +228,17 @@ fi
 # ── Step 1: Export delta from local MLflow
 echo "  [1/3] Exporting delta from local MLflow ($LOCAL_MLFLOW_URI)..."
 
-STATE_ARG=""
-[[ -n "$STATE_FILE" ]] && STATE_ARG="--state_file $STATE_FILE"
+EXPORT_ARGS=(--tracking_uri "$LOCAL_MLFLOW_URI"
+             --experiment   "$EXPERIMENT"
+             --output       "$DELTA_FILE")
+[[ -n "$STATE_FILE"  ]] && EXPORT_ARGS+=(--state_file "$STATE_FILE")
+[[ -n "$RESEARCHER"  ]] && EXPORT_ARGS+=(--researcher "$RESEARCHER")
 
 # `|| EXPORT_EXIT=$?` is required: under `set -e`, a non-zero python exit
 # (including the legitimate exit 2 = "no new data") would abort the script
 # before we could inspect the exit code.
 EXPORT_EXIT=0
-python "${SCRIPT_DIR}/export_delta.py" \
-    --tracking_uri "$LOCAL_MLFLOW_URI" \
-    --experiment   "$EXPERIMENT" \
-    --output       "$DELTA_FILE" \
-    $STATE_ARG \
-    || EXPORT_EXIT=$?
+python "${SCRIPT_DIR}/export_delta.py" "${EXPORT_ARGS[@]}" || EXPORT_EXIT=$?
 
 if [[ $EXPORT_EXIT -eq 2 ]]; then
     echo "  [OK] No new data since last sync. Nothing to transfer."

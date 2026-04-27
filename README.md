@@ -179,18 +179,20 @@ Each sync is **incremental**: only metric points with step beyond the last synce
 ```bash
 mkdir -p ~/.nexus
 cp scheduled_sync/sync_config.example.json ~/.nexus/sync_config.json
-$EDITOR ~/.nexus/sync_config.json   # set experiment, remote, remote_nexus_dir, ssh_key
+$EDITOR ~/.nexus/sync_config.json   # set experiment, researcher, remote, remote_nexus_dir, ssh_key
 ```
 
-The file is auto-discovered when no `--config` flag is given. CLI flags still win on a per-key basis, so cron lines can be a single bash invocation:
+The file is auto-discovered when no `--config` flag is given. Operators can additionally place team-wide values in `/etc/nexus/sync_config.json`; per-key merge is `CLI > ~/.nexus/sync_config.json > /etc/nexus/sync_config.json > built-in`. So cron lines collapse to a single bash invocation:
 
 ```bash
 */5 * * * * bash $HOME/nexus/scheduled_sync/sync_mlflow_to_server.sh >> $HOME/nexus_sync.log 2>&1
 ```
 
-Prefer a different path? Pass `--config /etc/nexus/sync.json`. Want to override a single key for this run? Add the matching CLI flag (e.g. `--experiment robot_hand_rl_pilot`).
+Prefer a different path? Pass `--config /path/to/sync.json` (this disables the auto-discovery chain — operator means "use exactly this file"). Want to override a single key for this run? Add the matching CLI flag (e.g. `--experiment robot_hand_rl_pilot`).
 
-> 💡 Run once manually with `--dry-run` (export step only, no SCP) to verify the config before registering the cron entry.
+> ⚠️ **Multi-user GPU server**: each user must set their own `researcher` so they only sync their own runs. Without it, every cron exports every other user's runs and the central server logs duplicate metric points. See `docs/VALIDATION_GUIDE.md` Phase 4 for the multi-user setup pattern.
+
+> 💡 Run once manually with `bash scheduled_sync/validate_sync.sh` (pre-flight check + dry-run) to verify the config before registering the cron entry.
 
 ---
 
