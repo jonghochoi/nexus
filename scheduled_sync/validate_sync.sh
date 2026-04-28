@@ -276,18 +276,11 @@ echo "════════════════════════�
 echo "  All checks passed. Suggested cron line (edit interval as needed):"
 echo "════════════════════════════════════════════════════════════"
 if [[ -n "$CONFIG_FILE" && "$CONFIG_FILE" == "$DEFAULT_CONFIG" ]]; then
-    echo "*/5 * * * * bash ${SCRIPT_DIR}/sync_mlflow_to_server.sh \\"
-    echo "    >> \$HOME/nexus_sync.log 2>&1"
+    echo "*/5 * * * * bash ${SCRIPT_DIR}/sync_mlflow_to_server.sh >> \$HOME/nexus_sync.log 2>&1"
 elif [[ -n "$CONFIG_FILE" ]]; then
-    echo "*/5 * * * * bash ${SCRIPT_DIR}/sync_mlflow_to_server.sh \\"
-    echo "    --config $CONFIG_FILE \\"
-    echo "    >> \$HOME/nexus_sync.log 2>&1"
+    echo "*/5 * * * * bash ${SCRIPT_DIR}/sync_mlflow_to_server.sh --config $CONFIG_FILE >> \$HOME/nexus_sync.log 2>&1"
 else
-    echo "*/5 * * * * bash ${SCRIPT_DIR}/sync_mlflow_to_server.sh \\"
-    echo "    --experiment       $EXPERIMENT \\"
-    echo "    --remote           $REMOTE \\"
-    echo "    --remote_nexus_dir $REMOTE_NEXUS_DIR \\"
-    echo "    >> \$HOME/nexus_sync.log 2>&1"
+    echo "*/5 * * * * bash ${SCRIPT_DIR}/sync_mlflow_to_server.sh --experiment $EXPERIMENT --remote $REMOTE --remote_nexus_dir $REMOTE_NEXUS_DIR >> \$HOME/nexus_sync.log 2>&1"
 fi
 echo ""
 echo "Register with: crontab -e"
