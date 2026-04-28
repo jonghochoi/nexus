@@ -44,6 +44,7 @@
 #       [--remote_uri      http://127.0.0.1:5000] \
 #       [--ssh_key         ~/.ssh/id_rsa] \
 #       [--ssh_port        22] \
+#       [--remote_python   /opt/nexus-mlflow/venv/bin/python3] \
 #       [--state_file      ~/.nexus/sync_state/my_state.json] \
 #       [--dry-run]                    # export only; skip SCP + remote import
 #
@@ -68,6 +69,7 @@ REMOTE=""
 LOCAL_MLFLOW_URI=""
 REMOTE_MLFLOW_URI=""
 REMOTE_NEXUS_DIR=""
+REMOTE_PYTHON=""
 SSH_KEY=""
 SSH_PORT=""
 STATE_FILE=""
@@ -84,6 +86,7 @@ while [[ $# -gt 0 ]]; do
         --local_uri)        LOCAL_MLFLOW_URI="$2";  shift 2 ;;
         --remote_uri)       REMOTE_MLFLOW_URI="$2"; shift 2 ;;
         --remote_nexus_dir) REMOTE_NEXUS_DIR="$2";  shift 2 ;;
+        --remote_python)    REMOTE_PYTHON="$2";     shift 2 ;;
         --ssh_key)          SSH_KEY="$2";           shift 2 ;;
         --ssh_port)         SSH_PORT="$2";          shift 2 ;;
         --state_file)       STATE_FILE="$2";        shift 2 ;;
@@ -121,6 +124,7 @@ KEY_MAP = {
     "local_uri":        "LOCAL_MLFLOW_URI",
     "remote_uri":       "REMOTE_MLFLOW_URI",
     "remote_nexus_dir": "REMOTE_NEXUS_DIR",
+    "remote_python":    "REMOTE_PYTHON",
     "ssh_key":          "SSH_KEY",
     "ssh_port":         "SSH_PORT",
     "state_file":       "STATE_FILE",
@@ -164,6 +168,7 @@ REMOTE="${REMOTE:-${CFG_REMOTE:-}}"
 LOCAL_MLFLOW_URI="${LOCAL_MLFLOW_URI:-${CFG_LOCAL_MLFLOW_URI:-}}"
 REMOTE_MLFLOW_URI="${REMOTE_MLFLOW_URI:-${CFG_REMOTE_MLFLOW_URI:-}}"
 REMOTE_NEXUS_DIR="${REMOTE_NEXUS_DIR:-${CFG_REMOTE_NEXUS_DIR:-}}"
+REMOTE_PYTHON="${REMOTE_PYTHON:-${CFG_REMOTE_PYTHON:-}}"
 SSH_KEY="${SSH_KEY:-${CFG_SSH_KEY:-}}"
 SSH_PORT="${SSH_PORT:-${CFG_SSH_PORT:-}}"
 STATE_FILE="${STATE_FILE:-${CFG_STATE_FILE:-}}"
@@ -172,6 +177,9 @@ STATE_FILE="${STATE_FILE:-${CFG_STATE_FILE:-}}"
 LOCAL_MLFLOW_URI="${LOCAL_MLFLOW_URI:-http://127.0.0.1:5100}"
 REMOTE_MLFLOW_URI="${REMOTE_MLFLOW_URI:-http://127.0.0.1:5000}"
 SSH_PORT="${SSH_PORT:-22}"
+# Non-interactive SSH does not source ~/.bashrc so the venv is never activated.
+# REMOTE_PYTHON must point to the Python inside the MLflow server's venv.
+REMOTE_PYTHON="${REMOTE_PYTHON:-python3}"
 
 if [[ -z "$EXPERIMENT" || -z "$REMOTE" || -z "$REMOTE_NEXUS_DIR" ]]; then
     echo "Usage: bash sync_mlflow_to_server.sh \\"
@@ -187,6 +195,9 @@ if [[ -z "$EXPERIMENT" || -z "$REMOTE" || -z "$REMOTE_NEXUS_DIR" ]]; then
     echo "    [--remote_uri      <uri>]            Remote MLflow URI (default: http://127.0.0.1:5000)"
     echo "    [--ssh_key         <path>]           SSH private key"
     echo "    [--ssh_port        <port>]           SSH port (default: 22)"
+    echo "    [--remote_python   <path>]           Python interpreter on the MLflow server"
+    echo "                                         (default: python3 — set to venv path,"
+    echo "                                         e.g. /opt/nexus-mlflow/venv/bin/python3)"
     echo "    [--state_file      <path>]           Override local state file path"
     echo "    [--dry-run]                          Export only; skip SCP + remote import"
     echo ""
@@ -291,7 +302,7 @@ echo "  [3/3] Importing delta on remote server..."
 REMOTE_IMPORT_PY="${REMOTE_NEXUS_DIR}/scheduled_sync/import_delta.py"
 
 ssh $SSH_OPTS "$REMOTE_HOST" \
-    "python '$REMOTE_IMPORT_PY' \
+    "'$REMOTE_PYTHON' '$REMOTE_IMPORT_PY' \
         --delta_file   '${REMOTE_PATH}/${DELTA_FILENAME}' \
         --tracking_uri '$REMOTE_MLFLOW_URI' && \
      rm -f '${REMOTE_PATH}/${DELTA_FILENAME}'" || {

@@ -36,6 +36,7 @@ REMOTE=""
 LOCAL_MLFLOW_URI=""
 REMOTE_MLFLOW_URI=""
 REMOTE_NEXUS_DIR=""
+REMOTE_PYTHON=""
 SSH_KEY=""
 SSH_PORT=""
 CONFIG_FILE=""
@@ -50,6 +51,7 @@ while [[ $# -gt 0 ]]; do
         --local_uri)        LOCAL_MLFLOW_URI="$2";  shift 2 ;;
         --remote_uri)       REMOTE_MLFLOW_URI="$2"; shift 2 ;;
         --remote_nexus_dir) REMOTE_NEXUS_DIR="$2";  shift 2 ;;
+        --remote_python)    REMOTE_PYTHON="$2";     shift 2 ;;
         --ssh_key)          SSH_KEY="$2";           shift 2 ;;
         --ssh_port)         SSH_PORT="$2";          shift 2 ;;
         -h|--help)
@@ -83,6 +85,7 @@ KEY_MAP = {
     "local_uri":        "LOCAL_MLFLOW_URI",
     "remote_uri":       "REMOTE_MLFLOW_URI",
     "remote_nexus_dir": "REMOTE_NEXUS_DIR",
+    "remote_python":    "REMOTE_PYTHON",
     "ssh_key":          "SSH_KEY",
     "ssh_port":         "SSH_PORT",
 }
@@ -121,12 +124,14 @@ REMOTE="${REMOTE:-${CFG_REMOTE:-}}"
 LOCAL_MLFLOW_URI="${LOCAL_MLFLOW_URI:-${CFG_LOCAL_MLFLOW_URI:-}}"
 REMOTE_MLFLOW_URI="${REMOTE_MLFLOW_URI:-${CFG_REMOTE_MLFLOW_URI:-}}"
 REMOTE_NEXUS_DIR="${REMOTE_NEXUS_DIR:-${CFG_REMOTE_NEXUS_DIR:-}}"
+REMOTE_PYTHON="${REMOTE_PYTHON:-${CFG_REMOTE_PYTHON:-}}"
 SSH_KEY="${SSH_KEY:-${CFG_SSH_KEY:-}}"
 SSH_PORT="${SSH_PORT:-${CFG_SSH_PORT:-}}"
 
 LOCAL_MLFLOW_URI="${LOCAL_MLFLOW_URI:-http://127.0.0.1:5100}"
 REMOTE_MLFLOW_URI="${REMOTE_MLFLOW_URI:-http://127.0.0.1:5000}"
 SSH_PORT="${SSH_PORT:-22}"
+REMOTE_PYTHON="${REMOTE_PYTHON:-python3}"
 
 if [[ -z "$EXPERIMENT" || -z "$REMOTE" || -z "$REMOTE_NEXUS_DIR" ]]; then
     echo "[ERROR] Missing required fields. Need: experiment, remote, remote_nexus_dir."
@@ -150,6 +155,7 @@ echo "  experiment       : $EXPERIMENT"
 [[ -n "$RESEARCHER" ]] && echo "  researcher       : $RESEARCHER"
 echo "  remote           : $REMOTE"
 echo "  remote_nexus_dir : $REMOTE_NEXUS_DIR"
+echo "  remote_python    : $REMOTE_PYTHON"
 echo "  local_uri        : $LOCAL_MLFLOW_URI"
 echo "  remote_uri       : $REMOTE_MLFLOW_URI"
 [[ -n "$SSH_KEY" ]] && echo "  ssh_key          : $SSH_KEY"
@@ -190,7 +196,7 @@ else
 fi
 
 # ── 3. Remote import_delta.py exists
-step "3/6  Remote import_delta.py present"
+step "3/7  Remote import_delta.py present"
 REMOTE_IMPORT_PY="${REMOTE_NEXUS_DIR}/scheduled_sync/import_delta.py"
 if ssh $SSH_OPTS "$REMOTE_HOST" "test -f '$REMOTE_IMPORT_PY'" 2>/dev/null; then
     ok "$REMOTE_IMPORT_PY exists"
@@ -198,8 +204,18 @@ else
     fail "$REMOTE_IMPORT_PY not found. Verify --remote_nexus_dir points at the nexus checkout."
 fi
 
-# ── 4. Remote MLflow /health
-step "4/6  Remote MLflow /health — $REMOTE_MLFLOW_URI"
+# ── 4. Remote Python can import mlflow
+step "4/7  Remote Python — $REMOTE_PYTHON"
+if ssh $SSH_OPTS "$REMOTE_HOST" "'$REMOTE_PYTHON' -c 'import mlflow'" 2>/dev/null; then
+    ok "$REMOTE_PYTHON can import mlflow"
+else
+    fail "'$REMOTE_PYTHON' cannot import mlflow on $REMOTE_HOST.
+        Set remote_python in ~/.nexus/sync_config.json to the venv path,
+        e.g. \"remote_python\": \"/opt/nexus-mlflow/venv/bin/python3\""
+fi
+
+# ── 5. Remote MLflow /health
+step "5/7  Remote MLflow /health — $REMOTE_MLFLOW_URI"
 # /health is reached *from the central server* because that's where import_delta.py runs.
 if ssh $SSH_OPTS "$REMOTE_HOST" "curl -sS -m 5 '${REMOTE_MLFLOW_URI%/}/health' >/dev/null" 2>/dev/null; then
     ok "Central MLflow responded on $REMOTE_MLFLOW_URI"
@@ -207,8 +223,8 @@ else
     fail "Central MLflow at $REMOTE_MLFLOW_URI is not reachable from $REMOTE_HOST."
 fi
 
-# ── 5. Local MLflow /health and experiment exists (+ researcher coverage)
-step "5/6  Local MLflow + experiment '$EXPERIMENT'"
+# ── 6. Local MLflow /health and experiment exists (+ researcher coverage)
+step "6/7  Local MLflow + experiment '$EXPERIMENT'"
 if ! curl -sS -m 5 "${LOCAL_MLFLOW_URI%/}/health" >/dev/null 2>&1; then
     fail "Local MLflow at $LOCAL_MLFLOW_URI not reachable. Run start_local_mlflow.sh first."
 fi
@@ -254,8 +270,8 @@ case "$EXP_OK" in
         fail "Experiment '$EXPERIMENT' not found on local MLflow. Available: $AVAIL" ;;
 esac
 
-# ── 6. End-to-end dry run
-step "6/6  Dry-run sync (export only — no SCP, no remote import)"
+# ── 7. End-to-end dry run
+step "7/7  Dry-run sync (export only — no SCP, no remote import)"
 DRY_ARGS=()
 [[ -n "$CONFIG_FILE" ]] && DRY_ARGS+=("--config" "$CONFIG_FILE")
 DRY_ARGS+=("--dry-run")
@@ -264,6 +280,7 @@ DRY_ARGS+=("--dry-run")
 [[ -n "$RESEARCHER"        ]] && DRY_ARGS+=("--researcher" "$RESEARCHER")
 [[ -n "$REMOTE"            ]] && DRY_ARGS+=("--remote" "$REMOTE")
 [[ -n "$REMOTE_NEXUS_DIR"  ]] && DRY_ARGS+=("--remote_nexus_dir" "$REMOTE_NEXUS_DIR")
+[[ -n "$REMOTE_PYTHON"     ]] && DRY_ARGS+=("--remote_python"    "$REMOTE_PYTHON")
 if bash "${SCRIPT_DIR}/sync_mlflow_to_server.sh" "${DRY_ARGS[@]}"; then
     ok "Dry-run completed"
 else
