@@ -553,7 +553,17 @@ After training starts, verify that metrics are accumulating in real time in the 
 
 ### 4-1. Pipeline A — Delta Sync (MLflow incremental)
 
-#### One-time setup — sync config file(s)
+> [!IMPORTANT]
+> **Recommended order** — after writing the config file, proceed in this sequence:
+>
+> 1. `validate_sync.sh` — pre-flight check (SSH, permissions, dry-run)
+> 2. `sync_mlflow_to_server.sh` — manual run to confirm real data transfer end-to-end
+> 3. `crontab -e` — register the cron job
+> 4. **Start training** — cron must be registered first so sync begins from step 0
+>
+> Registering cron after training has already started causes no data loss (`~/.nexus/sync_state/` tracks the full history), but any metrics logged before cron was registered will be uploaded in bulk on the next cron run rather than incrementally.
+
+#### Step 1 — One-time setup: sync config file(s)
 
 The fixed values live in a config file so the cron line is a single bash invocation. Two locations are auto-discovered:
 
@@ -575,7 +585,19 @@ Required keys (anywhere in the resolution chain): `experiment`, `remote`, `remot
 
 > ⚠️ **Multi-user GPU servers**: when several researchers share one GPU server (and one local MLflow), each user **MUST** set their own `researcher` in `~/.nexus/sync_config.json`. Without it, every user's cron exports every other user's runs and the central server logs duplicate metric points at identical steps. The validator flags this with a `[WARN]`.
 
-#### Run once manually
+#### Step 2 — Pre-flight check
+
+`validate_sync.sh` runs the same config resolution as `sync_mlflow_to_server.sh`, then verifies SSH, remote inbox writability, presence of `import_delta.py` on the central server, central MLflow `/health`, local MLflow + experiment existence, and finally executes a `--dry-run`. A clean run prints a paste-ready cron line — it never edits your crontab.
+
+```bash
+bash scheduled_sync/validate_sync.sh
+# or with a non-default config path:
+bash scheduled_sync/validate_sync.sh --config /etc/nexus/sync.json
+```
+
+Every failure prints what to fix; the script exits 2 on the first failed step rather than continuing in a broken state.
+
+#### Step 3 — Run once manually
 
 ```bash
 bash scheduled_sync/sync_mlflow_to_server.sh
@@ -591,19 +613,7 @@ On success, the run will appear in the NEXUS server's MLflow UI. The local state
 
 **On second run:** If there are no new metrics, SCP is skipped with the message `[OK] No new data since last sync.`
 
-#### Pre-flight check before registering cron
-
-`validate_sync.sh` runs the same config resolution as `sync_mlflow_to_server.sh`, then verifies SSH, remote inbox writability, presence of `import_delta.py` on the central server, central MLflow `/health`, local MLflow + experiment existence, and finally executes a `--dry-run`. A clean run prints a paste-ready cron line — it never edits your crontab.
-
-```bash
-bash scheduled_sync/validate_sync.sh
-# or with a non-default config path:
-bash scheduled_sync/validate_sync.sh --config /etc/nexus/sync.json
-```
-
-Every failure prints what to fix; the script exits 2 on the first failed step rather than continuing in a broken state.
-
-**Automation (cron registration):**
+#### Step 4 — Register cron
 
 ```bash
 crontab -e
@@ -621,7 +631,7 @@ Need a per-key override (e.g. running an alternate experiment from one cron line
     --experiment robot_hand_rl_pilot >> $HOME/nexus_sync.log 2>&1
 ```
 
-#### Multi-user GPU servers
+#### Step 5 — Multi-user GPU servers
 
 When kim, lee, and park all train on the same GPU server, each user runs their own cron:
 
