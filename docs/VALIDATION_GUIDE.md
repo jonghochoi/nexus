@@ -581,7 +581,9 @@ cp scheduled_sync/sync_config.example.json ~/.nexus/sync_config.json
 $EDITOR ~/.nexus/sync_config.json
 ```
 
-Required keys (anywhere in the resolution chain): `experiment`, `remote`, `remote_nexus_dir`. Optional: `researcher`, `ssh_key`, `ssh_port`, `local_uri`, `remote_uri`, `state_file`.
+Required keys (anywhere in the resolution chain): `experiment`, `remote`, `remote_nexus_dir`. Optional: `researcher`, `remote_python`, `ssh_key`, `ssh_port`, `local_uri`, `remote_uri`, `state_file`.
+
+> 💡 **`remote_python`** — Non-interactive SSH does not source `~/.bashrc`, so the MLflow server's venv is never activated and `python3` resolves to the system interpreter (which has no `mlflow`). Set this to the full path of the venv Python on the MLflow server: `"/opt/nexus-mlflow/venv/bin/python3"`.
 
 > ⚠️ **Multi-user GPU servers**: when several researchers share one GPU server (and one local MLflow), each user **MUST** set their own `researcher` in `~/.nexus/sync_config.json`. Without it, every user's cron exports every other user's runs and the central server logs duplicate metric points at identical steps. The validator flags this with a `[WARN]`.
 
