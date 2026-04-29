@@ -325,7 +325,7 @@ mlflow server \
 
 > 🔑 **Why `--serve-artifacts` (proxied artifact storage)?**
 >
-> With `--default-artifact-root <local-path>` (the old style), MLflow **clients** (e.g. the GPU server running `mlflow.log_artifacts()` or `tb_to_mlflow.py --upload_artifacts`) try to write directly to that local filesystem path. Remote clients have no access to `/opt/nexus-mlflow/artifacts` on the server, so the upload fails with `Permission denied`.
+> With `--default-artifact-root <local-path>` (the old style), MLflow **clients** (e.g. the GPU server running `mlflow.log_artifacts()` or `upload_tb.py --upload_artifacts`) try to write directly to that local filesystem path. Remote clients have no access to `/opt/nexus-mlflow/artifacts` on the server, so the upload fails with `Permission denied`.
 >
 > `--serve-artifacts` combined with `--artifacts-destination` makes the **server** accept artifact uploads over HTTP and persist them on its own disk. New runs get an `mlflow-artifacts:/` URI automatically; clients need no extra config.
 >
@@ -806,7 +806,7 @@ After setup is complete, the structure will be as follows:
 | SCP keeps asking for password | Key not registered | Re-run `ssh-copy-id` |
 | Disk full | Artifact accumulation | Check with `df -h` and delete old run artifacts |
 | Server not starting after reboot | Not enabled | `sudo systemctl enable nexus-mlflow` |
-| `tb_to_mlflow.py --upload_artifacts` → `PermissionError: /opt/nexus-mlflow/artifacts/...` | Server was started with `--default-artifact-root <local-path>`, which forces the remote client to write directly to that path. | Restart the server with `--artifacts-destination /opt/nexus-mlflow/artifacts --serve-artifacts` (see Step 4 / 6.2). Clients will then upload artifacts over HTTP through the server. |
+| `upload_tb.py --upload_artifacts` → `PermissionError: /opt/nexus-mlflow/artifacts/...` | Server was started with `--default-artifact-root <local-path>`, which forces the remote client to write directly to that path. | Restart the server with `--artifacts-destination /opt/nexus-mlflow/artifacts --serve-artifacts` (see Step 4 / 6.2). Clients will then upload artifacts over HTTP through the server. |
 
 ---
 

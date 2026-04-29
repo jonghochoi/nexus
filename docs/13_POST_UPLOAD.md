@@ -2,7 +2,7 @@
 
 > **Purpose:** Upload a completed tfevents directory to MLflow as a one-shot batch — no trainer code changes required. Suitable when training is already done, or when the trainer is not yet integrated with `make_logger()`.
 >
-> This guide is for **engineers / researchers** running `post_upload/tb_to_mlflow.py`. The high-level "what is Pipeline B" overview lives in [`README.md`](../README.md#-two-ways-to-use-nexus); the system architecture is in [`10_ARCHITECTURE.md`](10_ARCHITECTURE.md).
+> This guide is for **engineers / researchers** running `post_upload/upload_tb.py`. The high-level "what is Pipeline B" overview lives in [`README.md`](../README.md#-two-ways-to-use-nexus); the system architecture is in [`10_ARCHITECTURE.md`](10_ARCHITECTURE.md).
 
 ---
 
@@ -30,21 +30,21 @@ cp post_upload/post_config.example.json ~/.nexus/post_config.json
 $EDITOR ~/.nexus/post_config.json   # set tracking_uri + your fixed tags
 
 # Every upload
-python post_upload/tb_to_mlflow.py --tb_dir /path/to/run_001
+python post_upload/upload_tb.py --tb_dir /path/to/run_001
 # → prompts for seed/task if missing, uploads, auto-verifies
 ```
 
 Repeat the same config for another seed?
 
 ```bash
-python post_upload/tb_to_mlflow.py --tb_dir /path/to/run_002 --repeat-last --tags seed=2
+python post_upload/upload_tb.py --tb_dir /path/to/run_002 --repeat-last --tags seed=2
 ```
 
 List recent uploads / re-verify the last one:
 
 ```bash
-python post_upload/tb_to_mlflow.py --history
-python post_upload/verify_upload.py --from-last
+python post_upload/upload_tb.py --history
+python post_upload/verify_tb.py --from-last
 ```
 
 ---
@@ -77,7 +77,7 @@ Before the actual upload, use `--dry_run` to preview which metrics will be parse
 cd nexus/
 source ~/.nexus/activate.sh   # or: nexus-activate
 
-python post_upload/tb_to_mlflow.py \
+python post_upload/upload_tb.py \
     --tb_dir    /path/to/your/logs/run_001 \
     --dry_run
 ```
@@ -108,10 +108,10 @@ After reviewing the dry-run contents, proceed with the actual upload. Make sure 
 ```bash
 # Short form — config supplies tracking_uri, researcher, hardware, etc.
 # Missing required tags (researcher/seed/task) are prompted interactively.
-python post_upload/tb_to_mlflow.py --tb_dir /path/to/your/logs/run_001
+python post_upload/upload_tb.py --tb_dir /path/to/your/logs/run_001
 
 # Or fully explicit (for CI or ad-hoc overrides)
-python post_upload/tb_to_mlflow.py \
+python post_upload/upload_tb.py \
     --tb_dir       /path/to/your/logs/run_001 \
     --experiment   robot_hand_rl \
     --run_name     ppo_baseline_v1 \
@@ -140,7 +140,7 @@ Pass `--no_verify` to skip the automatic check (e.g. in CI where you verify late
 Automatic verification runs at the end of every upload — no manual step needed. To re-verify a previous upload, or to validate one that was run with `--no_verify`:
 
 ```bash
-python post_upload/verify_upload.py \
+python post_upload/verify_tb.py \
     --run_id       a1b2c3d4e5f6...   \
     --tb_dir       /path/to/your/logs/run_001 \
     --tracking_uri http://127.0.0.1:5100
@@ -243,7 +243,7 @@ Override the config path with `--config /path/to/other.json` (useful for CI or s
 - **Explicit** — `-i` / `--interactive` prompts for every required tag regardless, which is handy for editing a repeated set (see Step 4):
 
   ```bash
-  python post_upload/tb_to_mlflow.py --tb_dir /path/to/run_003 --repeat-last -i
+  python post_upload/upload_tb.py --tb_dir /path/to/run_003 --repeat-last -i
   ```
 
 ### 2.2 Precedence (low → high)
@@ -264,7 +264,7 @@ Override the config path with `--config /path/to/other.json` (useful for CI or s
 
 ## 📌 Step 3 — Automatic verification
 
-After every successful upload, `tb_to_mlflow.py` runs `verify_upload.py` against the returned `run_id` automatically. You don't need to copy the run_id anywhere.
+After every successful upload, `upload_tb.py` runs `verify_tb.py` against the returned `run_id` automatically. You don't need to copy the run_id anywhere.
 
 ```
 ✓ Upload complete!
@@ -281,10 +281,10 @@ Re-verify a past upload:
 
 ```bash
 # Most recent
-python post_upload/verify_upload.py --from-last
+python post_upload/verify_tb.py --from-last
 
 # A specific run
-python post_upload/verify_upload.py \
+python post_upload/verify_tb.py \
     --run_id a1b2c3d4e5f6... \
     --tb_dir /path/to/run_001
 ```
@@ -298,7 +298,7 @@ Every upload is recorded in `~/.nexus/history.json` (newest first, capped at 20 
 ### 4.1 `--history` — list recent uploads
 
 ```
-$ python post_upload/tb_to_mlflow.py --history
+$ python post_upload/upload_tb.py --history
 
         Recent uploads (last 3)
   When                  Experiment         Run Name          Run ID          Verify  Key Tags
@@ -313,26 +313,26 @@ Inherit `experiment`, `run_name`, and `tags` from the most recent upload — per
 
 ```bash
 # Upload 10 seeds of the same task without re-typing everything:
-python post_upload/tb_to_mlflow.py --tb_dir ./runs/seed1 --tags seed=1 task=in_hand_reorientation
-python post_upload/tb_to_mlflow.py --tb_dir ./runs/seed2 --repeat-last --tags seed=2
-python post_upload/tb_to_mlflow.py --tb_dir ./runs/seed3 --repeat-last --tags seed=3
+python post_upload/upload_tb.py --tb_dir ./runs/seed1 --tags seed=1 task=in_hand_reorientation
+python post_upload/upload_tb.py --tb_dir ./runs/seed2 --repeat-last --tags seed=2
+python post_upload/upload_tb.py --tb_dir ./runs/seed3 --repeat-last --tags seed=3
 ...
 ```
 
 Combine with `-i` to edit a tag interactively with the previous value prefilled:
 
 ```bash
-python post_upload/tb_to_mlflow.py --tb_dir ./runs/seed2 --repeat-last -i
+python post_upload/upload_tb.py --tb_dir ./runs/seed2 --repeat-last -i
 #   seed [1]: 2
 #   task [in_hand_reorientation]: ↵  (accept)
 ```
 
-### 4.3 `--from-last` (verify_upload.py)
+### 4.3 `--from-last` (verify_tb.py)
 
 Re-run verification on the most recent upload without copy/paste:
 
 ```bash
-python post_upload/verify_upload.py --from-last
+python post_upload/verify_tb.py --from-last
 ```
 
 ---
@@ -380,7 +380,7 @@ with open(log_dir / "run_meta.json", "w") as f:
 
 ## 📌 Step 6 — All CLI flags at a glance
 
-### 6.1 `tb_to_mlflow.py`
+### 6.1 `upload_tb.py`
 
 | Flag | Purpose |
 |---|---|
@@ -399,7 +399,7 @@ with open(log_dir / "run_meta.json", "w") as f:
 | `--upload_artifacts` | Also attach tfevents files as MLflow artifacts |
 | `--history` | Print recent uploads and exit |
 
-### 6.2 `verify_upload.py`
+### 6.2 `verify_tb.py`
 
 | Flag | Purpose |
 |---|---|
@@ -408,6 +408,38 @@ with open(log_dir / "run_meta.json", "w") as f:
 | `--tracking_uri URL` | MLflow server (default: `http://127.0.0.1:5000`) |
 | `--tolerance F` | Numeric match tolerance (default: `1e-6`) |
 | `--from-last` | Fill run_id/tb_dir/tracking_uri from last history entry |
+
+### 6.3 `upload_eval.py`
+
+Attaches post-hoc evaluation artifacts (mp4 rollouts, GIF previews, reports, score JSONs) to an **existing** MLflow run that was created by `upload_tb.py` or by Pipeline A's `MLflowLogger`. The run is resolved by `--run_name` (an MLflow search on `tags.mlflow.runName`), and the directory passed via `--eval_dir` is uploaded under `eval/<eval_id>/` — never under `checkpoints/`, so the team's `best.pth`/`last.pth`-only policy stays intact.
+
+The script also synthesizes an `index.html` next to any `.mp4` it finds. MLflow 2.13's artifact viewer renders HTML inline but does not natively render mp4, so the index page wraps the video in a `<video controls src="rollout.mp4">` tag and links to neighbouring reports / GIFs / score files. Click `index.html` in the run's Artifacts pane to play the rollout in-browser without downloading.
+
+| Flag | Purpose |
+|---|---|
+| `--run_name NAME` | Target MLflow run name (required; resolved via `tags.mlflow.runName`) |
+| `--eval_dir PATH` | Local directory whose contents will be attached (required) |
+| `--eval_id ID` | Subdirectory under `eval/` (default: timestamp `YYYYmmdd_HHMMSS`) |
+| `--experiment NAME` | Restrict the run search to this experiment (default: from config) |
+| `--tracking_uri URL` | MLflow server (default: from config) |
+| `--config PATH` | Alternate config file path |
+| `--metrics k=v ...` | Scalar eval metrics to log on the run (e.g. `success_rate=0.87`); each becomes `eval/<key>` |
+| `--tags k=v ...` | Tags to set on the run (prefixed with `eval.` if not already, e.g. `eval.observer_commit=abc123`) |
+| `--no-index` | Don't auto-generate `index.html` (use when you've shipped your own) |
+| `--dry_run` | List what would be uploaded, then exit |
+
+Recommended `eval_dir` layout:
+
+```
+eval_outputs/baseline_v1/
+├── rollout.mp4            ← full-resolution video, downloadable
+├── rollout_preview.gif    ← short preview, also rendered inline by MLflow
+├── report.md              ← human-readable summary
+├── metrics.json           ← machine-readable scores
+└── success_rate.png       ← any other plots
+```
+
+After upload, the MLflow run gains an `eval/<eval_id>/` artifact folder containing all of the above plus the auto-generated `index.html`. The same run can accept multiple eval bundles over time — each goes into its own `eval/<eval_id>/` subdir, so they never collide.
 
 ---
 
@@ -445,7 +477,7 @@ $EDITOR ~/.nexus/post_config.json
 First upload — the CLI handles the rest:
 
 ```
-$ python post_upload/tb_to_mlflow.py --tb_dir ./logs/ppo_first_try
+$ python post_upload/upload_tb.py --tb_dir ./logs/ppo_first_try
 
 ──────── TensorBoard -> MLflow Uploader ────────
 Config source: /home/lee/.nexus/post_config.json
@@ -493,7 +525,7 @@ You trained 5 seeds overnight:
 Upload the first with full metadata:
 
 ```bash
-python post_upload/tb_to_mlflow.py \
+python post_upload/upload_tb.py \
     --tb_dir   ~/runs/ppo_v17_seed1 \
     --run_name ppo_v17_seed1 \
     --tags     seed=1 task=in_hand_reorientation
@@ -503,7 +535,7 @@ For seeds 2–5, `--repeat-last` inherits experiment/tags from history — just 
 
 ```bash
 for S in 2 3 4 5; do
-    python post_upload/tb_to_mlflow.py \
+    python post_upload/upload_tb.py \
         --tb_dir   ~/runs/ppo_v17_seed${S} \
         --run_name ppo_v17_seed${S} \
         --repeat-last --tags seed=${S}
@@ -513,7 +545,7 @@ done
 Confirm all five landed:
 
 ```
-$ python post_upload/tb_to_mlflow.py --history
+$ python post_upload/upload_tb.py --history
 
   Recent uploads (last 5)
   When                Experiment     Run Name         Run ID     Verify  Key Tags
@@ -553,7 +585,7 @@ log_dir.mkdir(parents=True)
 Upload after eval completes:
 
 ```
-$ python post_upload/tb_to_mlflow.py \
+$ python post_upload/upload_tb.py \
     --tb_dir     ./logs/real_eval_2026-04-23 \
     --experiment real_robot_eval \
     --tags       seed=42 task=in_hand_reorientation
@@ -584,7 +616,7 @@ Interactive tag entry (press Enter to accept default)
 Upload failed:
 
 ```
-$ python post_upload/tb_to_mlflow.py --tb_dir ~/runs/ppo_v19_seed1 \
+$ python post_upload/upload_tb.py --tb_dir ~/runs/ppo_v19_seed1 \
       --tags seed=1 task=in_hand_reorientation
 ...
 [ERROR] Failed to connect to MLflow server: HTTPConnectionPool(...)
@@ -594,10 +626,10 @@ Nothing gets saved to history on connect failure, so the command works to replay
 
 ```bash
 # Confirm what the last successful upload looked like
-python post_upload/tb_to_mlflow.py --history
+python post_upload/upload_tb.py --history
 
 # Replay tags + change only the seed and run_name
-python post_upload/tb_to_mlflow.py \
+python post_upload/upload_tb.py \
     --tb_dir   ~/runs/ppo_v19_seed1 \
     --run_name ppo_v19_seed1 \
     --repeat-last --tags seed=1
@@ -606,7 +638,7 @@ python post_upload/tb_to_mlflow.py \
 **Upload succeeded, verification failed** (network hiccup during the verify step): the record IS saved with `verify_ok=False`. Re-verify later without copy-paste:
 
 ```bash
-python post_upload/verify_upload.py --from-last
+python post_upload/verify_tb.py --from-last
 ```
 
 ---
@@ -616,7 +648,7 @@ python post_upload/verify_upload.py --from-last
 You come back from lunch and can't remember if you uploaded `ppo_v17_seed3`:
 
 ```
-$ python post_upload/tb_to_mlflow.py --history
+$ python post_upload/upload_tb.py --history
 
   Recent uploads (last 3)
   2026-04-23T12:18    robot_hand_rl   ppo_v17_seed3   abc...   ✓   seed=3, task=in_hand_...
@@ -639,7 +671,7 @@ In CI (no TTY) every required tag must be explicit; there's no interactive fallb
   env:
     MLFLOW_URI: ${{ secrets.MLFLOW_URI }}
   run: |
-    python post_upload/tb_to_mlflow.py \
+    python post_upload/upload_tb.py \
         --tb_dir       ./logs/${RUN_NAME} \
         --experiment   robot_hand_rl \
         --run_name     ${RUN_NAME} \
@@ -660,7 +692,7 @@ Exit codes you can branch on:
 If a separate CI job handles verification, add `--no_verify` and fail the pipeline later on the verify step instead. For leaner configuration on a long-lived runner, keep `~/.nexus/post_config.json` populated and drop the fixed flags:
 
 ```bash
-python post_upload/tb_to_mlflow.py \
+python post_upload/upload_tb.py \
     --tb_dir ./logs/${RUN_NAME} \
     --tags   seed=${SEED} task=${TASK}
 ```
@@ -675,7 +707,7 @@ python post_upload/tb_to_mlflow.py \
 | `[ERROR] Multiple run directories detected under: <dir>` | `--tb_dir` pointed at a parent containing multiple runs. Upload each run dir individually (use the shell loop suggested in the error). |
 | `[ERROR] Failed to connect to MLflow server` | Wrong `tracking_uri`. Check `~/.nexus/post_config.json`; for local testing use `http://127.0.0.1:5100`, for central use `http://<server>:5000`. |
 | `[WARN] --repeat-last: no previous upload in history.` | Empty `~/.nexus/history.json`. Do one manual upload first, then `--repeat-last` works. |
-| Auto-verify prints `✗ Verification failed` | Tag list, counts, or values diverge. Compare via MLflow UI + `verify_upload.py --from-last` to inspect which tags/steps differ. |
+| Auto-verify prints `✗ Verification failed` | Tag list, counts, or values diverge. Compare via MLflow UI + `verify_tb.py --from-last` to inspect which tags/steps differ. |
 | `[yellow]run_meta.json sim_run_id (X) overrides carried-over value (Y)` | `--repeat-last` had a different sim_run_id than the tb_dir's run_meta.json. The file's value wins (ground truth for this dir). If the file is wrong, delete it or override with `--tags sim_run_id=...`. |
 
 ---

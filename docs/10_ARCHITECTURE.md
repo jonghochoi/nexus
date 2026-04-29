@@ -83,7 +83,7 @@ PPO.write_stats()
         │
         │ (after training ends — manual, one-time)
         ▼
-  post_upload/tb_to_mlflow.py
+  post_upload/upload_tb.py
         │ parse tfevents → log_batch()
         ▼
   [MLflow Server :5000]
@@ -169,8 +169,9 @@ nexus/
 │       └── system_metrics.py       # [Advanced] Background CPU/GPU logging
 │
 ├── post_upload/                    # Pipeline B — upload after training
-│   ├── tb_to_mlflow.py             # Full tfevents → MLflow batch upload
-│   └── verify_upload.py            # Numeric validation vs. TB source
+│   ├── upload_tb.py                # Full tfevents → MLflow batch upload
+│   ├── verify_tb.py                # Numeric validation vs. TB source
+│   └── upload_eval.py              # Attach evaluation artifacts (mp4 / report) to a run
 │
 ├── scheduled_sync/                 # Pipeline A — sync while training runs (air-gapped SCP)
 │   ├── start_local_mlflow.sh       # [GPU Server] start local MLflow server
@@ -190,7 +191,7 @@ nexus/
 │   ├── 10_ARCHITECTURE.md          # ← You are here. System design & component map
 │   ├── 11_LOGGER_SETUP.md          # Pipeline A — logger integration (step-by-step diff)
 │   ├── 12_SCHEDULED_SYNC.md        # Pipeline A — cron sync wiring (config, validate, multi-user)
-│   ├── 13_POST_UPLOAD.md           # Pipeline B — tb_to_mlflow CLI in depth
+│   ├── 13_POST_UPLOAD.md           # Pipeline B — upload_tb / verify_tb / upload_eval CLIs in depth
 │   ├── 20_MLFLOW_SERVER_SETUP.md   # Operator — central MLflow server install (incl. local PC verify)
 │   ├── 21_AIRGAPPED_GPU_SERVER_SETUP.md  # Operator — GPU node offline bring-up (pip wheel / Docker, incl. verify)
 │   ├── 30_ADVANCED_FEATURES.md     # Opt-in — SweepLogger, RL metrics, Model Registry
@@ -221,8 +222,9 @@ The next section maps each runtime component (factory, loggers, sync scripts) to
 | `sync_mlflow_to_server.sh` | `scheduled_sync/` | 🔄 Orchestrates delta export → SCP → import |
 | `export_delta.py` | `scheduled_sync/` | 📦 Serializes only new metric points per run/tag |
 | `import_delta.py` | `scheduled_sync/` | ⬆️ Reads delta JSON, logs new metrics to central MLflow |
-| `tb_to_mlflow.py` | `post_upload/` | 📤 Manual full upload after training |
-| `verify_upload.py` | `post_upload/` | ✅ Validates upload against TB source |
+| `upload_tb.py` | `post_upload/` | 📤 Manual full upload after training |
+| `verify_tb.py` | `post_upload/` | ✅ Validates upload against TB source |
+| `upload_eval.py` | `post_upload/` | 🎬 Attaches eval artifacts (mp4/report) to an existing run |
 
 ---
 

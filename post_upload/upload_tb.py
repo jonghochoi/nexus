@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-post_upload/tb_to_mlflow.py
-===========================
+post_upload/upload_tb.py
+========================
 TensorBoard tfevents -> MLflow conversion uploader (Pipeline B)
 
 Usage:
-    python tb_to_mlflow.py --tb_dir ./logs/run_001 --experiment robot_hand_grasp --run_name ppo_v1
+    python upload_tb.py --tb_dir ./logs/run_001 --experiment robot_hand_grasp --run_name ppo_v1
 
 Expected tfevents directory structure:
     logs/
@@ -36,7 +36,7 @@ from rich import print as rprint
 
 from config import DEFAULT_CONFIG_PATH, load_config, required_tags
 from history import last_upload, make_record, print_history, save_upload
-from verify_upload import run_verify
+from verify_tb import run_verify
 
 console = Console()
 
@@ -172,7 +172,7 @@ def parse_tfevents(tb_dir: str) -> pd.DataFrame:
         )
         console.print(
             f"  [yellow]for run_dir in {tb_dir}/*/; do\n"
-            f'      python tb_to_mlflow.py --tb_dir "$run_dir" \\\n'
+            f'      python upload_tb.py --tb_dir "$run_dir" \\\n'
             f"          --experiment <experiment> --run_name $(basename \"$run_dir\") ...\n"
             f"  done[/yellow]"
         )
@@ -436,8 +436,9 @@ def main():
     args = parse_args(defaults=config)
 
     # --history: print recent uploads and exit (no tb_dir required).
+    # Restrict to upload_tb records — eval uploads have their own --history.
     if args.history:
-        print_history()
+        print_history(script="upload_tb")
         return
 
     if not args.tb_dir:
@@ -454,7 +455,7 @@ def main():
     run_name = args.run_name
 
     if args.repeat_last:
-        last = last_upload()
+        last = last_upload(script="upload_tb")
         if last is None:
             console.print("[yellow][WARN] --repeat-last: no previous upload in history.[/yellow]")
         else:
@@ -565,6 +566,7 @@ def main():
         tracking_uri=args.tracking_uri,
         tags=tags,
         verify_ok=verify_ok,
+        script="upload_tb",
     ))
 
     if verify_ok is False:

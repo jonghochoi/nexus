@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-verify_upload.py
-================
+post_upload/verify_tb.py
+========================
 Validates the uploaded MLflow run against the original TensorBoard data.
 
 Usage:
-    python verify_upload.py --run_id <run_id> --tb_dir ./logs/run_001
+    python verify_tb.py --run_id <run_id> --tb_dir ./logs/run_001
 """
 
 import argparse
@@ -52,7 +52,7 @@ def parse_args():
 
     if args.from_last:
         from history import last_upload
-        last = last_upload()
+        last = last_upload(script="upload_tb")
         if last is None:
             parser.error("--from-last: no previous upload in history.")
         args.run_id = args.run_id or last["run_id"]
@@ -225,7 +225,7 @@ def verify(tb_df: pd.DataFrame, mlflow_df: pd.DataFrame, tolerance: float):
 
 
 def run_verify(run_id: str, tb_dir: str, tracking_uri: str, tolerance: float = 1e-6) -> bool:
-    """Programmatic entry point — callable from tb_to_mlflow.py for auto-verify.
+    """Programmatic entry point — callable from upload_tb.py for auto-verify.
 
     Returns True if all checks pass, False otherwise.
     """

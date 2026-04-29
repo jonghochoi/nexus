@@ -139,7 +139,7 @@ Local-MLflow on `127.0.0.1:5100` is started by `bash scheduled_sync/start_local_
 
 ```bash
 # One-time: set tracking_uri + your fixed tags in ~/.nexus/post_config.json
-python post_upload/tb_to_mlflow.py --tb_dir /path/to/logs/run_001
+python post_upload/upload_tb.py --tb_dir /path/to/logs/run_001
 # → prompts for missing required tags, uploads, auto-verifies
 ```
 
@@ -148,6 +148,8 @@ The full flag reference, interactive mode, upload history, `sim_run_id` auto-det
 > ⚠️ **Multi-user GPU server (Pipeline A)** — each user must set their own `researcher` in `~/.nexus/sync_config.json` so cron jobs don't re-export each other's runs. Canonical: [`docs/00_PRINCIPLES.md#multi-user-researcher`](docs/00_PRINCIPLES.md#-multi-user-researcher).
 
 > 💡 **Long-running training** needs Pipeline A (scheduled, incremental). Pipeline B is a one-shot batch upload — use it for back-filling completed runs that were written by an unmodified `SummaryWriter`.
+>
+> 🎬 **Already have eval artifacts** (rollout mp4, scores, reports) for an existing run? `python post_upload/upload_eval.py --run_name <name> --eval_dir <path>` attaches them under `eval/<id>/` and auto-generates an `index.html` so MLflow's UI plays the mp4 inline. See [`13_POST_UPLOAD`](docs/13_POST_UPLOAD.md) §6.3 for the full flag list and recommended `eval_dir` layout.
 
 ---
 
@@ -215,7 +217,7 @@ The full flag reference, interactive mode, upload history, `sim_run_id` auto-det
 | **10** | [`docs/10_ARCHITECTURE.md`](docs/10_ARCHITECTURE.md) | Full system design and component map |
 | **11** | [`docs/11_LOGGER_SETUP.md`](docs/11_LOGGER_SETUP.md) | Pipeline A — logger integration step-by-step diff |
 | **12** | [`docs/12_SCHEDULED_SYNC.md`](docs/12_SCHEDULED_SYNC.md) | Pipeline A — cron sync wiring (config, validate, multi-user, verification checklist) |
-| **13** | [`docs/13_POST_UPLOAD.md`](docs/13_POST_UPLOAD.md) | Pipeline B — `tb_to_mlflow` CLI: config, interactive, history, `sim_run_id` |
+| **13** | [`docs/13_POST_UPLOAD.md`](docs/13_POST_UPLOAD.md) | Pipeline B — `upload_tb` / `verify_tb` / `upload_eval` CLIs: config, interactive, history, `sim_run_id`, eval artifact attach |
 | **20** | [`docs/20_MLFLOW_SERVER_SETUP.md`](docs/20_MLFLOW_SERVER_SETUP.md) | Operator — central MLflow server install (Step 0 includes local PC verification) |
 | **21** | [`docs/21_AIRGAPPED_GPU_SERVER_SETUP.md`](docs/21_AIRGAPPED_GPU_SERVER_SETUP.md) | Operator — GPU node offline bring-up (Step 0 + Step C include local + GPU verification) |
 | **30** | [`docs/30_ADVANCED_FEATURES.md`](docs/30_ADVANCED_FEATURES.md) | Opt-in — SweepLogger, RL metrics, Model Registry, system metrics, git tracking |
