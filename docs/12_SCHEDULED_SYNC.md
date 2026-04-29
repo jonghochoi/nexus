@@ -91,6 +91,13 @@ $EDITOR ~/.nexus/sync_config.json
 **Required keys** (anywhere in the resolution chain): `experiment`, `remote`, `remote_nexus_dir`.
 **Optional:** `researcher`, `remote_python`, `ssh_key`, `ssh_port`, `local_uri`, `remote_uri`, `state_file`.
 
+> 💡 **`experiment` vs `researcher` — relationship to logger parameters**
+>
+> These two keys look similar to the parameters passed when creating a logger in training code, but their roles differ:
+>
+> - **`experiment`** — same concept in both places: the MLflow experiment name. The value here must exactly match the `experiment_name` passed to `make_logger()` / `MLflowLogger(experiment_name=...)` in the training code. If they differ, `export_delta.py` looks at a different experiment and exports nothing (or the wrong runs).
+> - **`researcher`** — different roles, but values must match. In the training code, `tags={"researcher": "kim"}` is metadata attached to the MLflow run. In sync_config, `"researcher": "kim"` is a **filter**: `export_delta.py` only exports runs whose `researcher` tag equals this value. If the two values don't match, that researcher's runs are never exported.
+
 > 💡 **`remote_python`** — Non-interactive SSH does not source `~/.bashrc`, so the MLflow server's venv is never activated and `python3` resolves to the system interpreter (which has no `mlflow`). Set this to the full path of the venv Python on the MLflow server: `"/opt/nexus-mlflow/venv/bin/python3"`.
 
 > ⚠️ **Multi-user GPU servers** — when several researchers share one GPU server (and one local MLflow), each user **MUST** set their own `researcher` in `~/.nexus/sync_config.json`. Without it, every user's cron exports every other user's runs and the central server logs duplicate metric points at identical steps. The validator flags this with a `[WARN]`. Detail: [Step 5](#-step-5--multi-user-gpu-servers) and [`00_PRINCIPLES.md#multi-user-researcher`](00_PRINCIPLES.md#-multi-user-researcher).
