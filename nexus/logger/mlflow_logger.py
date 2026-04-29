@@ -11,11 +11,14 @@ Key behaviors:
   - Captures git_commit / git_dirty tags at run start (track_git=True by default)
   - Uploads git diff HEAD as artifacts/git/git_patch.diff when working tree is dirty
   - Marks run FINISHED on close() or process exit
+  - Supports split agent_params / env_params — each logged with a namespace prefix
+    and saved as params/agent_params.json and params/env_params.json artifacts
 """
 
 from __future__ import annotations
 
 import atexit
+import json
 import os
 import shutil
 import tempfile
@@ -48,6 +51,8 @@ class MLflowLogger:
         tracking_uri: str = "http://127.0.0.1:5100",
         experiment_name: str = "robot_hand_rl",
         params: Optional[dict] = None,
+        agent_params: Optional[dict] = None,
+        env_params: Optional[dict] = None,
         tags: Optional[dict] = None,
         parent_run_id: Optional[str] = None,
         track_git: bool = True,  # set False if not inside a git repo or to suppress git tags
@@ -72,6 +77,12 @@ class MLflowLogger:
 
         if params:
             self._log_params(params)
+        if agent_params:
+            self._log_params(agent_params, prefix="agent")
+            self._log_params_as_artifact(agent_params, "agent_params.json")
+        if env_params:
+            self._log_params(env_params, prefix="env")
+            self._log_params_as_artifact(env_params, "env_params.json")
 
         if track_git:
             self._log_git_patch()
@@ -233,11 +244,21 @@ class MLflowLogger:
             self._client.log_artifact(self._run_id, patch_path, "git")
         print("[MLflowLogger] Dirty working tree detected — git patch saved to artifacts/git/git_patch.diff")
 
-    def _log_params(self, params: dict) -> None:
+    def _log_params(self, params: dict, prefix: str = "") -> None:
         flat = self._flatten(params)
+        if prefix:
+            flat = {f"{prefix}.{k}": v for k, v in flat.items()}
         items = [mlflow.entities.Param(k, str(v)) for k, v in flat.items()]
         for i in range(0, len(items), 100):
             self._client.log_batch(run_id=self._run_id, params=items[i:i+100])
+
+    def _log_params_as_artifact(self, params: dict, filename: str) -> None:
+        """Serialize params dict to JSON and upload under artifacts/params/."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, filename)
+            with open(path, "w") as f:
+                json.dump(params, f, indent=2, default=str)
+            self._client.log_artifact(self._run_id, path, "params")
 
     @staticmethod
     def _flatten(d: dict, parent: str = "", sep: str = ".") -> dict:

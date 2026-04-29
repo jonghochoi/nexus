@@ -16,7 +16,8 @@ Usage in PPO.__init__():
         run_name=run_name,
         tracking_uri="http://127.0.0.1:5100",
         experiment_name="robot_hand_rl",
-        params=agent_cfg,
+        agent_params=agent_cfg,
+        env_params=env_cfg,
         tags={...},
     )
 
@@ -47,6 +48,8 @@ class DualLogger:
         tracking_uri: str = "http://127.0.0.1:5100",
         experiment_name: str = "robot_hand_rl",
         params: Optional[dict] = None,
+        agent_params: Optional[dict] = None,
+        env_params: Optional[dict] = None,
         tags: Optional[dict] = None,
         parent_run_id: Optional[str] = None,
     ):
@@ -56,6 +59,8 @@ class DualLogger:
             tracking_uri=tracking_uri,
             experiment_name=experiment_name,
             params=params,
+            agent_params=agent_params,
+            env_params=env_params,
             tags=tags,
             parent_run_id=parent_run_id,
         )
@@ -126,6 +131,8 @@ def make_logger(
     tracking_uri: str = "http://127.0.0.1:5100",
     experiment_name: str = "robot_hand_rl",
     params: Optional[dict] = None,
+    agent_params: Optional[dict] = None,
+    env_params: Optional[dict] = None,
     tags: Optional[dict] = None,
     parent_run_id: Optional[str] = None,
 ):
@@ -140,11 +147,18 @@ def make_logger(
     `tb_dir` is the TensorBoard log directory. It is required for
     `mode="dual"` and `mode="tensorboard"`, and ignored for `mode="mlflow"`.
 
+    `agent_params` and `env_params` are logged as MLflow params with an
+    "agent." / "env." prefix respectively, and each is also serialized to
+    artifacts/params/agent_params.json and artifacts/params/env_params.json.
+    `params` is kept for backward compatibility and is logged without a prefix.
+
     Example:
         self.writer = make_logger(
             mode="dual",
             tb_dir=...,
             run_name=...,
+            agent_params=agent_cfg,
+            env_params=env_cfg,
         )
     """
     mode = mode.lower().strip()
@@ -158,6 +172,8 @@ def make_logger(
             tracking_uri=tracking_uri,
             experiment_name=experiment_name,
             params=params,
+            agent_params=agent_params,
+            env_params=env_params,
             tags=tags,
             parent_run_id=parent_run_id,
         )
@@ -167,6 +183,8 @@ def make_logger(
             tracking_uri=tracking_uri,
             experiment_name=experiment_name,
             params=params,
+            agent_params=agent_params,
+            env_params=env_params,
             tags=tags,
             parent_run_id=parent_run_id,
         )
