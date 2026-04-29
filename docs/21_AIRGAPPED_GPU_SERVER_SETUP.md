@@ -342,7 +342,6 @@ self.writer = make_logger(
     params=agent_cfg,
     tags={
         "researcher": os.environ.get("USER", "unknown"),
-        "seed":       str(agent_cfg.get("seed", -1)),
         "task":       agent_cfg.get("task", "unknown"),
         "hardware":   "robot_22dof",
     },

@@ -3,7 +3,7 @@
   "experiments": {
     "robot_hand_rl": {
       "visible_columns": {
-        "tags": ["researcher", "task", "seed", "hardware", "isaac_lab_version", "physx_solver"],
+        "tags": ["experiment", "researcher", "task", "hardware"],
         "params": [],
         "metrics": [
           "train/reward_mean",

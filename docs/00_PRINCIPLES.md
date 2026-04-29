@@ -11,7 +11,7 @@
 | Anchor | Title |
 |---|---|
 | [`#tool-role-separation`](#-tool-role-separation) | MLflow = numbers, Confluence = judgment |
-| [`#required-tags`](#-required-tags) | 6 reproducibility tags (+ `sim_run_id` for real-robot eval) |
+| [`#required-tags`](#-required-tags) | 4 reproducibility tags (+ `sim_run_id` for real-robot eval) |
 | [`#sim-run-id`](#-sim-run-id) | Real-robot eval must carry `sim_run_id` |
 | [`#failed-run-preservation`](#-failed-run-preservation) | Never delete failed runs |
 | [`#multi-user-researcher`](#-multi-user-researcher) | Each user must set their own `researcher` on shared GPU servers |
@@ -35,9 +35,9 @@ If you write interpretation in MLflow descriptions, the team won't see it. If yo
 
 ### 🏷️ Required tags
 
-Every run must carry these six tags — without them, the run cannot be reproduced or compared:
+Every run must carry these four tags — without them, the run cannot be reproduced or compared:
 
-`researcher` · `seed` · `isaac_lab_version` · `physx_solver` · `task` · `hardware`
+`experiment` · `researcher` · `task` · `hardware`
 
 The **single source of truth** is the code: [`post_upload/config.py::required_tags()`](../post_upload/config.py). The team-facing description with examples is in [`ko/02_EXPERIMENT_STANDARD.md` § 3-1](ko/02_EXPERIMENT_STANDARD.md#-3-tags-규칙).
 

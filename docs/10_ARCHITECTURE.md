@@ -280,12 +280,10 @@ Run: "ShadowHand_PPO_seed42_20240315_143022"
 │   └── ...                    (full agent_cfg; nested keys flattened with ".")
 │
 ├── Tags (logged once at run start)
+│   ├── experiment             "robot_hand_rl"
 │   ├── researcher             "jongho"
 │   ├── task                   "ShadowHandOver"
-│   ├── hardware               "robot_22dof"
-│   ├── seed                   "42"
-│   ├── isaac_lab_version      "1.2.0"
-│   └── physx_solver           "TGS"
+│   └── hardware               "robot_22dof"
 │
 ├── Metrics (logged every step)
 │   ├── losses/actor_loss      [step 0..N]

@@ -58,7 +58,7 @@ Define which columns and charts you want for each experiment:
   "experiments": {
     "robot_hand_rl": {
       "visible_columns": {
-        "tags":    ["researcher", "task", "seed", "hardware"],
+        "tags":    ["experiment", "researcher", "task", "hardware"],
         "params":  [],
         "metrics": ["train/reward_mean", "eval/reward_mean", "rl/success_rate"]
       },
