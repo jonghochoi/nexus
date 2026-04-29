@@ -203,7 +203,6 @@ def test_make_logger_factory(tracking_uri: str) -> bool:
         run_name = f"factory_test_{int(time.time())}"
         logger = make_logger(
             mode="mlflow",
-            log_dir="/tmp/nexus_smoke_tb",
             run_name=run_name,
             tracking_uri=tracking_uri,
             experiment_name="nexus_smoke_test",
@@ -233,7 +232,7 @@ def test_dual_logger(tracking_uri: str) -> bool:
             run_name = f"dual_test_{int(time.time())}"
             logger = make_logger(
                 mode="dual",
-                log_dir=tmp_dir,
+                tb_dir=tmp_dir,
                 run_name=run_name,
                 tracking_uri=tracking_uri,
                 experiment_name="nexus_smoke_test",
@@ -412,7 +411,7 @@ def test_dual_log_rl_metrics_fanout(tracking_uri: str) -> bool:
         with tempfile.TemporaryDirectory() as tmp_dir:
             logger = make_logger(
                 mode="dual",
-                log_dir=tmp_dir,
+                tb_dir=tmp_dir,
                 run_name=run_name,
                 tracking_uri=tracking_uri,
                 experiment_name="nexus_smoke_test",

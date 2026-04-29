@@ -12,7 +12,7 @@ Usage in PPO.__init__():
 
     self.writer = make_logger(
         mode="dual",           # "dual" | "mlflow" | "tensorboard"
-        log_dir=output_dir,    # TensorBoard log directory
+        tb_dir=output_dir,     # TensorBoard log directory (omit when mode="mlflow")
         run_name=run_name,
         tracking_uri="http://127.0.0.1:5100",
         experiment_name="robot_hand_rl",
@@ -42,7 +42,7 @@ class DualLogger:
 
     def __init__(
         self,
-        log_dir: str,
+        tb_dir: str,
         run_name: str,
         tracking_uri: str = "http://127.0.0.1:5100",
         experiment_name: str = "robot_hand_rl",
@@ -50,7 +50,7 @@ class DualLogger:
         tags: Optional[dict] = None,
         parent_run_id: Optional[str] = None,
     ):
-        self._tb = TBLogger(log_dir=log_dir)
+        self._tb = TBLogger(log_dir=tb_dir)
         self._mlflow = MLflowLogger(
             run_name=run_name,
             tracking_uri=tracking_uri,
@@ -121,8 +121,8 @@ class DualLogger:
 
 def make_logger(
     mode: str,
-    log_dir: str,
     run_name: str,
+    tb_dir: Optional[str] = None,
     tracking_uri: str = "http://127.0.0.1:5100",
     experiment_name: str = "robot_hand_rl",
     params: Optional[dict] = None,
@@ -134,21 +134,26 @@ def make_logger(
 
     mode options:
       "dual"        → TensorBoard + MLflow (recommended for transition)
-      "mlflow"      → MLflow only
+      "mlflow"      → MLflow only — `tb_dir` is unused and may be omitted
       "tensorboard" → TensorBoard only (legacy, no changes to existing code)
+
+    `tb_dir` is the TensorBoard log directory. It is required for
+    `mode="dual"` and `mode="tensorboard"`, and ignored for `mode="mlflow"`.
 
     Example:
         self.writer = make_logger(
             mode="dual",
-            log_dir=...,
+            tb_dir=...,
             run_name=...,
         )
     """
     mode = mode.lower().strip()
 
     if mode == "dual":
+        if tb_dir is None:
+            raise ValueError("make_logger(mode='dual') requires tb_dir")
         return DualLogger(
-            log_dir=log_dir,
+            tb_dir=tb_dir,
             run_name=run_name,
             tracking_uri=tracking_uri,
             experiment_name=experiment_name,
@@ -166,7 +171,9 @@ def make_logger(
             parent_run_id=parent_run_id,
         )
     elif mode == "tensorboard":
-        return TBLogger(log_dir=log_dir)
+        if tb_dir is None:
+            raise ValueError("make_logger(mode='tensorboard') requires tb_dir")
+        return TBLogger(log_dir=tb_dir)
     else:
         raise ValueError(
             f"Unknown logger mode: '{mode}'. "
