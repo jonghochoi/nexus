@@ -63,6 +63,4 @@ class ModelRegistry:
         """Move all current Production versions to Archived stage."""
         versions = self._client.get_latest_versions(model_name, stages=["Production"])
         for mv in versions:
-            self._client.transition_model_version_stage(
-                model_name, mv.version, stage="Archived"
-            )
+            self._client.transition_model_version_stage(model_name, mv.version, stage="Archived")

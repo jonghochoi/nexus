@@ -47,6 +47,7 @@ TAG_VERSION = "nexus.chart_settings_version"
 
 # ── Config helpers ────────────────────────────────────────────────────────────
 
+
 def _load_nexus_config() -> dict:
     if not _NEXUS_CONFIG.exists():
         return {}
@@ -76,6 +77,7 @@ def _load_settings(path: Path) -> dict:
 
 # ── Core operations ───────────────────────────────────────────────────────────
 
+
 def cmd_apply(args: argparse.Namespace) -> None:
     settings = _load_settings(Path(args.config))
     tracking_uri = _resolve_tracking_uri(args.tracking_uri)
@@ -104,7 +106,9 @@ def cmd_apply(args: argparse.Namespace) -> None:
         exp_cfg = experiments_cfg[exp_name]
         payload = json.dumps(exp_cfg, ensure_ascii=False, separators=(",", ":"))
         client.set_experiment_tag(exp.experiment_id, TAG_SETTINGS, payload)
-        client.set_experiment_tag(exp.experiment_id, TAG_VERSION, str(settings.get("version", "1.0")))
+        client.set_experiment_tag(
+            exp.experiment_id, TAG_VERSION, str(settings.get("version", "1.0"))
+        )
 
         col_tags = exp_cfg.get("visible_columns", {}).get("tags", [])
         col_metrics = exp_cfg.get("visible_columns", {}).get("metrics", [])
@@ -157,7 +161,9 @@ def cmd_show(args: argparse.Namespace) -> None:
         print(f"    params        : {', '.join(col.get('params', [])) or '(none)'}")
         print(f"    metric columns: {', '.join(col.get('metrics', [])) or '(none)'}")
         for i, chart in enumerate(cfg.get("charts", []), 1):
-            print(f"    chart {i}: {chart.get('title', '(untitled)')} — {', '.join(chart.get('metrics', []))}")
+            print(
+                f"    chart {i}: {chart.get('title', '(untitled)')} — {', '.join(chart.get('metrics', []))}"
+            )
         print()
 
 
@@ -234,14 +240,19 @@ javascript:(function(){{
 
 # ── CLI entry point ───────────────────────────────────────────────────────────
 
+
 def _make_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="Persist MLflow chart/column settings across browser sessions",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument("--config", default=str(_DEFAULT_SETTINGS), help="path to chart_settings.json")
-    p.add_argument("--tracking-uri", dest="tracking_uri", default=None, help="MLflow server address")
-    p.add_argument("--experiment", default=None, help="experiment name (default: all in config file)")
+    p.add_argument(
+        "--tracking-uri", dest="tracking_uri", default=None, help="MLflow server address"
+    )
+    p.add_argument(
+        "--experiment", default=None, help="experiment name (default: all in config file)"
+    )
 
     sub = p.add_subparsers(dest="command", required=True)
     sub.add_parser("apply", help="save settings to the MLflow server")
@@ -255,11 +266,7 @@ def main() -> None:
     parser = _make_parser()
     args = parser.parse_args()
 
-    dispatch = {
-        "apply": cmd_apply,
-        "show": cmd_show,
-        "bookmarklet": cmd_bookmarklet,
-    }
+    dispatch = {"apply": cmd_apply, "show": cmd_show, "bookmarklet": cmd_bookmarklet}
     dispatch[args.command](args)
 
 

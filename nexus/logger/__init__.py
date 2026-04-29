@@ -25,6 +25,7 @@ Advanced features (explicit import required):
 # mlflow_logger ("No module named 'mlflow.entities'") is cryptic — surface
 # a single actionable message at the top of the import chain instead.
 import mlflow as _mlflow
+
 if _mlflow.__file__ is None:
     raise ImportError(
         "nexus-logger: 'mlflow' is loaded as a namespace package "

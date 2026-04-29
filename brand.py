@@ -38,16 +38,16 @@ Usage:
 """
 
 # ── ANSI color codes ──────────────────────────────────────────────────
-RESET  = "\033[0m"
-BOLD   = "\033[1m"
-DIM    = "\033[2m"
-CYAN   = "\033[96m"
-BLUE   = "\033[94m"
-WHITE  = "\033[97m"
+RESET = "\033[0m"
+BOLD = "\033[1m"
+DIM = "\033[2m"
+CYAN = "\033[96m"
+BLUE = "\033[94m"
+WHITE = "\033[97m"
 YELLOW = "\033[93m"
-GREEN  = "\033[92m"
+GREEN = "\033[92m"
 PURPLE = "\033[95m"
-RED    = "\033[91m"
+RED = "\033[91m"
 
 # ── Inline sigil — use in log lines and CLI prompts ───────────────────
 #
@@ -100,6 +100,7 @@ VERSION_STRING = f"{CYAN}{BOLD}NEXUS{RESET} {DIM}v{VERSION}{RESET}"
 
 # ── Public functions ──────────────────────────────────────────────────
 
+
 def print_banner() -> None:
     """Print the full NEXUS startup banner."""
     print(BANNER)
@@ -130,9 +131,9 @@ def log(msg: str, level: str = "info") -> str:
     level : "info" | "ok" | "warn" | "error"
     """
     icons = {
-        "info":  f"{CYAN}[NXS]{RESET}",
-        "ok":    f"{GREEN}[NXS]{RESET}",
-        "warn":  f"{YELLOW}[NXS]{RESET}",
+        "info": f"{CYAN}[NXS]{RESET}",
+        "ok": f"{GREEN}[NXS]{RESET}",
+        "warn": f"{YELLOW}[NXS]{RESET}",
         "error": f"{RED}[NXS]{RESET}",
     }
     prefix = icons.get(level, icons["info"])

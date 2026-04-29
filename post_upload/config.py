@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 DEFAULT_CONFIG_PATH = Path.home() / ".nexus" / "post_config.json"
-LEGACY_CONFIG_PATH  = Path.home() / ".nexus" / "config.json"
+LEGACY_CONFIG_PATH = Path.home() / ".nexus" / "config.json"
 HISTORY_PATH = Path.home() / ".nexus" / "history.json"
 HISTORY_LIMIT = 20
 
@@ -19,9 +19,7 @@ HISTORY_LIMIT = 20
 BUILTIN_DEFAULTS = {
     "tracking_uri": "http://127.0.0.1:5000",
     "experiment": "robot_hand_rl",
-    "tags": {
-        "hardware": "robot_22dof",
-    },
+    "tags": {"hardware": "robot_22dof"},
 }
 
 # Tags that must be present on every uploaded run (experiment & task are per-run;

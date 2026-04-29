@@ -25,3 +25,10 @@ server = ["mlflow>=2.0,<3"]
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["nexus*"]
+
+[tool.ruff]
+line-length = 100
+indent-width = 4
+
+[tool.ruff.format]
+skip-magic-trailing-comma = true

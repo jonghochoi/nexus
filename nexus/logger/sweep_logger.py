@@ -49,15 +49,9 @@ class SweepLogger:
         self._client = MlflowClient(tracking_uri=tracking_uri)
 
         exp = mlflow.get_experiment_by_name(experiment_name)
-        run_tags = {
-            "mlflow.runName": sweep_name,
-            "nexus.sweep": "true",
-            **(tags or {}),
-        }
+        run_tags = {"mlflow.runName": sweep_name, "nexus.sweep": "true", **(tags or {})}
         run = self._client.create_run(
-            experiment_id=exp.experiment_id,
-            run_name=sweep_name,
-            tags=run_tags,
+            experiment_id=exp.experiment_id, run_name=sweep_name, tags=run_tags
         )
         self._run_id = run.info.run_id
 
@@ -88,10 +82,7 @@ class SweepLogger:
         if metrics:
             self._client.log_batch(run_id=self._run_id, metrics=metrics)
 
-        params = [
-            mlflow.entities.Param(f"best/{k}", str(v))
-            for k, v in best_params.items()
-        ]
+        params = [mlflow.entities.Param(f"best/{k}", str(v)) for k, v in best_params.items()]
         if params:
             self._client.log_batch(run_id=self._run_id, params=params)
 

@@ -63,7 +63,7 @@ def parse_args(defaults: dict):
         type=str,
         default=None,
         help="Target MLflow run name — searched via tags.mlflow.runName "
-             "(required for uploads; optional with --history)",
+        "(required for uploads; optional with --history)",
     )
     parser.add_argument(
         "--eval_dir",
@@ -81,8 +81,7 @@ def parse_args(defaults: dict):
         "--experiment",
         type=str,
         default=defaults["experiment"],
-        help=f"Restrict the run search to this experiment "
-             f"(default: {defaults['experiment']})",
+        help=f"Restrict the run search to this experiment (default: {defaults['experiment']})",
     )
     parser.add_argument(
         "--tracking_uri",
@@ -102,7 +101,7 @@ def parse_args(defaults: dict):
         nargs="*",
         default=[],
         help="Scalar eval metrics to log (e.g. success_rate=0.87 mean_return=132.4); "
-             "each becomes 'eval/<key>' on the run",
+        "each becomes 'eval/<key>' on the run",
     )
     parser.add_argument(
         "--tags",
@@ -110,7 +109,7 @@ def parse_args(defaults: dict):
         nargs="*",
         default=[],
         help="Tags to set on the run (e.g. observer_commit=abc123 evaluator=lee); "
-             "auto-prefixed with 'eval.' if no namespace is present",
+        "auto-prefixed with 'eval.' if no namespace is present",
     )
     parser.add_argument(
         "--no-index",
@@ -119,9 +118,7 @@ def parse_args(defaults: dict):
         help="Don't auto-generate index.html (use when the observer ships its own)",
     )
     parser.add_argument(
-        "--dry_run",
-        action="store_true",
-        help="List what would be uploaded, then exit",
+        "--dry_run", action="store_true", help="List what would be uploaded, then exit"
     )
     parser.add_argument(
         "--history",
@@ -210,10 +207,7 @@ def scan_eval_dir(eval_dir: Path) -> list:
 
 
 def preview_files(eval_dir: Path, files: list):
-    table = Table(
-        title=f"[bold]Files in {eval_dir}[/bold]",
-        header_style="bold magenta",
-    )
+    table = Table(title=f"[bold]Files in {eval_dir}[/bold]", header_style="bold magenta")
     table.add_column("Relative Path", style="cyan", min_width=30)
     table.add_column("Size", justify="right")
     table.add_column("Embed?", justify="center", style="dim")
@@ -263,8 +257,7 @@ def build_index_html(run_name: str, eval_id: str, files: list) -> str:
     """
     videos = [str(rel) for rel, _ in files if rel.suffix.lower() in VIDEO_EXTS]
     images = [str(rel) for rel, _ in files if rel.suffix.lower() in IMAGE_EXTS]
-    others = [str(rel) for rel, _ in files
-              if rel.suffix.lower() not in VIDEO_EXTS + IMAGE_EXTS]
+    others = [str(rel) for rel, _ in files if rel.suffix.lower() not in VIDEO_EXTS + IMAGE_EXTS]
 
     title = html.escape(f"{run_name} — eval {eval_id}")
     parts = [
@@ -275,8 +268,7 @@ def build_index_html(run_name: str, eval_id: str, files: list) -> str:
         "body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;"
         "max-width:960px;margin:2em auto;padding:0 1em;color:#222}",
         "h1{font-size:1.3em;margin-bottom:0}",
-        "h2{font-size:1.05em;margin-top:1.6em;border-bottom:1px solid #ddd;"
-        "padding-bottom:.2em}",
+        "h2{font-size:1.05em;margin-top:1.6em;border-bottom:1px solid #ddd;padding-bottom:.2em}",
         "video,img{max-width:100%;height:auto;border-radius:6px;"
         "box-shadow:0 1px 4px rgba(0,0,0,.1)}",
         "ul{padding-left:1.2em}",
@@ -301,8 +293,7 @@ def build_index_html(run_name: str, eval_id: str, files: list) -> str:
         parts.append("<h2>Plots / Previews</h2>")
         for im in images:
             src, label = _url_attr(im), html.escape(im)
-            parts.append(f"<p><strong>{label}</strong></p>"
-                         f'<img alt="{label}" src="{src}">')
+            parts.append(f'<p><strong>{label}</strong></p><img alt="{label}" src="{src}">')
 
     if others:
         parts.append("<h2>Reports & Files</h2><ul>")
@@ -325,8 +316,7 @@ def parse_kv_list(items: list, label: str) -> dict:
             out[k.strip()] = v.strip()
         else:
             console.print(
-                f"[yellow][WARN] Ignoring malformed {label}: '{item}' "
-                f"(expected key=value)[/yellow]"
+                f"[yellow][WARN] Ignoring malformed {label}: '{item}' (expected key=value)[/yellow]"
             )
     return out
 
@@ -367,9 +357,7 @@ def upload_artifacts(
         console=console,
     ) as progress:
         total = len(files) + (1 if index_html else 0)
-        task = progress.add_task(
-            f"Uploading {total} file(s) to {artifact_path}/", total=total
-        )
+        task = progress.add_task(f"Uploading {total} file(s) to {artifact_path}/", total=total)
 
         for rel, _ in files:
             local = eval_dir / rel
@@ -412,9 +400,7 @@ def main():
         return
 
     if not args.run_name or not args.eval_dir:
-        console.print(
-            "[red][ERROR] --run_name and --eval_dir are required for uploads.[/red]"
-        )
+        console.print("[red][ERROR] --run_name and --eval_dir are required for uploads.[/red]")
         sys.exit(1)
 
     console.rule("[bold blue]Eval Artifact Uploader[/bold blue]")
@@ -445,8 +431,9 @@ def main():
     if args.dry_run:
         console.print("[bold yellow]--dry_run mode: skipping upload.[/bold yellow]")
         if metrics:
-            console.print(f"[cyan]Would log metrics:[/cyan] "
-                          f"{ {f'eval/{k}': v for k, v in metrics.items()} }")
+            console.print(
+                f"[cyan]Would log metrics:[/cyan] { {f'eval/{k}': v for k, v in metrics.items()} }"
+            )
         if tags:
             console.print(f"[cyan]Would set tags:[/cyan] {tags}")
         return
@@ -476,10 +463,7 @@ def main():
         for k, v in metrics.items():
             f = coerce_metric(v)
             if f is None:
-                console.print(
-                    f"[yellow][WARN] Skipping non-numeric metric: "
-                    f"{k}={v}[/yellow]"
-                )
+                console.print(f"[yellow][WARN] Skipping non-numeric metric: {k}={v}[/yellow]")
                 continue
             client.log_metric(run_id, f"eval/{k}", f, step=ts_step)
 
@@ -493,22 +477,23 @@ def main():
     console.print(f"  Artifact path : artifacts/{artifact_path}/")
     if index_html is not None:
         console.print(
-            f"  UI playback   : open the run in MLflow → "
-            f"Artifacts → {artifact_path}/index.html"
+            f"  UI playback   : open the run in MLflow → Artifacts → {artifact_path}/index.html"
         )
 
-    save_upload(make_eval_record(
-        run_id=run_id,
-        eval_dir=str(eval_dir),
-        eval_id=eval_id,
-        experiment=resolved["experiment_name"],
-        run_name=args.run_name,
-        tracking_uri=args.tracking_uri,
-        artifact_path=artifact_path,
-        files=[str(rel) for rel, _ in files],
-        metrics=metrics,
-        tags=tags,
-    ))
+    save_upload(
+        make_eval_record(
+            run_id=run_id,
+            eval_dir=str(eval_dir),
+            eval_id=eval_id,
+            experiment=resolved["experiment_name"],
+            run_name=args.run_name,
+            tracking_uri=args.tracking_uri,
+            artifact_path=artifact_path,
+            files=[str(rel) for rel, _ in files],
+            metrics=metrics,
+            tags=tags,
+        )
+    )
 
 
 if __name__ == "__main__":
