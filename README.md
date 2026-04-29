@@ -15,9 +15,14 @@
 [![TensorBoard](https://img.shields.io/badge/TensorBoard-2.16-FF6F00?logo=tensorflow&logoColor=white)](https://www.tensorflow.org/tensorboard)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-📖 Team onboarding guide (Korean): [`docs/INTRO_KO.md`](docs/INTRO_KO.md)
-
 </div>
+
+---
+
+> ### 📖 New here? Read this first.
+>
+> Every team-agreed rule and engineering invariant lives on **one page**: [`docs/00_PRINCIPLES.md`](docs/00_PRINCIPLES.md) — *5 min, English*.
+> 🇰🇷 한글 온보딩 트랙은 [`docs/ko/`](docs/ko/)에서 시작하세요. 6개 필수 태그, `sim_run_id` 의무, 실패 Run 보존 등 모든 규칙이 정리되어 있습니다.
 
 ---
 
@@ -34,57 +39,6 @@ Dexterous manipulation demands running hundreds of experiments — reward shapin
 | Hyperparameters lost in commit history | Stored as MLflow params, searchable forever |
 | Long training crashes → data gone | Incremental sync preserves intermediate results |
 | Team decisions undocumented | Confluence pages linked to every run |
-
----
-
-## 📁 Repository Structure
-
-```
-nexus/
-│
-├── nexus/                          # Importable Python package (`from nexus.logger import ...`)
-│   └── logger/                     # Unified logging package
-│       ├── __init__.py             # make_logger() factory (core exports only)
-│       ├── dual_logger.py          # TensorBoard + MLflow simultaneously
-│       ├── mlflow_logger.py        # MLflow-only logger
-│       ├── tb_logger.py            # TensorBoard wrapper (legacy compat)
-│       ├── git_utils.py            # Git commit/dirty-state capture (auto-called at run start)
-│       ├── sweep_logger.py         # [Advanced] HP sweep parent run
-│       ├── model_registry.py       # [Advanced] Model Registry operations
-│       ├── rl_metrics.py           # [Advanced] RL diagnostic metric helpers
-│       └── system_metrics.py       # [Advanced] Background CPU/GPU logging
-│
-├── post_upload/                    # Upload after training
-│   ├── tb_to_mlflow.py             # Full tfevents → MLflow batch upload
-│   └── verify_upload.py            # Numeric validation vs. TB source
-│
-├── scheduled_sync/                 # Sync while training runs (air-gapped SCP)
-│   ├── start_local_mlflow.sh       # [GPU Server] start local MLflow server
-│   ├── sync_mlflow_to_server.sh    # [GPU Server] delta export → SCP → import
-│   ├── export_delta.py             # [GPU Server] serialize new metrics only
-│   └── import_delta.py             # [MLflow server] import delta JSON
-│
-├── chart_settings/                 # Persist MLflow UI column/chart settings
-│   ├── chart_settings.json         # Team-standard column and chart configuration
-│   └── apply_chart_settings.py     # CLI: apply / show / bookmarklet
-│
-├── tests/
-│   └── smoke_test.py               # End-to-end local validation script
-│
-├── docs/
-│   ├── ARCHITECTURE.md             # Full system design & component map
-│   ├── LOGGER_SETUP.md             # Logger integration guide (step-by-step diff)
-│   ├── VALIDATION_GUIDE.md         # Step-by-step validation guide
-│   ├── MLFLOW_SERVER_SETUP.md      # MLflow server setup guide
-│   ├── EXPERIMENT_STANDARD_KO.md   # Team experiment management standard (Korean)
-│   ├── INTRO_KO.md                 # Onboarding document (Korean)
-│   ├── ADVANCED_FEATURES.md        # Advanced features guide (opt-in)
-│   └── CHART_SETTINGS_GUIDE.md     # Persist MLflow chart/column settings across sessions
-│
-├── brand.py                        # ASCII art, sigils, color constants
-├── setup.sh
-└── github_init.sh
-```
 
 ---
 
@@ -153,109 +107,47 @@ The default pulls **`mlflow-skinny`** — `MlflowClient` and the tracking / enti
 
 ---
 
-## 🅰️ Pipeline A — Direct MLflow Logging *(recommended for new runs)*
+## 🔀 Two ways to use NEXUS
 
-Requires changes in **3 locations** in your trainer. TensorBoard continues to work unchanged.
+|   | 🅰️ **Pipeline A** — Live logging | 🅱️ **Pipeline B** — Post-upload |
+|---|---|---|
+| **When** | New trainer / monitor a live run | Upload a completed tfevents in one shot |
+| **Trainer code** | 3-line change: `SummaryWriter` → `make_logger` | Untouched |
+| **Cadence** | Every step → local MLflow buffer → cron sync (every 5 min) | Manual, once per run dir |
+| **Setup guides** | [`11_LOGGER_SETUP`](docs/11_LOGGER_SETUP.md) (code integration) → [`12_SCHEDULED_SYNC`](docs/12_SCHEDULED_SYNC.md) (cron sync) | [`13_POST_UPLOAD`](docs/13_POST_UPLOAD.md) |
 
-### Step 1 — Start local MLflow server on GPU Server *(once per session)*
+### 30-second preview
+
+**Pipeline A — embed in trainer:**
+
+```python
+from nexus.logger import make_logger
+
+logger = make_logger(
+    mode="dual",                                  # mlflow + tensorboard
+    experiment_name="robot_hand_rl",
+    run_name="ppo_baseline_v1",
+    tracking_uri="http://127.0.0.1:5100",         # local MLflow on this GPU node
+    tags={"researcher": "kim", "seed": "42", "task": "in_hand_reorientation"},
+)
+logger.add_scalar("train/loss", 0.5, step=100)    # SummaryWriter-compatible
+```
+
+Local-MLflow on `127.0.0.1:5100` is started by `bash scheduled_sync/start_local_mlflow.sh`. A cron job (registered via [`12_SCHEDULED_SYNC`](docs/12_SCHEDULED_SYNC.md)) ships only the new metric points to the central server every 5 minutes.
+
+**Pipeline B — upload after training ends:**
 
 ```bash
-bash scheduled_sync/start_local_mlflow.sh
-# [NXS] Local MLflow on 127.0.0.1:5100 — loopback only, no internet needed
+# One-time: set tracking_uri + your fixed tags in ~/.nexus/post_config.json
+python post_upload/tb_to_mlflow.py --tb_dir /path/to/logs/run_001
+# → prompts for missing required tags, uploads, auto-verifies
 ```
 
-### Step 2 — Update your trainer *(3 locations only)*
+The full flag reference, interactive mode, upload history, `sim_run_id` auto-detection, and troubleshooting live in [`13_POST_UPLOAD`](docs/13_POST_UPLOAD.md).
 
-Replace `SummaryWriter` with `make_logger` at the import, `__init__`, and `train()` checkpoint block.
+> ⚠️ **Multi-user GPU server (Pipeline A)** — each user must set their own `researcher` in `~/.nexus/sync_config.json` so cron jobs don't re-export each other's runs. Canonical: [`docs/00_PRINCIPLES.md#multi-user-researcher`](docs/00_PRINCIPLES.md#-multi-user-researcher).
 
-→ Copy-paste diff: [`docs/LOGGER_SETUP.md`](docs/LOGGER_SETUP.md)
-
-### Step 3 — Sync to NEXUS server *(via cron, every 5 min)*
-
-Each sync is **incremental**: only metric points with step beyond the last synced step are transferred. Per-run state is cached in `~/.nexus/sync_state/{experiment}.json` (survives reboots).
-
-#### One-time setup — put your fixed values in `~/.nexus/sync_config.json`
-
-```bash
-mkdir -p ~/.nexus
-cp scheduled_sync/sync_config.example.json ~/.nexus/sync_config.json
-$EDITOR ~/.nexus/sync_config.json   # set experiment, researcher, remote, remote_nexus_dir, ssh_key
-```
-
-The file is auto-discovered when no `--config` flag is given. Operators can additionally place team-wide values in `/etc/nexus/sync_config.json`; per-key merge is `CLI > ~/.nexus/sync_config.json > /etc/nexus/sync_config.json > built-in`. So cron lines collapse to a single bash invocation:
-
-```bash
-*/5 * * * * bash $HOME/nexus/scheduled_sync/sync_mlflow_to_server.sh >> $HOME/nexus_sync.log 2>&1
-```
-
-Prefer a different path? Pass `--config /path/to/sync.json` (this disables the auto-discovery chain — operator means "use exactly this file"). Want to override a single key for this run? Add the matching CLI flag (e.g. `--experiment robot_hand_rl_pilot`).
-
-> ⚠️ **Multi-user GPU server**: each user must set their own `researcher` so they only sync their own runs. Without it, every cron exports every other user's runs and the central server logs duplicate metric points. See `docs/VALIDATION_GUIDE.md` Phase 4 for the multi-user setup pattern.
-
-> 💡 Run once manually with `bash scheduled_sync/validate_sync.sh` (pre-flight check + dry-run) to verify the config before registering the cron entry.
-
----
-
-## 🅱️ Pipeline B — TensorBoard Post-Upload *(one-shot, no code changes)*
-
-Use when your trainer has **not** been updated yet, or when you want to upload a completed tfevents run in a single batch. This is a manual, one-time operation — run it once after training ends.
-
-### One-time setup — put your fixed values in `~/.nexus/post_config.json`
-
-```bash
-mkdir -p ~/.nexus
-cp post_upload/post_config.example.json ~/.nexus/post_config.json
-$EDITOR ~/.nexus/post_config.json   # set tracking_uri, researcher, team-fixed tags
-```
-
-Example:
-
-```json
-{
-  "tracking_uri": "http://nexus-server:5000",
-  "experiment": "robot_hand_rl",
-  "tags": {
-    "researcher": "kim",
-    "isaac_lab_version": "1.2.0",
-    "physx_solver": "TGS",
-    "hardware": "robot_22dof"
-  }
-}
-```
-
-### Uploading a run
-
-With the config above, you only need to supply the per-run values (`seed`, `task`) — and if any of the required tags (`researcher`, `seed`, `task`) are missing, the CLI drops into interactive mode automatically:
-
-```bash
-cd post_upload/
-
-# Interactive — prompts for seed and task, auto-verifies after upload
-python tb_to_mlflow.py --tb_dir /path/to/logs/run_001
-
-# Or fully non-interactive
-python tb_to_mlflow.py \
-    --tb_dir   /path/to/logs/run_001 \
-    --run_name baseline_v1 \
-    --tags     seed=42 task=in_hand_reorientation
-```
-
-After upload completes, `verify_upload.py` runs automatically against the returned run_id. Pass `--no_verify` to skip, or run `python verify_upload.py --run_id <id> --tb_dir <dir>` manually.
-
-| Flag | Effect |
-|---|---|
-| `-i`, `--interactive` | Prompt for every required tag (researcher, seed, task), showing config values as defaults |
-| `--tags k=v ...` | Per-run tag overrides (wins over config) |
-| `--repeat-last` | Inherit experiment/run_name/tags from the last upload (for seed sweeps) |
-| `--history` | List recent uploads (`~/.nexus/history.json`) and exit |
-| `--config <path>` | Use a config file other than `~/.nexus/post_config.json` |
-| `--force` | Skip required-tag validation |
-| `--no_verify` | Skip automatic post-upload verification |
-| `--dry_run` | Parse and preview only; don't upload |
-
-For full details on config, interactive mode, history, `sim_run_id` auto-detection for real-robot evals, and troubleshooting, see [`docs/POST_UPLOAD_GUIDE.md`](docs/POST_UPLOAD_GUIDE.md).
-
-> 💡 For long-running training that needs **scheduled** sync (not just post-hoc), use Pipeline A with `make_logger(mode="dual")` or `mode="mlflow"`.
+> 💡 **Long-running training** needs Pipeline A (scheduled, incremental). Pipeline B is a one-shot batch upload — use it for back-filling completed runs that were written by an unmodified `SummaryWriter`.
 
 ---
 
@@ -291,6 +183,8 @@ For full details on config, interactive mode, history, `sim_run_id` auto-detecti
 ## 🏷️ Recommended Tags *(reproducibility)*
 
 > ⚠️ Isaac Lab / PhysX results are non-deterministic without fixed seeds and solver configs. Set these tags for **every** run — no exceptions.
+>
+> Canonical sources: [`docs/00_PRINCIPLES.md#required-tags`](docs/00_PRINCIPLES.md#-required-tags), [`docs/ko/02_EXPERIMENT_STANDARD.md` § 3-1](docs/ko/02_EXPERIMENT_STANDARD.md#-3-tags-규칙), and [`post_upload/config.py::required_tags()`](post_upload/config.py).
 
 | Tag | Example | Required |
 |---|---|:---:|
@@ -306,24 +200,27 @@ For full details on config, interactive mode, history, `sim_run_id` auto-detecti
 
 > 💡 `sim_run_id` links a real-robot evaluation run back to the exact sim policy deployed — critical for Sim-to-Real failure tracing.
 
-> 💡 `git_commit` and `git_dirty` are set automatically by `MLflowLogger` (Pipeline A). For Pipeline B post-uploads, pass `--git_commit <hash>` manually. When `git_dirty=true`, the full diff is saved as `artifacts/git/git_patch.diff`. See [`docs/ADVANCED_FEATURES.md`](docs/ADVANCED_FEATURES.md#5-git-commit-tracking) for details.
+> 💡 `git_commit` and `git_dirty` are set automatically by `MLflowLogger` (Pipeline A). For Pipeline B post-uploads, pass `--git_commit <hash>` manually. When `git_dirty=true`, the full diff is saved as `artifacts/git/git_patch.diff`. See [`docs/30_ADVANCED_FEATURES.md`](docs/30_ADVANCED_FEATURES.md#5-git-commit-tracking) for details.
 
 ---
 
 ## 📚 Further Reading
 
-| Document | Description |
-|---|---|
-| [`docs/INTRO_KO.md`](docs/INTRO_KO.md) | Team onboarding — motivation, workflow, FAQ (Korean) |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Full system design and component map |
-| [`docs/LOGGER_SETUP.md`](docs/LOGGER_SETUP.md) | Logger integration — step-by-step diff (trainer-agnostic) |
-| [`docs/POST_UPLOAD_GUIDE.md`](docs/POST_UPLOAD_GUIDE.md) | Pipeline B CLI in depth — config, interactive, history, sim_run_id |
-| [`docs/VALIDATION_GUIDE.md`](docs/VALIDATION_GUIDE.md) | Step-by-step validation guide |
-| [`docs/MLFLOW_SERVER_SETUP.md`](docs/MLFLOW_SERVER_SETUP.md) | MLflow server setup on LAN |
-| [`docs/EXPERIMENT_STANDARD_KO.md`](docs/EXPERIMENT_STANDARD_KO.md) | Team experiment management standard |
-| [`docs/ADVANCED_FEATURES.md`](docs/ADVANCED_FEATURES.md) | Advanced features — SweepLogger, RL metrics, Model Registry, system metrics, git tracking |
-| [`docs/CHART_SETTINGS_GUIDE.md`](docs/CHART_SETTINGS_GUIDE.md) | Persist MLflow chart/column settings across browser sessions |
-| [`brand.py`](brand.py) | ASCII art, sigils, and color constants |
+> Filename prefix conveys reading order. **Everyone reads `00_PRINCIPLES.md` first.** Korean team members continue in [`docs/ko/`](docs/ko/); engineers and operators pick up the relevant track below.
+
+| # | Document | Description |
+|:---:|---|---|
+| **00** | [`docs/00_PRINCIPLES.md`](docs/00_PRINCIPLES.md) | **Read first.** Team-agreed rules + engineering invariants (single canonical source) |
+| **ko** | [`docs/ko/`](docs/ko/) | 🇰🇷 한글 온보딩 트랙 — `01_INTRO.md` (동기/FAQ), `02_EXPERIMENT_STANDARD.md` (운영 표준) |
+| **10** | [`docs/10_ARCHITECTURE.md`](docs/10_ARCHITECTURE.md) | Full system design and component map |
+| **11** | [`docs/11_LOGGER_SETUP.md`](docs/11_LOGGER_SETUP.md) | Pipeline A — logger integration step-by-step diff |
+| **12** | [`docs/12_SCHEDULED_SYNC.md`](docs/12_SCHEDULED_SYNC.md) | Pipeline A — cron sync wiring (config, validate, multi-user, verification checklist) |
+| **13** | [`docs/13_POST_UPLOAD.md`](docs/13_POST_UPLOAD.md) | Pipeline B — `tb_to_mlflow` CLI: config, interactive, history, `sim_run_id` |
+| **20** | [`docs/20_MLFLOW_SERVER_SETUP.md`](docs/20_MLFLOW_SERVER_SETUP.md) | Operator — central MLflow server install (Step 0 includes local PC verification) |
+| **21** | [`docs/21_AIRGAPPED_GPU_SERVER_SETUP.md`](docs/21_AIRGAPPED_GPU_SERVER_SETUP.md) | Operator — GPU node offline bring-up (Step 0 + Step C include local + GPU verification) |
+| **30** | [`docs/30_ADVANCED_FEATURES.md`](docs/30_ADVANCED_FEATURES.md) | Opt-in — SweepLogger, RL metrics, Model Registry, system metrics, git tracking |
+| **31** | [`docs/31_CHART_SETTINGS_GUIDE.md`](docs/31_CHART_SETTINGS_GUIDE.md) | Opt-in — persist MLflow chart/column settings across browser sessions |
+| — | [`brand.py`](brand.py) | ASCII art, sigils, and color constants |
 
 ---
 

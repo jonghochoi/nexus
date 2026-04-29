@@ -15,7 +15,7 @@ Advanced features (explicit import required):
     from nexus.logger.system_metrics import SystemMetricsLogger
     from nexus.logger                import rl_metrics
 
-    See docs/ADVANCED_FEATURES.md for usage guide.
+    See docs/30_ADVANCED_FEATURES.md for usage guide.
 """
 
 # ── Sanity check: ensure mlflow is a real package, not a namespace stub ──

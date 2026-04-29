@@ -369,7 +369,7 @@ self.writer = make_logger(
 
 > `sim_run_id` 없이 Real 평가 Run을 만들지 않습니다. Sim-to-Real 실패 시 원인 추적이 불가능해집니다.
 
-> 💡 **Pipeline B 업로드 시**: tfevents 디렉토리 옆에 `run_meta.json` (`{"sim_run_id": "..."}`)을 떨어뜨려 두면 `tb_to_mlflow.py`가 자동으로 감지합니다. `--experiment real_robot_eval`로 업로드하면 `sim_run_id`가 필수 태그로 격상되어 누락 시 업로드가 차단됩니다. 상세: [`POST_UPLOAD_GUIDE.md`](./POST_UPLOAD_GUIDE.md) §5.
+> 💡 **Pipeline B 업로드 시**: tfevents 디렉토리 옆에 `run_meta.json` (`{"sim_run_id": "..."}`)을 떨어뜨려 두면 `tb_to_mlflow.py`가 자동으로 감지합니다. `--experiment real_robot_eval`로 업로드하면 `sim_run_id`가 필수 태그로 격상되어 누락 시 업로드가 차단됩니다. 상세: [`13_POST_UPLOAD.md`](../13_POST_UPLOAD.md) §5.
 
 ---
 
@@ -498,8 +498,10 @@ self.writer = make_logger(
 | 문서 | 링크 | 설명 |
 |---|---|---|
 | NEXUS 서버 접속 주소 | `http://192.168.1.42:5000` | MLflow UI |
-| 서버 구축 가이드 | [MLFLOW_SERVER_SETUP.md](MLFLOW_SERVER_SETUP.md) | 서버 설치/운영 |
-| 로거 설정 가이드 | [LOGGER_SETUP.md](LOGGER_SETUP.md) | 학습 코드에 로거 붙이는 방법 |
+| 팀 합의 원칙 (캐노니컬) | [`00_PRINCIPLES.md`](../00_PRINCIPLES.md) | 영문 요약 — 모든 원칙의 단일 진실 소스 |
+| 서버 구축 가이드 | [`20_MLFLOW_SERVER_SETUP.md`](../20_MLFLOW_SERVER_SETUP.md) | 서버 설치/운영 |
+| 로거 설정 가이드 | [`11_LOGGER_SETUP.md`](../11_LOGGER_SETUP.md) | 학습 코드에 로거 붙이는 방법 |
+| Pipeline B 업로드 가이드 | [`13_POST_UPLOAD.md`](../13_POST_UPLOAD.md) | 사후 업로드 CLI 심층 설명 |
 
 ---
 

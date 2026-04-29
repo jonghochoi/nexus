@@ -258,7 +258,7 @@ python chart_settings/apply_chart_settings.py show
 
 The bookmarklet fetches the stored settings from the MLflow API and writes them to localStorage, then reloads the page. Paste it into the browser console (F12 > Console), or save it as a browser bookmark for one-click restore.
 
-→ Full workflow and persistence details: [`CHART_SETTINGS_GUIDE.md`](CHART_SETTINGS_GUIDE.md)
+→ Full workflow and persistence details: [`31_CHART_SETTINGS_GUIDE.md`](31_CHART_SETTINGS_GUIDE.md)
 
 ---
 

@@ -31,7 +31,7 @@ BUILTIN_DEFAULTS = {
 _BASE_REQUIRED = ("researcher", "seed", "task")
 
 # Experiments where sim_run_id becomes required for Sim-to-Real traceability
-# (see docs/EXPERIMENT_STANDARD_KO.md: real_robot_eval needs sim_run_id).
+# (see docs/ko/02_EXPERIMENT_STANDARD.md: real_robot_eval needs sim_run_id).
 REAL_EVAL_EXPERIMENTS = ("real_robot_eval",)
 
 

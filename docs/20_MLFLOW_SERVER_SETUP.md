@@ -9,6 +9,7 @@
 ## 📋 Overview of Steps
 
 ```
+Step 0  Verify install on local PC first  (recommended)
 Step 1  Understand network topology
 Step 2  Basic server PC setup
 Step 3  Install MLflow and configure directories
@@ -18,6 +19,59 @@ Step 6  Register systemd service
 Step 7  Verify team member access
 Step 8  Verify Blackwell connection
 ```
+
+---
+
+## 💻 Step 0 — Verify install on local PC first *(recommended)*
+
+> **Why:** Confirm that NEXUS itself works on a familiar machine before touching the server. If the smoke test fails locally, it will fail on the server too — debug it once on your laptop.
+
+### 0-1. Clone the repository
+
+```bash
+git clone https://github.com/jonghochoi/nexus.git
+cd nexus
+```
+
+### 0-2. Verify Python version
+
+```bash
+python3 --version
+```
+
+Must be `Python 3.8` or higher. 3.10 or 3.11 is recommended.
+
+### 0-3. Install environment
+
+```bash
+bash setup.sh
+source ~/.nexus/activate.sh   # or: nexus-activate (if you ran setup.sh --alias)
+```
+
+The venv lives at `~/.nexus/venv` — **outside** the repo — so replacing or re-cloning nexus sources does not wipe it.
+
+### 0-4. Verify installation
+
+```bash
+python -c "import mlflow; print('mlflow:', mlflow.__version__)"
+python -c "import tbparse; print('tbparse OK')"
+python -c "from nexus.logger import make_logger; print('logger OK')"
+```
+
+If all three lines output without errors, the package install is sound.
+
+### 0-5. Start local MLflow + run smoke test
+
+```bash
+bash scheduled_sync/start_local_mlflow.sh   # boots :5100
+python tests/smoke_test.py                  # all items must report [PASS]
+```
+
+The smoke test creates real runs under the `nexus_smoke_test` experiment on `http://localhost:5100`. Open the UI in a browser to confirm the runs are visible.
+
+> 🛠️ **If smoke_test.py fails connecting to MLflow:** verify the URI is `http://127.0.0.1:5100` (not `localhost`), check `lsof -i :5100`, and confirm `curl http://127.0.0.1:5100/health` returns `OK`. Common operations and troubleshooting for `start_local_mlflow.sh` are also covered in [`21_AIRGAPPED_GPU_SERVER_SETUP.md` Troubleshooting](21_AIRGAPPED_GPU_SERVER_SETUP.md#-troubleshooting).
+
+✅ **Step 0 done when:** `python tests/smoke_test.py` shows `All tests passed!` and `nexus_smoke_test` runs are visible in the local MLflow UI. Proceed to Step 1.
 
 ---
 
@@ -667,7 +721,7 @@ nexus test
 
 Once the SSH key and SCP transfer are confirmed, the server setup is complete.
 
-For full sync pipeline validation using the `sync_mlflow_to_server.sh` script (including cron registration), follow **[VALIDATION_GUIDE.md — Phase 4](VALIDATION_GUIDE.md#phase-4--cross-server-sync-validation)**.
+For the full sync pipeline setup (config file, pre-flight check, cron registration, multi-user pattern, verification checklist), follow **[`12_SCHEDULED_SYNC.md`](12_SCHEDULED_SYNC.md)**.
 
 ---
 
