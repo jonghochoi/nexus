@@ -49,7 +49,7 @@
 |---|---|
 | 📈 **Metrics (시계열)** | `losses/actor_loss`, `performance/RLTrainFPS`, `info/kl` |
 | ⚙️ **하이퍼파라미터** | `lr`, `gamma`, `e_clip`, reward weights |
-| 🏷️ **재현성 Tags** | `seed`, `isaac_lab_version`, `physx_solver`, `researcher` |
+| 🏷️ **재현성 Tags** | `experiment`, `researcher`, `task`, `hardware` |
 | 💾 **Artifacts** | `best.pth`, `last.pth` |
 | ℹ️ **Run 메타데이터** | 시작 시각, 소요 시간, 사용 GPU, status |
 | 🔗 **Sim-to-Real 연결** | Real 평가 Run의 `sim_run_id` tag |
@@ -184,43 +184,25 @@ final_real           ← 버전이 없음
 
 ## 🏷️ 3. Tags 규칙
 
-### 3-1. 필수 Tags *(학습 시작 시 자동 기록 — `make_logger()` 처리)*
+### 3-1. 필수 Tags
 
-아래 Tags는 `make_logger()` 호출 시 자동으로 기록됩니다.
-**`agent_cfg`에 반드시 포함되어야 합니다.**
+아래 Tags는 모든 Run에 반드시 포함되어야 합니다.
+`experiment`는 `--experiment` 인수에서 자동으로 채워지며, 나머지 세 개는 직접 지정해야 합니다.
 
 | Tag 키 | 설명 | 예시 값 |
 |---|---|---|
-| `researcher` | 실험 수행자 (환경변수 `$USER` 자동 감지) | `kim` |
-| `seed` | 랜덤 시드 | `42` |
-| `isaac_lab_version` | Isaac Lab 버전 | `1.2.0` |
-| `physx_solver` | PhysX 솔버 종류 | `TGS`, `PGS` |
-| `method` | 핵심 방법론 | `ppo`, `tactile`, `contact` |
-| `status` | 실험 진행 상태 (자동 갱신) | `running` → `done` / `failed` |
+| `experiment` | MLflow Experiment 이름 (자동 설정) | `robot_hand_rl` |
+| `researcher` | 실험 수행자 | `kim` |
+| `task` | 실험 태스크 이름 | `in_hand_reorientation` |
+| `hardware` | 사용 하드웨어 | `robot_22dof` |
 
-> ⚠️ 위 6개 Tag 중 하나라도 빠지면 재현 및 비교가 불가능합니다.
+> ⚠️ 위 4개 Tag 중 하나라도 빠지면 재현 및 비교가 불가능합니다.
 
 ### 3-2. 선택 Tags *(필요 시 연구자가 추가)*
 
 | Tag 키 | 사용 시점 | 예시 값 |
 |---|---|---|
-| `component` | 수정한 모듈 명시 | `reward`, `obs`, `network`, `curriculum` |
-| `ablation_target` | Ablation 실험임을 명시 | `contact_weight`, `fingertip_obs` |
-| `baseline_run_id` | 비교 기준 Run의 ID | `abc123def456` |
-| `sim_run_id` | Real 평가에서 연결된 Sim Run ID | `xyz789abc` |
-| `note` | 짧은 메모 (200자 이내) | `KL 발산 패턴 확인용` |
-| `fail_reason` | 실패 시 원인 요약 | `OOM: batch_size 너무 큼` |
-
-### 3-3. `status` Tag 흐름
-
-```
-학습 시작   →  status = "running"   🔄
-    │
-    ├─ 정상 완료  →  status = "done"     ✅
-    │
-    └─ 예외 발생  →  status = "failed"   ❌
-                     fail_reason = "<오류 메시지>"
-```
+| `train` | 학습 방법론 명시 | `ppo`, `sac`, `td3` |
 
 ---
 
@@ -235,6 +217,7 @@ self.writer = make_logger(
     mode="dual",
     run_name="kim_ppo_contact0.3_v1",
     experiment_name="reward_shaping",
+    tags={"experiment": "reward_shaping", "researcher": "kim", "task": "in_hand_reorientation", "hardware": "robot_22dof"},
     ...
 )
 ```
@@ -258,7 +241,7 @@ UI에서 parent를 펼치면 child들이 나란히 보여 비교가 편합니다
 ```python
 # ablation 실행 예시
 with mlflow.start_run(run_name="kim_contact_weight_sweep") as parent:
-    mlflow.set_tags({"researcher": "kim", "component": "reward"})
+    mlflow.set_tags({"experiment": "ablation_contact", "researcher": "kim", "task": "in_hand_reorientation", "hardware": "robot_22dof"})
 
     for w in [0.1, 0.3, 0.5, 0.7]:
         with mlflow.start_run(run_name=f"kim_contact{w}_v1", nested=True):
@@ -359,9 +342,11 @@ self.writer = make_logger(
     experiment_name="real_robot_eval",
     run_name="kim_real_20250418",
     tags={
+        "experiment": "real_robot_eval",
+        "researcher": "kim",
+        "task": "in_hand_reorientation",
+        "hardware": "robot_22dof",
         "sim_run_id": "abc123def456",   # ← Sim Run ID 필수
-        "sim_experiment": "baseline_ppo",
-        "sim_run_name": "kim_ppo_seed42_v1",
     },
     ...
 )
@@ -378,17 +363,14 @@ self.writer = make_logger(
 ### 자주 쓰는 필터
 
 ```
-현재 실행 중인 실험 보기:
-  tags.status = "running"
-
 특정 연구자 실험 보기:
   tags.researcher = "kim"
 
-실패한 실험만 보기:
-  tags.status = "failed"
+특정 태스크 실험 보기:
+  tags.task = "in_hand_reorientation"
 
-특정 방법론 실험 보기:
-  tags.method = "tactile"
+특정 하드웨어 실험 보기:
+  tags.hardware = "robot_22dof"
 
 최근 1주일 실험:
   start_time >= "2025-04-11"
@@ -428,10 +410,10 @@ self.writer = make_logger(
 - [ ] Experiment 이름 결정 (기존 목록에서 선택 또는 팀 합의)
 - [ ] Run 이름 규칙 확인 (`<연구자>_<방법론>_<핵심변수>_<버전>`)
 - [ ] `agent_cfg`에 필수 Tags 항목 포함 확인
-  - [ ] `seed`
-  - [ ] `isaac_lab_version`
-  - [ ] `physx_solver`
-  - [ ] `method`
+  - [ ] `experiment`
+  - [ ] `researcher`
+  - [ ] `task`
+  - [ ] `hardware`
 - [ ] 로컬 MLflow 서버 실행 확인 (`bash start_local_mlflow.sh`)
 
 ### 실험 완료 후

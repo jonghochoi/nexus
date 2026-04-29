@@ -19,19 +19,15 @@ HISTORY_LIMIT = 20
 BUILTIN_DEFAULTS = {
     "tracking_uri": "http://127.0.0.1:5000",
     "experiment": "robot_hand_rl",
-    "tags": {
-        "isaac_lab_version": "1.2.0",
-        "physx_solver": "TGS",
-        "hardware": "robot_22dof",
-    },
+    "tags": {},
 }
 
-# Tags that must be present on every uploaded run (seed & task are per-run;
-# researcher is per-user but is typically set in ~/.nexus/post_config.json).
-_BASE_REQUIRED = ("researcher", "seed", "task")
+# Tags that must be present on every uploaded run.
+# experiment is auto-populated from --experiment; researcher, task, hardware
+# are per-run and must be supplied via --tags or ~/.nexus/post_config.json.
+_BASE_REQUIRED = ("experiment", "researcher", "task", "hardware")
 
-# Experiments where sim_run_id becomes required for Sim-to-Real traceability
-# (see docs/ko/02_EXPERIMENT_STANDARD.md: real_robot_eval needs sim_run_id).
+# Experiments where sim_run_id becomes required for Sim-to-Real traceability.
 REAL_EVAL_EXPERIMENTS = ("real_robot_eval",)
 
 
@@ -42,7 +38,7 @@ def required_tags(experiment: str) -> tuple:
     return _BASE_REQUIRED
 
 
-# Back-compat constant for callers that don't care about experiment context.
+# Alias for callers that don't need the experiment argument.
 REQUIRED_TAGS = _BASE_REQUIRED
 
 

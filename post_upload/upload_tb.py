@@ -92,13 +92,12 @@ def parse_args(defaults: dict):
     parser.add_argument(
         "-i", "--interactive",
         action="store_true",
-        help="Prompt for researcher/seed/task interactively, "
-             "even if already supplied",
+        help="Prompt for required tags interactively, even if already supplied",
     )
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Skip required-tag validation (researcher, seed, task)",
+        help="Skip required-tag validation (experiment, researcher, task, hardware)",
     )
     parser.add_argument(
         "--no_verify",
@@ -126,14 +125,6 @@ def parse_args(defaults: dict):
         action="store_true",
         help="Inherit experiment/run_name/tags from the most recent upload "
              "(CLI flags and -i still override)",
-    )
-    parser.add_argument(
-        "--git_commit",
-        type=str,
-        default=None,
-        metavar="HASH",
-        help="Git commit hash of the training code (e.g. abc1234); "
-             "stored as git_commit tag",
     )
     return parser.parse_args()
 
@@ -334,13 +325,7 @@ def upload_to_mlflow(
     if run_name is None:
         run_name = f"{Path(tb_dir).name}_{int(time.time())}"
 
-    # Base tags applied to every run
-    base_tags = {
-        "source": "tensorboard_import",
-        "tb_dir": str(Path(tb_dir).resolve()),
-        "upload_time": time.strftime("%Y-%m-%d %H:%M:%S"),
-        **extra_tags,
-    }
+    base_tags = {**extra_tags}
 
     console.print(f"\n[cyan]Experiment:[/cyan] {experiment_name}")
     console.print(f"[cyan]Run Name  :[/cyan] {run_name}")
@@ -489,8 +474,8 @@ def main():
 
     tags.update(parse_extra_tags(args.tags))
 
-    if args.git_commit:
-        tags["git_commit"] = args.git_commit
+    # experiment is always carried as a tag so runs are filterable by it.
+    tags.setdefault("experiment", experiment)
 
     required = required_tags(experiment)
 
