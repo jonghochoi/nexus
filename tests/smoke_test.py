@@ -193,6 +193,70 @@ def test_mlflow_logger(tracking_uri: str) -> bool:
         return False
 
 
+def test_split_params(tracking_uri: str) -> bool:
+    """3b. agent_params / env_params — prefixed MLflow params + JSON artifacts"""
+    section("3b. Split Params (agent_params / env_params)")
+    try:
+        sys.path.insert(0, ".")
+        from nexus.logger import MLflowLogger
+
+        run_name = f"split_params_test_{int(time.time())}"
+        agent_cfg = {"lr": 3e-4, "clip_eps": 0.2, "network": {"hidden": 256}}
+        env_cfg   = {"task": "robot_hand", "max_steps": 1000, "reward_scale": 0.1}
+
+        logger = MLflowLogger(
+            run_name=run_name,
+            tracking_uri=tracking_uri,
+            experiment_name="nexus_smoke_test",
+            agent_params=agent_cfg,
+            env_params=env_cfg,
+            tags={"researcher": "smoke_test"},
+        )
+        logger.close()
+
+        import mlflow as _mlflow
+        from mlflow.tracking import MlflowClient
+        _mlflow.set_tracking_uri(tracking_uri)
+        client = MlflowClient(tracking_uri=tracking_uri)
+        exp = _mlflow.get_experiment_by_name("nexus_smoke_test")
+        runs = client.search_runs(
+            experiment_ids=[exp.experiment_id],
+            filter_string=f"tags.mlflow.runName = '{run_name}'",
+        )
+        if not runs:
+            fail("Split-params run not found")
+            return False
+
+        # ── validate prefixed MLflow params ──────────────────────────────────
+        params = runs[0].data.params
+        expected_keys = {
+            "agent.lr", "agent.clip_eps", "agent.network.hidden",
+            "env.task", "env.max_steps", "env.reward_scale",
+        }
+        missing = expected_keys - set(params.keys())
+        if missing:
+            fail(f"Prefixed params missing: {missing}")
+            return False
+        ok(f"Prefixed MLflow params present: {sorted(expected_keys)}")
+
+        # ── validate JSON artifacts ───────────────────────────────────────────
+        run_id = runs[0].info.run_id
+        artifacts = {a.path for a in client.list_artifacts(run_id, "params")}
+        expected_artifacts = {"params/agent_params.json", "params/env_params.json"}
+        missing_artifacts = expected_artifacts - artifacts
+        if missing_artifacts:
+            fail(f"Param artifacts missing: {missing_artifacts}")
+            return False
+        ok(f"Param artifacts present: params/agent_params.json, params/env_params.json")
+
+        return True
+
+    except Exception as e:
+        fail(f"Split params test failed: {e}")
+        import traceback; traceback.print_exc()
+        return False
+
+
 def test_make_logger_factory(tracking_uri: str) -> bool:
     """4. make_logger factory (mode='mlflow') test"""
     section("4. make_logger Factory Test")
@@ -836,6 +900,7 @@ def main() -> None:
         sys.exit(1)
 
     results["mlflow_logger"]   = test_mlflow_logger(args.tracking_uri)
+    results["split_params"]    = test_split_params(args.tracking_uri)
     results["make_logger"]     = test_make_logger_factory(args.tracking_uri)
     results["dual_logger"]     = test_dual_logger(args.tracking_uri)
 
@@ -855,6 +920,7 @@ def main() -> None:
         "imports":             "Package imports",
         "mlflow_connect":      "MLflow server connection",
         "mlflow_logger":       "MLflowLogger logging",
+        "split_params":        "agent_params / env_params split (prefixed params + artifacts)",
         "make_logger":         "make_logger factory",
         "dual_logger":         "DualLogger (Dual)",
         "rl_metrics_helpers":  "RL metrics helpers (numpy)",
