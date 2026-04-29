@@ -109,6 +109,32 @@ Several concepts are reflected in multiple places. Change one without auditing t
 - **Changing the default URIs (`5100`, `5000`)** — defaults are hardcoded across `nexus/logger/`, `scheduled_sync/*`, `post_upload/`, `chart_settings/apply_chart_settings.py`, and the README diagrams. Grep for `5100` and `5000` and change them in concert.
 - **New team-wide chart or column** — edit `chart_settings/chart_settings.json`, then run `python chart_settings/apply_chart_settings.py apply` against the central server. The bookmarklet picks up the new payload automatically; no JS edit needed.
 
+## Code formatting (ruff)
+
+All Python code in this repository is formatted with **ruff**. The canonical settings live in `pyproject.toml` under `[tool.ruff]` and `[tool.ruff.format]`:
+
+```toml
+[tool.ruff]
+line-length = 100
+indent-width = 4
+
+[tool.ruff.format]
+skip-magic-trailing-comma = true
+```
+
+Rules:
+- **Line length** — 100 characters maximum.
+- **Indent** — 4 spaces (never tabs).
+- **Trailing commas** — `skip-magic-trailing-comma = true` means ruff will reformat multi-element collections onto one line when they fit within the line-length limit, even if a trailing comma is present. Only use a trailing comma when you genuinely want to force a vertical layout.
+
+When generating new code, always follow these rules. Before committing, run:
+
+```bash
+ruff format .
+```
+
+Do not introduce `# fmt: off` / `# fmt: skip` blocks without a clear reason.
+
 ## Comment & docstring style (unicode banners)
 
 This repo deliberately uses unicode box-drawing and em-dash characters in comments. The general "default to no comments" guidance does **not** apply here — match the surrounding style and never strip existing comments when editing. New files must follow the same conventions.

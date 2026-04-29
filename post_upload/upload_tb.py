@@ -47,15 +47,13 @@ BATCH_SIZE = 1000
 # ── 1. Argument parsing ──────────────────────────────────────────────────────
 def parse_args(defaults: dict):
     """Build the argument parser, using `defaults` (from config) as fallbacks."""
-    parser = argparse.ArgumentParser(
-        description="TensorBoard -> MLflow conversion uploader"
-    )
+    parser = argparse.ArgumentParser(description="TensorBoard -> MLflow conversion uploader")
     parser.add_argument(
         "--tb_dir",
         type=str,
         default=None,
         help="Path to directory containing tfevents files "
-             "(required for uploads; optional with --history)",
+        "(required for uploads; optional with --history)",
     )
     parser.add_argument(
         "--experiment",
@@ -64,10 +62,7 @@ def parse_args(defaults: dict):
         help=f"MLflow experiment name (default: {defaults['experiment']})",
     )
     parser.add_argument(
-        "--run_name",
-        type=str,
-        default=None,
-        help="MLflow run name (default: dirname_timestamp)",
+        "--run_name", type=str, default=None, help="MLflow run name (default: dirname_timestamp)"
     )
     parser.add_argument(
         "--tracking_uri",
@@ -81,7 +76,7 @@ def parse_args(defaults: dict):
         nargs="*",
         default=[],
         help="Additional tags (e.g. researcher=kim seed=42 task=grasp); "
-             "merged on top of config-file tags",
+        "merged on top of config-file tags",
     )
     parser.add_argument(
         "--config",
@@ -90,30 +85,22 @@ def parse_args(defaults: dict):
         help=f"Path to JSON config file (default: {DEFAULT_CONFIG_PATH})",
     )
     parser.add_argument(
-        "-i", "--interactive",
+        "-i",
+        "--interactive",
         action="store_true",
-        help="Prompt for researcher/seed/task interactively, "
-             "even if already supplied",
+        help="Prompt for researcher/seed/task interactively, even if already supplied",
     )
     parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Skip required-tag validation (researcher, seed, task)",
+        "--force", action="store_true", help="Skip required-tag validation (researcher, seed, task)"
     )
     parser.add_argument(
-        "--no_verify",
-        action="store_true",
-        help="Skip the automatic post-upload verification step",
+        "--no_verify", action="store_true", help="Skip the automatic post-upload verification step"
     )
     parser.add_argument(
-        "--dry_run",
-        action="store_true",
-        help="Print parsed results only, without uploading",
+        "--dry_run", action="store_true", help="Print parsed results only, without uploading"
     )
     parser.add_argument(
-        "--upload_artifacts",
-        action="store_true",
-        help="Upload files in tb_dir as MLflow artifacts",
+        "--upload_artifacts", action="store_true", help="Upload files in tb_dir as MLflow artifacts"
     )
     parser.add_argument(
         "--history",
@@ -125,15 +112,14 @@ def parse_args(defaults: dict):
         dest="repeat_last",
         action="store_true",
         help="Inherit experiment/run_name/tags from the most recent upload "
-             "(CLI flags and -i still override)",
+        "(CLI flags and -i still override)",
     )
     parser.add_argument(
         "--git_commit",
         type=str,
         default=None,
         metavar="HASH",
-        help="Git commit hash of the training code (e.g. abc1234); "
-             "stored as git_commit tag",
+        help="Git commit hash of the training code (e.g. abc1234); stored as git_commit tag",
     )
     return parser.parse_args()
 
@@ -173,7 +159,7 @@ def parse_tfevents(tb_dir: str) -> pd.DataFrame:
         console.print(
             f"  [yellow]for run_dir in {tb_dir}/*/; do\n"
             f'      python upload_tb.py --tb_dir "$run_dir" \\\n'
-            f"          --experiment <experiment> --run_name $(basename \"$run_dir\") ...\n"
+            f'          --experiment <experiment> --run_name $(basename "$run_dir") ...\n'
             f"  done[/yellow]"
         )
         sys.exit(1)
@@ -244,9 +230,7 @@ def preview_dataframe(df: pd.DataFrame):
         )
 
     console.print(table)
-    console.print(
-        f"\n[green]Total: {len(summary)} tags, {len(df):,} data points[/green]\n"
-    )
+    console.print(f"\n[green]Total: {len(summary)} tags, {len(df):,} data points[/green]\n")
 
 
 # ── 4. Tag parsing utility ───────────────────────────────────────────────────
@@ -258,7 +242,9 @@ def parse_extra_tags(tag_list: list) -> dict:
             k, v = item.split("=", 1)
             tags[k.strip()] = v.strip()
         else:
-            console.print(f"[yellow][WARN] Ignoring malformed tag: '{item}' (expected key=value format)[/yellow]")
+            console.print(
+                f"[yellow][WARN] Ignoring malformed tag: '{item}' (expected key=value format)[/yellow]"
+            )
     return tags
 
 
@@ -272,8 +258,7 @@ def prompt_for_tags(tags: dict, required: tuple, force_all: bool) -> dict:
     if not sys.stdin.isatty():
         return tags
 
-    console.print("\n[bold cyan]Interactive tag entry[/bold cyan] "
-                  "(press Enter to accept default)")
+    console.print("\n[bold cyan]Interactive tag entry[/bold cyan] (press Enter to accept default)")
     for key in required:
         current = tags.get(key)
         if current is not None and not force_all:
@@ -297,6 +282,7 @@ def detect_sim_run_id(tb_dir: str) -> Optional[str]:
     tfevents file with {"sim_run_id": "<upstream sim run_id>", ...}.
     """
     import json
+
     meta = Path(tb_dir) / "run_meta.json"
     if not meta.exists():
         return None
@@ -363,11 +349,7 @@ def upload_to_mlflow(
                 timestamp=timestamp_ms,
                 step=int(step),
             )
-            for tag, value, step in zip(
-                df["tag"].values,
-                df["value"].values,
-                df["step"].values,
-            )
+            for tag, value, step in zip(df["tag"].values, df["value"].values, df["step"].values)
         ]
 
         # ── Upload via log_batch() — max 1000 metrics per call (MLflow hard limit)
@@ -460,8 +442,7 @@ def main():
             console.print("[yellow][WARN] --repeat-last: no previous upload in history.[/yellow]")
         else:
             console.print(
-                f"[cyan]Reusing previous upload:[/cyan] "
-                f"{last.get('run_name')} ({last.get('ts')})"
+                f"[cyan]Reusing previous upload:[/cyan] {last.get('run_name')} ({last.get('ts')})"
             )
             tags.update(last.get("tags", {}))
             # Only override experiment/run_name if user didn't pass them explicitly.
@@ -554,24 +535,22 @@ def main():
         console.print("[dim]Skipping verification (--no_verify).[/dim]")
     else:
         console.print("\n[bold cyan]Running automatic verification...[/bold cyan]")
-        verify_ok = run_verify(
-            run_id=run_id,
-            tb_dir=args.tb_dir,
-            tracking_uri=args.tracking_uri,
-        )
+        verify_ok = run_verify(run_id=run_id, tb_dir=args.tb_dir, tracking_uri=args.tracking_uri)
 
     # Record for --history / --repeat-last / --from-last. Persist even if
     # verification failed, so the user can retry or replay.
-    save_upload(make_record(
-        run_id=run_id,
-        tb_dir=args.tb_dir,
-        experiment=experiment,
-        run_name=run_name,
-        tracking_uri=args.tracking_uri,
-        tags=tags,
-        verify_ok=verify_ok,
-        script="upload_tb",
-    ))
+    save_upload(
+        make_record(
+            run_id=run_id,
+            tb_dir=args.tb_dir,
+            experiment=experiment,
+            run_name=run_name,
+            tracking_uri=args.tracking_uri,
+            tags=tags,
+            verify_ok=verify_ok,
+            script="upload_tb",
+        )
+    )
 
     if verify_ok is False:
         sys.exit(2)

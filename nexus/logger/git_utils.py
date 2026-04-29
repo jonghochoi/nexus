@@ -17,6 +17,7 @@ All functions degrade gracefully — if git is not installed or the training
 directory is not inside a git repo, they return empty dicts / None without
 raising. Disable entirely with track_git=False on MLflowLogger.
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -26,13 +27,7 @@ from typing import Optional
 def _run_git(cmd: list[str], cwd: Optional[str] = None) -> str:
     """Run a git command and return stdout, or empty string on failure."""
     try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            cwd=cwd,
-            timeout=10,
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd, timeout=10)
         return result.stdout.strip() if result.returncode == 0 else ""
     except (OSError, subprocess.TimeoutExpired):
         return ""
@@ -50,10 +45,7 @@ def get_git_info(repo_path: Optional[str] = None) -> dict:
     status = _run_git(["git", "status", "--porcelain"], cwd=repo_path)
     dirty = bool(status)
 
-    return {
-        "git_commit": commit,
-        "git_dirty": str(dirty).lower(),
-    }
+    return {"git_commit": commit, "git_dirty": str(dirty).lower()}
 
 
 def get_git_patch(repo_path: Optional[str] = None) -> Optional[str]:

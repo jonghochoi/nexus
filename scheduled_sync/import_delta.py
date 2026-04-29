@@ -30,13 +30,15 @@ BATCH_SIZE = 1000
 
 
 def parse_args():
-    p = argparse.ArgumentParser(
-        description="Import MLflow delta JSON into central MLflow"
+    p = argparse.ArgumentParser(description="Import MLflow delta JSON into central MLflow")
+    p.add_argument(
+        "--delta_file", required=True, help="Path to delta JSON produced by export_delta.py"
     )
-    p.add_argument("--delta_file",    required=True,
-                   help="Path to delta JSON produced by export_delta.py")
-    p.add_argument("--tracking_uri",  default="http://127.0.0.1:5000",
-                   help="Central MLflow URI (default: http://127.0.0.1:5000)")
+    p.add_argument(
+        "--tracking_uri",
+        default="http://127.0.0.1:5000",
+        help="Central MLflow URI (default: http://127.0.0.1:5000)",
+    )
     return p.parse_args()
 
 
@@ -77,9 +79,9 @@ def main():
         delta = json.load(f)
 
     experiment_name = delta["experiment"]
-    runs            = delta.get("runs", [])
-    source_host     = delta.get("source_host", "unknown")
-    sync_time_iso   = datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    runs = delta.get("runs", [])
+    source_host = delta.get("source_host", "unknown")
+    sync_time_iso = datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
 
     if not runs:
         print("[INFO] Empty delta — nothing to import.", flush=True)
@@ -96,9 +98,9 @@ def main():
     total_uploaded = 0
 
     for run_data in runs:
-        run_name    = run_data["run_name"]
-        tags        = run_data.get("tags", {})
-        params_raw  = run_data.get("params", [])
+        run_name = run_data["run_name"]
+        tags = run_data.get("tags", {})
+        params_raw = run_data.get("params", [])
         metrics_raw = run_data.get("metrics", [])
 
         run_id = get_or_create_run(client, experiment_id, run_name, tags)
@@ -126,7 +128,7 @@ def main():
         # Sync metadata — refreshed every cycle so the central UI can show
         # "last seen N minutes ago" per run, and operators can spot a GPU
         # server that has stopped syncing without SSHing into each node.
-        client.set_tag(run_id, "nexus.lastSyncTime",   sync_time_iso)
+        client.set_tag(run_id, "nexus.lastSyncTime", sync_time_iso)
         client.set_tag(run_id, "nexus.syncedFromHost", source_host)
 
         print(f"  [OK] {run_name}: {len(metrics_raw)} metric points", flush=True)

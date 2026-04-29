@@ -44,20 +44,27 @@ def parse_args():
     p = argparse.ArgumentParser(
         description="Export MLflow delta (new metrics only) for scheduled sync"
     )
-    p.add_argument("--tracking_uri", default="http://127.0.0.1:5100",
-                   help="Local MLflow URI (default: http://127.0.0.1:5100)")
-    p.add_argument("--experiment",   required=True,
-                   help="MLflow experiment name")
-    p.add_argument("--output",       required=True,
-                   help="Path to write delta JSON")
-    p.add_argument("--state_file",   default=None,
-                   help="Override state file path "
-                        "(default: ~/.nexus/sync_state/{experiment}[__{researcher}].json)")
-    p.add_argument("--researcher",   default=None,
-                   help="Only export runs whose `researcher` tag matches this value. "
-                        "Required for safe multi-user setups; without it, every user's "
-                        "cron exports every other user's runs and the central server "
-                        "gets duplicate points.")
+    p.add_argument(
+        "--tracking_uri",
+        default="http://127.0.0.1:5100",
+        help="Local MLflow URI (default: http://127.0.0.1:5100)",
+    )
+    p.add_argument("--experiment", required=True, help="MLflow experiment name")
+    p.add_argument("--output", required=True, help="Path to write delta JSON")
+    p.add_argument(
+        "--state_file",
+        default=None,
+        help="Override state file path "
+        "(default: ~/.nexus/sync_state/{experiment}[__{researcher}].json)",
+    )
+    p.add_argument(
+        "--researcher",
+        default=None,
+        help="Only export runs whose `researcher` tag matches this value. "
+        "Required for safe multi-user setups; without it, every user's "
+        "cron exports every other user's runs and the central server "
+        "gets duplicate points.",
+    )
     return p.parse_args()
 
 
@@ -107,7 +114,7 @@ def main():
             print(f"[ERROR] (could not list experiments: {e})", flush=True)
         sys.exit(1)
 
-    state      = load_state(state_path)
+    state = load_state(state_path)
     runs_state = state.get("runs", {})
 
     # `researcher` filter scopes each user's sync to runs they own. Without it,
@@ -115,18 +122,16 @@ def main():
     # the central server logs duplicate metric points at identical steps.
     filter_string = f"tags.researcher = '{args.researcher}'" if args.researcher else ""
     all_runs = client.search_runs(
-        experiment_ids=[experiment.experiment_id],
-        filter_string=filter_string,
-        max_results=1000,
+        experiment_ids=[experiment.experiment_id], filter_string=filter_string, max_results=1000
     )
 
-    delta_runs     = []
+    delta_runs = []
     new_runs_state = {}
 
     for run in all_runs:
-        run_id    = run.info.run_id
-        run_name  = run.data.tags.get("mlflow.runName", run_id)
-        run_state = runs_state.get(run_id, {})   # {tag -> last_synced_step}
+        run_id = run.info.run_id
+        run_name = run.data.tags.get("mlflow.runName", run_id)
+        run_state = runs_state.get(run_id, {})  # {tag -> last_synced_step}
         new_run_state = dict(run_state)
 
         is_new_run = run_id not in runs_state
@@ -135,14 +140,9 @@ def main():
         delta_metrics = []
         for key in run.data.metrics:
             last_step = run_state.get(key, -1)
-            history   = client.get_metric_history(run_id, key)
-            new_pts   = [
-                {
-                    "key":       key,
-                    "value":     m.value,
-                    "step":      m.step,
-                    "timestamp": m.timestamp,
-                }
+            history = client.get_metric_history(run_id, key)
+            new_pts = [
+                {"key": key, "value": m.value, "step": m.step, "timestamp": m.timestamp}
                 for m in history
                 if m.step > last_step
             ]
@@ -157,19 +157,19 @@ def main():
             continue
 
         entry = {
-            "run_id":   run_id,
+            "run_id": run_id,
             "run_name": run_name,
-            "status":   run.info.status,
-            "metrics":  delta_metrics,
+            "status": run.info.status,
+            "metrics": delta_metrics,
         }
         # Params and tags only needed on the first sync for a run
         if is_new_run:
             entry["params"] = [{"key": k, "value": v} for k, v in run.data.params.items()]
-            entry["tags"]   = dict(run.data.tags)
+            entry["tags"] = dict(run.data.tags)
 
         delta_runs.append(entry)
 
-    total_metrics  = sum(len(r["metrics"]) for r in delta_runs)
+    total_metrics = sum(len(r["metrics"]) for r in delta_runs)
     total_new_runs = sum(1 for r in delta_runs if "params" in r)
 
     print(
@@ -179,7 +179,7 @@ def main():
     )
 
     # Always persist updated state (marks runs as seen even if no metrics yet)
-    state["runs"]           = new_runs_state
+    state["runs"] = new_runs_state
     state["last_sync_time"] = time.time()
     save_state(state_path, state)
 
@@ -188,10 +188,10 @@ def main():
         sys.exit(2)
 
     delta = {
-        "experiment":  args.experiment,
-        "sync_time":   time.time(),
+        "experiment": args.experiment,
+        "sync_time": time.time(),
         "source_host": socket.gethostname(),
-        "runs":        delta_runs,
+        "runs": delta_runs,
     }
     with open(args.output, "w") as f:
         json.dump(delta, f)

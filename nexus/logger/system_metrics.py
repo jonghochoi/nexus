@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 def _get_gpu_memory_mb() -> Optional[float]:
     try:
         import pynvml
+
         pynvml.nvmlInit()
         handle = pynvml.nvmlDeviceGetHandleByIndex(0)
         info = pynvml.nvmlDeviceGetMemoryInfo(handle)
@@ -53,11 +54,7 @@ class SystemMetricsLogger:
         system/cpu_percent, system/ram_gb, system/gpu_memory_mb
     """
 
-    def __init__(
-        self,
-        mlflow_logger: "MLflowLogger",
-        interval_seconds: float = 30.0,
-    ):
+    def __init__(self, mlflow_logger: "MLflowLogger", interval_seconds: float = 30.0):
         self._logger = mlflow_logger
         self._interval = interval_seconds
         self._thread: Optional[threading.Thread] = None
@@ -80,6 +77,7 @@ class SystemMetricsLogger:
         metrics: dict[str, float] = {}
         try:
             import psutil
+
             metrics["system/cpu_percent"] = psutil.cpu_percent(interval=0.1)
             ram = psutil.virtual_memory()
             metrics["system/ram_gb"] = ram.used / 1024 / 1024 / 1024

@@ -33,7 +33,7 @@ from mlflow.tracking import MlflowClient
 
 from .git_utils import get_git_info, get_git_patch
 
-_BATCH_SIZE = 1000   # MLflow hard limit per log_batch() call
+_BATCH_SIZE = 1000  # MLflow hard limit per log_batch() call
 
 
 class MLflowLogger:
@@ -136,10 +136,7 @@ class MLflowLogger:
             self._client.log_artifact(self._run_id, dst, "checkpoints")
 
     def register_checkpoint(
-        self,
-        model_name: str,
-        kind: str = "best",
-        description: Optional[str] = None,
+        self, model_name: str, kind: str = "best", description: Optional[str] = None
     ) -> str:
         """Register a checkpoint artifact in the MLflow Model Registry.
 
@@ -205,7 +202,7 @@ class MLflowLogger:
             for tag, val in self._buffer[step].items()
         ]
         for i in range(0, len(metrics), _BATCH_SIZE):
-            self._client.log_batch(run_id=self._run_id, metrics=metrics[i:i+_BATCH_SIZE])
+            self._client.log_batch(run_id=self._run_id, metrics=metrics[i : i + _BATCH_SIZE])
         del self._buffer[step]
 
     def _get_or_create_run(self, experiment_name: str, tags: dict) -> str:
@@ -226,9 +223,7 @@ class MLflowLogger:
             print(f"[MLflowLogger] Resuming run: {run_id}")
             return run_id
         run = self._client.create_run(
-            experiment_id=exp.experiment_id,
-            run_name=self.run_name,
-            tags=base_tags,
+            experiment_id=exp.experiment_id, run_name=self.run_name, tags=base_tags
         )
         return run.info.run_id
 
@@ -242,7 +237,9 @@ class MLflowLogger:
             with open(patch_path, "w") as f:
                 f.write(patch)
             self._client.log_artifact(self._run_id, patch_path, "git")
-        print("[MLflowLogger] Dirty working tree detected — git patch saved to artifacts/git/git_patch.diff")
+        print(
+            "[MLflowLogger] Dirty working tree detected — git patch saved to artifacts/git/git_patch.diff"
+        )
 
     def _log_params(self, params: dict, prefix: str = "") -> None:
         flat = self._flatten(params)
@@ -250,7 +247,7 @@ class MLflowLogger:
             flat = {f"{prefix}.{k}": v for k, v in flat.items()}
         items = [mlflow.entities.Param(k, str(v)) for k, v in flat.items()]
         for i in range(0, len(items), 100):
-            self._client.log_batch(run_id=self._run_id, params=items[i:i+100])
+            self._client.log_batch(run_id=self._run_id, params=items[i : i + 100])
 
     def _log_params_as_artifact(self, params: dict, filename: str) -> None:
         """Serialize params dict to JSON and upload under artifacts/params/."""

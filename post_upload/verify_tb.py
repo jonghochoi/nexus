@@ -26,32 +26,29 @@ console = Console()
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Validate MLflow upload against TensorBoard source")
+    parser = argparse.ArgumentParser(
+        description="Validate MLflow upload against TensorBoard source"
+    )
     parser.add_argument("--run_id", type=str, default=None, help="MLflow Run ID to validate")
     parser.add_argument("--tb_dir", type=str, default=None, help="Original tfevents directory")
     parser.add_argument(
-        "--tracking_uri",
-        type=str,
-        default="http://127.0.0.1:5000",
-        help="MLflow server URI",
+        "--tracking_uri", type=str, default="http://127.0.0.1:5000", help="MLflow server URI"
     )
     parser.add_argument(
-        "--tolerance",
-        type=float,
-        default=1e-6,
-        help="Numeric comparison tolerance (default: 1e-6)",
+        "--tolerance", type=float, default=1e-6, help="Numeric comparison tolerance (default: 1e-6)"
     )
     parser.add_argument(
         "--from-last",
         dest="from_last",
         action="store_true",
         help="Re-verify the most recent upload from ~/.nexus/history.json "
-             "(fills run_id/tb_dir/tracking_uri automatically)",
+        "(fills run_id/tb_dir/tracking_uri automatically)",
     )
     args = parser.parse_args()
 
     if args.from_last:
         from history import last_upload
+
         last = last_upload(script="upload_tb")
         if last is None:
             parser.error("--from-last: no previous upload in history.")
@@ -131,8 +128,7 @@ def verify(tb_df: pd.DataFrame, mlflow_df: pd.DataFrame, tolerance: float):
     matched_tags = tb_tags & mlflow_tags
 
     tag_table = Table(
-        title="[bold]Tag (Metric) List Comparison[/bold]",
-        header_style="bold magenta",
+        title="[bold]Tag (Metric) List Comparison[/bold]", header_style="bold magenta"
     )
     tag_table.add_column("Status", style="bold", width=12)
     tag_table.add_column("Tag Name", style="cyan")
@@ -148,8 +144,7 @@ def verify(tb_df: pd.DataFrame, mlflow_df: pd.DataFrame, tolerance: float):
 
     # ── 2. Compare data point counts
     count_table = Table(
-        title="[bold]Data Point Count Comparison[/bold]",
-        header_style="bold magenta",
+        title="[bold]Data Point Count Comparison[/bold]", header_style="bold magenta"
     )
     count_table.add_column("Tag", style="cyan", min_width=30)
     count_table.add_column("TB Source", justify="right")
@@ -182,13 +177,15 @@ def verify(tb_df: pd.DataFrame, mlflow_df: pd.DataFrame, tolerance: float):
 
         for i, (tb_row, mlf_row) in enumerate(zip(tb_sub.itertuples(), mlf_sub.itertuples())):
             if abs(tb_row.value - mlf_row.value) > tolerance:
-                value_errors.append({
-                    "tag": tag,
-                    "step": tb_row.step,
-                    "tb_value": tb_row.value,
-                    "mlflow_value": mlf_row.value,
-                    "diff": abs(tb_row.value - mlf_row.value),
-                })
+                value_errors.append(
+                    {
+                        "tag": tag,
+                        "step": tb_row.step,
+                        "tb_value": tb_row.value,
+                        "mlflow_value": mlf_row.value,
+                        "diff": abs(tb_row.value - mlf_row.value),
+                    }
+                )
 
     # ── 4. Final result summary
     console.rule("[bold]Verification Summary[/bold]")
@@ -217,7 +214,9 @@ def verify(tb_df: pd.DataFrame, mlflow_df: pd.DataFrame, tolerance: float):
 
     console.print()
     if all_pass:
-        console.print("[bold green]✓ All checks passed! TB -> MLflow porting is accurate.[/bold green]")
+        console.print(
+            "[bold green]✓ All checks passed! TB -> MLflow porting is accurate.[/bold green]"
+        )
     else:
         console.print("[bold red]✗ Verification failed. Review the items above.[/bold red]")
 

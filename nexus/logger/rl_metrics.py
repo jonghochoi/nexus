@@ -35,13 +35,14 @@ def grad_norm(parameters) -> float:
     """L2 norm of gradients. Accepts torch parameter iterator or list of numpy arrays."""
     try:
         import torch  # noqa: F401
+
         total = 0.0
         for p in parameters:
             if hasattr(p, "grad") and p.grad is not None:
                 total += p.grad.detach().norm().item() ** 2
-        return float(total ** 0.5)
+        return float(total**0.5)
     except ImportError:
         total = 0.0
         for arr in parameters:
             total += float(np.sum(np.asarray(arr) ** 2))
-        return float(total ** 0.5)
+        return float(total**0.5)

@@ -140,8 +140,7 @@ def print_history(script: Optional[str] = None) -> None:
         return
 
     table = Table(
-        title=f"[bold]Recent uploads (last {len(records)})[/bold]",
-        header_style="bold magenta",
+        title=f"[bold]Recent uploads (last {len(records)})[/bold]", header_style="bold magenta"
     )
     table.add_column("When", style="cyan")
     table.add_column("Kind")
@@ -163,9 +162,7 @@ def print_history(script: Optional[str] = None) -> None:
             kind_cell = "[blue]tb[/blue]"
             verify = r.get("verify_ok")
             status_cell = (
-                "[green]✓[/green]" if verify is True
-                else "[red]✗[/red]" if verify is False
-                else "-"
+                "[green]✓[/green]" if verify is True else "[red]✗[/red]" if verify is False else "-"
             )
             extra = ", ".join(
                 f"{k}={r['tags'][k]}"

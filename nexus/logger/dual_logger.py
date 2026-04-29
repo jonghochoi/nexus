@@ -124,6 +124,7 @@ class DualLogger:
 
 # ── Factory function ─────────────────────────────────────────────────────────
 
+
 def make_logger(
     mode: str,
     run_name: str,
@@ -194,6 +195,5 @@ def make_logger(
         return TBLogger(log_dir=tb_dir)
     else:
         raise ValueError(
-            f"Unknown logger mode: '{mode}'. "
-            f"Choose from: 'dual', 'mlflow', 'tensorboard'"
+            f"Unknown logger mode: '{mode}'. Choose from: 'dual', 'mlflow', 'tensorboard'"
         )

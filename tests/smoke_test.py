@@ -19,12 +19,12 @@ import sys
 import time
 
 # ── ANSI colors ──────────────────────────────────────────────────────────────
-GREEN  = "\033[32m"
-RED    = "\033[31m"
+GREEN = "\033[32m"
+RED = "\033[31m"
 YELLOW = "\033[33m"
-CYAN   = "\033[36m"
-BOLD   = "\033[1m"
-RESET  = "\033[0m"
+CYAN = "\033[36m"
+BOLD = "\033[1m"
+RESET = "\033[0m"
 
 PASS = f"{GREEN}[PASS]{RESET}"
 FAIL = f"{RED}[FAIL]{RESET}"
@@ -52,16 +52,17 @@ def info(msg: str) -> None:
 
 # ── Test functions ───────────────────────────────────────────────────────────
 
+
 def check_imports() -> bool:
     """1. Check required package imports"""
     section("1. Package Import Check")
     packages = {
-        "mlflow":       "mlflow",
-        "tbparse":      "tbparse",
-        "tensorboard":  "tensorboard",
+        "mlflow": "mlflow",
+        "tbparse": "tbparse",
+        "tensorboard": "tensorboard",
         "tensorboardX": "tensorboardX",
-        "pandas":       "pandas",
-        "rich":         "rich",
+        "pandas": "pandas",
+        "rich": "rich",
     }
     all_ok = True
     for name, module in packages.items():
@@ -77,6 +78,7 @@ def check_imports() -> bool:
     try:
         sys.path.insert(0, ".")
         from nexus.logger import make_logger, MLflowLogger, DualLogger, TBLogger
+
         ok("nexus.logger core — make_logger, MLflowLogger, DualLogger, TBLogger")
     except ImportError as e:
         fail(f"nexus.logger core — {e}")
@@ -84,10 +86,11 @@ def check_imports() -> bool:
 
     # logger advanced features — explicit import paths
     try:
-        from nexus.logger.sweep_logger   import SweepLogger    # noqa: F401
+        from nexus.logger.sweep_logger import SweepLogger  # noqa: F401
         from nexus.logger.model_registry import ModelRegistry  # noqa: F401
         from nexus.logger.system_metrics import SystemMetricsLogger  # noqa: F401
-        from nexus.logger                import rl_metrics     # noqa: F401
+        from nexus.logger import rl_metrics  # noqa: F401
+
         ok("nexus.logger advanced — SweepLogger, ModelRegistry, SystemMetricsLogger, rl_metrics")
     except ImportError as e:
         fail(f"nexus.logger advanced — {e}")
@@ -103,6 +106,7 @@ def check_mlflow_connection(tracking_uri: str) -> bool:
     try:
         import mlflow
         from mlflow.tracking import MlflowClient
+
         client = MlflowClient(tracking_uri=tracking_uri)
         # verify connection by listing experiments
         experiments = client.search_experiments()
@@ -135,9 +139,9 @@ def test_mlflow_logger(tracking_uri: str) -> bool:
 
         # log dummy metrics (3 steps)
         for step in range(1, 4):
-            logger.add_scalar("train/reward",    float(step * 10),      step)
-            logger.add_scalar("train/loss",      1.0 / step,            step)
-            logger.add_scalar("eval/success_rate", step * 0.3,          step)
+            logger.add_scalar("train/reward", float(step * 10), step)
+            logger.add_scalar("train/loss", 1.0 / step, step)
+            logger.add_scalar("eval/success_rate", step * 0.3, step)
         logger.close()
 
         ok("MLflowLogger logging complete")
@@ -145,16 +149,19 @@ def test_mlflow_logger(tracking_uri: str) -> bool:
         # verify logged data
         import mlflow
         from mlflow.tracking import MlflowClient
+
         client = MlflowClient(tracking_uri=tracking_uri)
-        exp = mlflow.set_tracking_uri(tracking_uri) or mlflow.get_experiment_by_name("nexus_smoke_test")
+        exp = mlflow.set_tracking_uri(tracking_uri) or mlflow.get_experiment_by_name(
+            "nexus_smoke_test"
+        )
 
         import mlflow as _mlflow
+
         _mlflow.set_tracking_uri(tracking_uri)
         exp = _mlflow.get_experiment_by_name("nexus_smoke_test")
 
         runs = client.search_runs(
-            experiment_ids=[exp.experiment_id],
-            filter_string=f"tags.mlflow.runName = '{run_name}'",
+            experiment_ids=[exp.experiment_id], filter_string=f"tags.mlflow.runName = '{run_name}'"
         )
         if not runs:
             fail("Recorded run not found")
@@ -189,7 +196,9 @@ def test_mlflow_logger(tracking_uri: str) -> bool:
 
     except Exception as e:
         fail(f"MLflowLogger test failed: {e}")
-        import traceback; traceback.print_exc()
+        import traceback
+
+        traceback.print_exc()
         return False
 
 
@@ -280,7 +289,9 @@ def test_make_logger_factory(tracking_uri: str) -> bool:
         return True
     except Exception as e:
         fail(f"make_logger test failed: {e}")
-        import traceback; traceback.print_exc()
+        import traceback
+
+        traceback.print_exc()
         return False
 
 
@@ -289,6 +300,7 @@ def test_dual_logger(tracking_uri: str) -> bool:
     section("5. DualLogger Test (TensorBoard + MLflow)")
     try:
         import tempfile, os
+
         sys.path.insert(0, ".")
         from nexus.logger import make_logger
 
@@ -319,22 +331,26 @@ def test_dual_logger(tracking_uri: str) -> bool:
         return True
     except Exception as e:
         fail(f"DualLogger test failed: {e}")
-        import traceback; traceback.print_exc()
+        import traceback
+
+        traceback.print_exc()
         return False
 
 
 # ── Advanced tests ───────────────────────────────────────────────────────────
+
 
 def test_rl_metrics_helpers() -> bool:
     """6. rl_metrics helper function accuracy test"""
     section("6. RL Metrics Helper Functions")
     try:
         import numpy as np
+
         sys.path.insert(0, ".")
         from nexus.logger import rl_metrics
 
         returns = np.array([1.0, 2.0, 3.0, 4.0])
-        values  = np.array([1.0, 2.0, 3.0, 4.0])
+        values = np.array([1.0, 2.0, 3.0, 4.0])
         ev = rl_metrics.explained_variance(values, returns)
         assert abs(ev - 1.0) < 1e-6, f"expected 1.0, got {ev}"
         ok(f"explained_variance (perfect predictions) = {ev:.4f}")
@@ -349,9 +365,9 @@ def test_rl_metrics_helpers() -> bool:
         assert abs(kl) < 1e-6, f"same distribution should give KL≈0, got {kl}"
         ok(f"approx_kl (same dist) = {kl:.6f}")
 
-        ratios_in  = np.array([1.0, 1.1, 0.95])
+        ratios_in = np.array([1.0, 1.1, 0.95])
         ratios_out = np.array([1.5, 0.5, 1.3])
-        cf_in  = rl_metrics.clip_fraction(ratios_in)
+        cf_in = rl_metrics.clip_fraction(ratios_in)
         cf_out = rl_metrics.clip_fraction(ratios_out)
         assert abs(cf_in) < 1e-6, f"expected 0.0, got {cf_in}"
         assert abs(cf_out - 1.0) < 1e-6, f"expected 1.0, got {cf_out}"
@@ -360,7 +376,9 @@ def test_rl_metrics_helpers() -> bool:
         return True
     except Exception as e:
         fail(f"rl_metrics helper test failed: {e}")
-        import traceback; traceback.print_exc()
+        import traceback
+
+        traceback.print_exc()
         return False
 
 
@@ -373,9 +391,7 @@ def test_rl_metrics_logging(tracking_uri: str) -> bool:
 
         run_name = f"rl_metrics_test_{int(time.time())}"
         logger = MLflowLogger(
-            run_name=run_name,
-            tracking_uri=tracking_uri,
-            experiment_name="nexus_smoke_test",
+            run_name=run_name, tracking_uri=tracking_uri, experiment_name="nexus_smoke_test"
         )
 
         for step in range(1, 4):
@@ -392,16 +408,22 @@ def test_rl_metrics_logging(tracking_uri: str) -> bool:
 
         import mlflow as _mlflow
         from mlflow.tracking import MlflowClient
+
         _mlflow.set_tracking_uri(tracking_uri)
         client = MlflowClient(tracking_uri=tracking_uri)
         exp = _mlflow.get_experiment_by_name("nexus_smoke_test")
         runs = client.search_runs(
-            experiment_ids=[exp.experiment_id],
-            filter_string=f"tags.mlflow.runName = '{run_name}'",
+            experiment_ids=[exp.experiment_id], filter_string=f"tags.mlflow.runName = '{run_name}'"
         )
         metrics = runs[0].data.metrics
-        expected = {"rl/explained_variance", "rl/approx_kl", "rl/clip_fraction",
-                    "rl/grad_norm", "rl/entropy", "rl/success_rate"}
+        expected = {
+            "rl/explained_variance",
+            "rl/approx_kl",
+            "rl/clip_fraction",
+            "rl/grad_norm",
+            "rl/entropy",
+            "rl/success_rate",
+        }
         missing = expected - set(metrics.keys())
         if missing:
             fail(f"Missing RL metrics: {missing}")
@@ -410,7 +432,9 @@ def test_rl_metrics_logging(tracking_uri: str) -> bool:
         return True
     except Exception as e:
         fail(f"log_rl_metrics test failed: {e}")
-        import traceback; traceback.print_exc()
+        import traceback
+
+        traceback.print_exc()
         return False
 
 
@@ -419,6 +443,7 @@ def test_tb_log_rl_metrics() -> bool:
     section("8. RL Metrics Logging (TensorBoard)")
     try:
         import tempfile
+
         sys.path.insert(0, ".")
         from nexus.logger import TBLogger
         from tbparse import SummaryReader
@@ -444,8 +469,14 @@ def test_tb_log_rl_metrics() -> bool:
             if "tag" not in df.columns:
                 df = df.rename(columns={"tags": "tag"})
             tags = set(df["tag"].unique())
-            expected = {"rl/explained_variance", "rl/approx_kl", "rl/clip_fraction",
-                        "rl/grad_norm", "rl/entropy", "rl/success_rate"}
+            expected = {
+                "rl/explained_variance",
+                "rl/approx_kl",
+                "rl/clip_fraction",
+                "rl/grad_norm",
+                "rl/entropy",
+                "rl/success_rate",
+            }
             missing = expected - tags
             if missing:
                 fail(f"Missing TB rl/* tags: {missing}")
@@ -455,7 +486,9 @@ def test_tb_log_rl_metrics() -> bool:
         return True
     except Exception as e:
         fail(f"TB log_rl_metrics test failed: {e}")
-        import traceback; traceback.print_exc()
+        import traceback
+
+        traceback.print_exc()
         return False
 
 
@@ -464,13 +497,20 @@ def test_dual_log_rl_metrics_fanout(tracking_uri: str) -> bool:
     section("9. RL Metrics Fan-Out (DualLogger -> TB + MLflow)")
     try:
         import tempfile
+
         sys.path.insert(0, ".")
         from nexus.logger import make_logger
         from tbparse import SummaryReader
 
         run_name = f"dual_rl_metrics_{int(time.time())}"
-        expected = {"rl/explained_variance", "rl/approx_kl", "rl/clip_fraction",
-                    "rl/grad_norm", "rl/entropy", "rl/success_rate"}
+        expected = {
+            "rl/explained_variance",
+            "rl/approx_kl",
+            "rl/clip_fraction",
+            "rl/grad_norm",
+            "rl/entropy",
+            "rl/success_rate",
+        }
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             logger = make_logger(
@@ -506,12 +546,12 @@ def test_dual_log_rl_metrics_fanout(tracking_uri: str) -> bool:
 
         import mlflow as _mlflow
         from mlflow.tracking import MlflowClient
+
         _mlflow.set_tracking_uri(tracking_uri)
         client = MlflowClient(tracking_uri=tracking_uri)
         exp = _mlflow.get_experiment_by_name("nexus_smoke_test")
         runs = client.search_runs(
-            experiment_ids=[exp.experiment_id],
-            filter_string=f"tags.mlflow.runName = '{run_name}'",
+            experiment_ids=[exp.experiment_id], filter_string=f"tags.mlflow.runName = '{run_name}'"
         )
         if not runs:
             fail("DualLogger MLflow run not found")
@@ -525,7 +565,9 @@ def test_dual_log_rl_metrics_fanout(tracking_uri: str) -> bool:
         return True
     except Exception as e:
         fail(f"DualLogger fan-out test failed: {e}")
-        import traceback; traceback.print_exc()
+        import traceback
+
+        traceback.print_exc()
         return False
 
 
@@ -542,11 +584,13 @@ def test_omegaconf_flatten(tracking_uri: str) -> bool:
         sys.path.insert(0, ".")
         from nexus.logger import MLflowLogger
 
-        cfg = OmegaConf.create({
-            "lr": 1e-3,
-            "trainer": {"clip_eps": 0.2, "gamma": 0.99},
-            "env": {"name": "robot_hand", "physics": {"solver": "TGS"}},
-        })
+        cfg = OmegaConf.create(
+            {
+                "lr": 1e-3,
+                "trainer": {"clip_eps": 0.2, "gamma": 0.99},
+                "env": {"name": "robot_hand", "physics": {"solver": "TGS"}},
+            }
+        )
 
         run_name = f"omegaconf_test_{int(time.time())}"
         logger = MLflowLogger(
@@ -559,19 +603,18 @@ def test_omegaconf_flatten(tracking_uri: str) -> bool:
 
         import mlflow as _mlflow
         from mlflow.tracking import MlflowClient
+
         _mlflow.set_tracking_uri(tracking_uri)
         client = MlflowClient(tracking_uri=tracking_uri)
         exp = _mlflow.get_experiment_by_name("nexus_smoke_test")
         runs = client.search_runs(
-            experiment_ids=[exp.experiment_id],
-            filter_string=f"tags.mlflow.runName = '{run_name}'",
+            experiment_ids=[exp.experiment_id], filter_string=f"tags.mlflow.runName = '{run_name}'"
         )
         if not runs:
             fail("OmegaConf test run not found")
             return False
         params = runs[0].data.params
-        expected = {"lr", "trainer.clip_eps", "trainer.gamma",
-                    "env.name", "env.physics.solver"}
+        expected = {"lr", "trainer.clip_eps", "trainer.gamma", "env.name", "env.physics.solver"}
         missing = expected - set(params.keys())
         if missing:
             fail(f"DictConfig was not flattened: missing keys {missing}")
@@ -580,7 +623,9 @@ def test_omegaconf_flatten(tracking_uri: str) -> bool:
         return True
     except Exception as e:
         fail(f"OmegaConf flatten test failed: {e}")
-        import traceback; traceback.print_exc()
+        import traceback
+
+        traceback.print_exc()
         return False
 
 
@@ -603,14 +648,14 @@ def test_scheduled_sync_roundtrip(tracking_uri: str) -> bool:
         sys.path.insert(0, ".")
         from nexus.logger import MLflowLogger
 
-        ts          = int(time.time())
-        src_exp     = f"nexus_smoke_sync_src_{ts}"
-        dst_exp     = f"nexus_smoke_sync_dst_{ts}"
-        run_name    = f"sync_roundtrip_{ts}"
+        ts = int(time.time())
+        src_exp = f"nexus_smoke_sync_src_{ts}"
+        dst_exp = f"nexus_smoke_sync_dst_{ts}"
+        run_name = f"sync_roundtrip_{ts}"
 
-        repo_root   = Path(__file__).resolve().parent.parent
-        export_py   = repo_root / "scheduled_sync" / "export_delta.py"
-        import_py   = repo_root / "scheduled_sync" / "import_delta.py"
+        repo_root = Path(__file__).resolve().parent.parent
+        export_py = repo_root / "scheduled_sync" / "export_delta.py"
+        import_py = repo_root / "scheduled_sync" / "import_delta.py"
 
         # ── 1. Create a source run with deterministic metrics
         logger = MLflowLogger(
@@ -622,7 +667,7 @@ def test_scheduled_sync_roundtrip(tracking_uri: str) -> bool:
         )
         for step in range(1, 6):
             logger.add_scalar("train/reward", float(step * 7), step)
-            logger.add_scalar("train/loss",   1.0 / step,      step)
+            logger.add_scalar("train/loss", 1.0 / step, step)
         logger.close()
         ok(f"Source run logged in {src_exp}")
 
@@ -632,16 +677,25 @@ def test_scheduled_sync_roundtrip(tracking_uri: str) -> bool:
             state_path = Path(tmp) / "state.json"
 
             r = subprocess.run(
-                ["python", str(export_py),
-                 "--tracking_uri", tracking_uri,
-                 "--experiment",   src_exp,
-                 "--output",       str(delta_path),
-                 "--state_file",   str(state_path)],
-                capture_output=True, text=True,
+                [
+                    "python",
+                    str(export_py),
+                    "--tracking_uri",
+                    tracking_uri,
+                    "--experiment",
+                    src_exp,
+                    "--output",
+                    str(delta_path),
+                    "--state_file",
+                    str(state_path),
+                ],
+                capture_output=True,
+                text=True,
             )
             if r.returncode != 0:
                 fail(f"export_delta.py failed (exit {r.returncode})")
-                print(r.stdout); print(r.stderr)
+                print(r.stdout)
+                print(r.stderr)
                 return False
             if not delta_path.exists():
                 fail("export_delta.py produced no delta file")
@@ -659,20 +713,28 @@ def test_scheduled_sync_roundtrip(tracking_uri: str) -> bool:
 
             # ── 4. import_delta.py — same tracking server, fresh experiment
             r = subprocess.run(
-                ["python", str(import_py),
-                 "--delta_file",   str(delta_path),
-                 "--tracking_uri", tracking_uri],
-                capture_output=True, text=True,
+                [
+                    "python",
+                    str(import_py),
+                    "--delta_file",
+                    str(delta_path),
+                    "--tracking_uri",
+                    tracking_uri,
+                ],
+                capture_output=True,
+                text=True,
             )
             if r.returncode != 0:
                 fail(f"import_delta.py failed (exit {r.returncode})")
-                print(r.stdout); print(r.stderr)
+                print(r.stdout)
+                print(r.stderr)
                 return False
             ok("import_delta.py completed")
 
         # ── 5. Verify destination run carries metrics + sync metadata tags
         import mlflow as _mlflow
         from mlflow.tracking import MlflowClient
+
         _mlflow.set_tracking_uri(tracking_uri)
         client = MlflowClient(tracking_uri=tracking_uri)
         exp = _mlflow.get_experiment_by_name(dst_exp)
@@ -681,8 +743,7 @@ def test_scheduled_sync_roundtrip(tracking_uri: str) -> bool:
             return False
 
         runs = client.search_runs(
-            experiment_ids=[exp.experiment_id],
-            filter_string=f"tags.mlflow.runName = '{run_name}'",
+            experiment_ids=[exp.experiment_id], filter_string=f"tags.mlflow.runName = '{run_name}'"
         )
         if not runs:
             fail(f"Imported run {run_name} not found in {dst_exp}")
@@ -707,13 +768,17 @@ def test_scheduled_sync_roundtrip(tracking_uri: str) -> bool:
         if not tags.get("nexus.syncedFromHost"):
             fail("nexus.syncedFromHost tag was not stamped on import")
             return False
-        ok(f"Sync metadata tags present (lastSyncTime={tags['nexus.lastSyncTime']}, "
-           f"syncedFromHost={tags['nexus.syncedFromHost']})")
+        ok(
+            f"Sync metadata tags present (lastSyncTime={tags['nexus.lastSyncTime']}, "
+            f"syncedFromHost={tags['nexus.syncedFromHost']})"
+        )
         return True
 
     except Exception as e:
         fail(f"sync round-trip test failed: {e}")
-        import traceback; traceback.print_exc()
+        import traceback
+
+        traceback.print_exc()
         return False
 
 
@@ -735,16 +800,13 @@ def test_scheduled_sync_researcher_filter(tracking_uri: str) -> bool:
         sys.path.insert(0, ".")
         from nexus.logger import MLflowLogger
 
-        ts        = int(time.time())
-        exp_name  = f"nexus_smoke_multiuser_{ts}"
+        ts = int(time.time())
+        exp_name = f"nexus_smoke_multiuser_{ts}"
         repo_root = Path(__file__).resolve().parent.parent
         export_py = repo_root / "scheduled_sync" / "export_delta.py"
 
         # ── 1. Two runs, two different researchers
-        for researcher, run_suffix, reward in [
-            ("kim", "kim_a", 11.0),
-            ("lee", "lee_a", 22.0),
-        ]:
+        for researcher, run_suffix, reward in [("kim", "kim_a", 11.0), ("lee", "lee_a", 22.0)]:
             logger = MLflowLogger(
                 run_name=f"multiuser_{run_suffix}_{ts}",
                 tracking_uri=tracking_uri,
@@ -760,13 +822,22 @@ def test_scheduled_sync_researcher_filter(tracking_uri: str) -> bool:
             delta_path = Path(tmp) / "delta_kim.json"
             state_path = Path(tmp) / "state_kim.json"
             r = subprocess.run(
-                ["python", str(export_py),
-                 "--tracking_uri", tracking_uri,
-                 "--experiment",   exp_name,
-                 "--researcher",   "kim",
-                 "--output",       str(delta_path),
-                 "--state_file",   str(state_path)],
-                capture_output=True, text=True,
+                [
+                    "python",
+                    str(export_py),
+                    "--tracking_uri",
+                    tracking_uri,
+                    "--experiment",
+                    exp_name,
+                    "--researcher",
+                    "kim",
+                    "--output",
+                    str(delta_path),
+                    "--state_file",
+                    str(state_path),
+                ],
+                capture_output=True,
+                text=True,
             )
             if r.returncode != 0:
                 fail(f"export_delta.py failed (exit {r.returncode}): {r.stderr}")
@@ -787,12 +858,20 @@ def test_scheduled_sync_researcher_filter(tracking_uri: str) -> bool:
             delta_path = Path(tmp) / "delta_all.json"
             state_path = Path(tmp) / "state_all.json"
             r = subprocess.run(
-                ["python", str(export_py),
-                 "--tracking_uri", tracking_uri,
-                 "--experiment",   exp_name,
-                 "--output",       str(delta_path),
-                 "--state_file",   str(state_path)],
-                capture_output=True, text=True,
+                [
+                    "python",
+                    str(export_py),
+                    "--tracking_uri",
+                    tracking_uri,
+                    "--experiment",
+                    exp_name,
+                    "--output",
+                    str(delta_path),
+                    "--state_file",
+                    str(state_path),
+                ],
+                capture_output=True,
+                text=True,
             )
             if r.returncode != 0:
                 fail(f"export_delta.py (no filter) failed: {r.stderr}")
@@ -800,8 +879,7 @@ def test_scheduled_sync_researcher_filter(tracking_uri: str) -> bool:
             with open(delta_path) as f:
                 delta = _json.load(f)
             run_names = sorted(r["run_name"] for r in delta["runs"])
-            if not (any("kim_a" in n for n in run_names) and
-                    any("lee_a" in n for n in run_names)):
+            if not (any("kim_a" in n for n in run_names) and any("lee_a" in n for n in run_names)):
                 fail(f"No-filter export should include both researchers, got: {run_names}")
                 return False
             ok(f"No filter exports both researchers: {run_names}")
@@ -809,7 +887,9 @@ def test_scheduled_sync_researcher_filter(tracking_uri: str) -> bool:
         return True
     except Exception as e:
         fail(f"researcher-filter test failed: {e}")
-        import traceback; traceback.print_exc()
+        import traceback
+
+        traceback.print_exc()
         return False
 
 
@@ -845,6 +925,7 @@ def test_sweep_logger(tracking_uri: str) -> bool:
 
         import mlflow as _mlflow
         from mlflow.tracking import MlflowClient
+
         _mlflow.set_tracking_uri(tracking_uri)
         client = MlflowClient(tracking_uri=tracking_uri)
         exp = _mlflow.get_experiment_by_name("nexus_smoke_test")
@@ -864,11 +945,14 @@ def test_sweep_logger(tracking_uri: str) -> bool:
         return True
     except Exception as e:
         fail(f"SweepLogger test failed: {e}")
-        import traceback; traceback.print_exc()
+        import traceback
+
+        traceback.print_exc()
         return False
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="NEXUS smoke test")
@@ -891,46 +975,46 @@ def main() -> None:
 
     results = {}
 
-    results["imports"]         = check_imports()
-    results["mlflow_connect"]  = check_mlflow_connection(args.tracking_uri)
+    results["imports"] = check_imports()
+    results["mlflow_connect"] = check_mlflow_connection(args.tracking_uri)
 
     if not results["mlflow_connect"]:
         print(f"\n{RED}{BOLD}Cannot connect to MLflow server — skipping remaining tests.{RESET}")
         print(f"  → Run bash scheduled_sync/start_local_mlflow.sh first.\n")
         sys.exit(1)
 
-    results["mlflow_logger"]   = test_mlflow_logger(args.tracking_uri)
-    results["split_params"]    = test_split_params(args.tracking_uri)
-    results["make_logger"]     = test_make_logger_factory(args.tracking_uri)
-    results["dual_logger"]     = test_dual_logger(args.tracking_uri)
+    results["mlflow_logger"] = test_mlflow_logger(args.tracking_uri)
+    results["split_params"] = test_split_params(args.tracking_uri)
+    results["make_logger"] = test_make_logger_factory(args.tracking_uri)
+    results["dual_logger"] = test_dual_logger(args.tracking_uri)
 
     if args.advanced:
-        results["rl_metrics_helpers"]    = test_rl_metrics_helpers()
-        results["rl_metrics_logging"]    = test_rl_metrics_logging(args.tracking_uri)
-        results["rl_metrics_tb"]         = test_tb_log_rl_metrics()
-        results["rl_metrics_fanout"]     = test_dual_log_rl_metrics_fanout(args.tracking_uri)
-        results["omegaconf_flatten"]     = test_omegaconf_flatten(args.tracking_uri)
-        results["scheduled_sync"]        = test_scheduled_sync_roundtrip(args.tracking_uri)
+        results["rl_metrics_helpers"] = test_rl_metrics_helpers()
+        results["rl_metrics_logging"] = test_rl_metrics_logging(args.tracking_uri)
+        results["rl_metrics_tb"] = test_tb_log_rl_metrics()
+        results["rl_metrics_fanout"] = test_dual_log_rl_metrics_fanout(args.tracking_uri)
+        results["omegaconf_flatten"] = test_omegaconf_flatten(args.tracking_uri)
+        results["scheduled_sync"] = test_scheduled_sync_roundtrip(args.tracking_uri)
         results["scheduled_sync_filter"] = test_scheduled_sync_researcher_filter(args.tracking_uri)
-        results["sweep_logger"]          = test_sweep_logger(args.tracking_uri)
+        results["sweep_logger"] = test_sweep_logger(args.tracking_uri)
 
     # ── Summary ───────────────────────────────────────────────────────────────
     section("Summary")
     labels = {
-        "imports":             "Package imports",
-        "mlflow_connect":      "MLflow server connection",
-        "mlflow_logger":       "MLflowLogger logging",
-        "split_params":        "agent_params / env_params split (prefixed params + artifacts)",
-        "make_logger":         "make_logger factory",
-        "dual_logger":         "DualLogger (Dual)",
-        "rl_metrics_helpers":  "RL metrics helpers (numpy)",
-        "rl_metrics_logging":  "RL metrics logging (MLflow)",
-        "rl_metrics_tb":       "RL metrics logging (TensorBoard)",
-        "rl_metrics_fanout":   "RL metrics fan-out (DualLogger -> TB + MLflow)",
-        "omegaconf_flatten":   "OmegaConf DictConfig flatten",
-        "scheduled_sync":      "scheduled_sync round-trip (export -> import)",
+        "imports": "Package imports",
+        "mlflow_connect": "MLflow server connection",
+        "mlflow_logger": "MLflowLogger logging",
+        "split_params": "agent_params / env_params split (prefixed params + artifacts)",
+        "make_logger": "make_logger factory",
+        "dual_logger": "DualLogger (Dual)",
+        "rl_metrics_helpers": "RL metrics helpers (numpy)",
+        "rl_metrics_logging": "RL metrics logging (MLflow)",
+        "rl_metrics_tb": "RL metrics logging (TensorBoard)",
+        "rl_metrics_fanout": "RL metrics fan-out (DualLogger -> TB + MLflow)",
+        "omegaconf_flatten": "OmegaConf DictConfig flatten",
+        "scheduled_sync": "scheduled_sync round-trip (export -> import)",
         "scheduled_sync_filter": "scheduled_sync --researcher filter (multi-user)",
-        "sweep_logger":        "SweepLogger (parent-child runs)",
+        "sweep_logger": "SweepLogger (parent-child runs)",
     }
     all_passed = True
     for key, label in labels.items():
