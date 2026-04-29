@@ -1,8 +1,48 @@
-# 🖥️ NEXUS MLflow Server Setup Guide
+# 🖥️ NEXUS MLflow Server Setup
 
-> **Audience:** For those setting up an Ubuntu Linux PC as an internal MLflow server for the first time
+> **Purpose:** Set up an Ubuntu Linux PC as the team's central NEXUS MLflow server. After this guide, every GPU node syncs metrics to this server and the team browses runs in one UI.
 >
-> **Environment:** Ubuntu 22.04 LTS / Internal company LAN / Connected to Blackwell GPU server via SCP
+> **Audience:** Operators standing up the central server for the first time.
+>
+> **Environment:** Ubuntu 22.04 LTS / Internal company LAN / Connected to GPU servers via SCP
+
+---
+
+## 📑 Table of Contents
+
+- [⚡ TL;DR](#-tldr)
+- [📋 Overview of Steps](#-overview-of-steps)
+- [📌 Step 0 — Verify install on local PC first](#-step-0--verify-install-on-local-pc-first-recommended)
+- [📌 Step 1 — Understand network topology](#-step-1--understand-network-topology)
+- [📌 Step 2 — Basic server PC setup](#-step-2--basic-server-pc-setup)
+- [📌 Step 3 — Install MLflow and configure directories](#-step-3--install-mlflow-and-configure-directories)
+- [📌 Step 4 — Functional test (manual run)](#-step-4--functional-test-manual-run)
+- [📌 Step 5 — Firewall / port configuration](#-step-5--firewall--port-configuration)
+- [📌 Step 6 — Register systemd service (auto-start)](#-step-6--register-systemd-service-auto-start)
+- [📌 Step 7 — Verify team member access](#-step-7--verify-team-member-access)
+- [📌 Step 8 — Configure GPU server → MLflow server connection](#-step-8--configure-gpu-server--mlflow-server-connection)
+- [🗂️ Final configuration summary](#-final-configuration-summary)
+- [🛠️ Troubleshooting](#-troubleshooting)
+- [🗺️ Next steps](#-next-steps)
+
+---
+
+## ⚡ TL;DR
+
+```bash
+# On the spare PC that will become the MLflow server
+git clone https://github.com/jonghochoi/nexus.git && cd nexus
+bash setup.sh && source ~/.nexus/activate.sh
+
+# Verify the package works locally first (Step 0)
+python tests/smoke_test.py
+
+# Open port 5000, register the systemd service (Steps 5–6), then
+# verify from a teammate's PC at http://<server-ip>:5000
+```
+
+> [!IMPORTANT]
+> The central NEXUS server **does not need internet access**. It serves the team over the **internal LAN only**. A spare PC with 8 GB RAM + 100 GB disk is plenty for thousands of runs.
 
 ---
 
@@ -22,18 +62,18 @@ Step 8  Verify Blackwell connection
 
 ---
 
-## 💻 Step 0 — Verify install on local PC first *(recommended)*
+## 📌 Step 0 — Verify install on local PC first *(recommended)*
 
 > **Why:** Confirm that NEXUS itself works on a familiar machine before touching the server. If the smoke test fails locally, it will fail on the server too — debug it once on your laptop.
 
-### 0-1. Clone the repository
+### 0.1 Clone the repository
 
 ```bash
 git clone https://github.com/jonghochoi/nexus.git
 cd nexus
 ```
 
-### 0-2. Verify Python version
+### 0.2 Verify Python version
 
 ```bash
 python3 --version
@@ -41,7 +81,7 @@ python3 --version
 
 Must be `Python 3.8` or higher. 3.10 or 3.11 is recommended.
 
-### 0-3. Install environment
+### 0.3 Install environment
 
 ```bash
 bash setup.sh
@@ -50,7 +90,7 @@ source ~/.nexus/activate.sh   # or: nexus-activate (if you ran setup.sh --alias)
 
 The venv lives at `~/.nexus/venv` — **outside** the repo — so replacing or re-cloning nexus sources does not wipe it.
 
-### 0-4. Verify installation
+### 0.4 Verify installation
 
 ```bash
 python -c "import mlflow; print('mlflow:', mlflow.__version__)"
@@ -60,7 +100,7 @@ python -c "from nexus.logger import make_logger; print('logger OK')"
 
 If all three lines output without errors, the package install is sound.
 
-### 0-5. Start local MLflow + run smoke test
+### 0.5 Start local MLflow + run smoke test
 
 ```bash
 bash scheduled_sync/start_local_mlflow.sh   # boots :5100
@@ -75,11 +115,11 @@ The smoke test creates real runs under the `nexus_smoke_test` experiment on `htt
 
 ---
 
-## 🔍 Step 1 — Understand Network Topology
+## 📌 Step 1 — Understand network topology
 
 Before the actual installation, confirm that both servers are on the same internal network.
 
-### 1-1. Check the MLflow server (spare PC) IP address
+### 1.1 Check the MLflow server (spare PC) IP address
 
 **Run on the spare PC:**
 
@@ -97,7 +137,7 @@ inet 192.168.1.42/24 brd 192.168.1.255 scope global ens3
 
 ---
 
-### 1-2. Verify connectivity from Blackwell to the MLflow server
+### 1.2 Verify connectivity from GPU server to the MLflow server
 
 **Run on the Blackwell server:**
 
@@ -124,11 +164,11 @@ PING 192.168.1.42 (192.168.1.42) 56(84) bytes of data.
 
 ---
 
-## 🛠️ Step 2 — Basic Server PC Setup
+## 📌 Step 2 — Basic server PC setup
 
 **All subsequent commands are run on the spare PC (MLflow server).**
 
-### 2-1. System update
+### 2.1 System update
 
 ```bash
 sudo apt update && sudo apt upgrade -y
@@ -147,7 +187,7 @@ Calculating upgrade... Done
 
 ---
 
-### 2-2. Verify Python environment
+### 2.2 Verify Python environment
 
 ```bash
 python3 --version
@@ -165,7 +205,7 @@ pip 22.0.2 from /usr/lib/python3/dist-packages/pip (python 3.10)
 
 ---
 
-### 2-3. Install required packages
+### 2.3 Install required packages
 
 ```bash
 sudo apt install -y python3-pip python3-venv git curl net-tools
@@ -183,9 +223,9 @@ Setting up python3-venv (3.10.6-1~22.04) ...
 
 ---
 
-## 📦 Step 3 — Install MLflow and Configure Directories
+## 📌 Step 3 — Install MLflow and configure directories
 
-### 3-1. Create working directory
+### 3.1 Create working directory
 
 ```bash
 sudo mkdir -p /opt/nexus-mlflow
@@ -202,7 +242,7 @@ ls -la /opt/nexus-mlflow
 
 ---
 
-### 3-2. Create Python virtual environment and install MLflow
+### 3.2 Create Python virtual environment and install MLflow
 
 ```bash
 python3 -m venv venv
@@ -233,7 +273,7 @@ mlflow, version 2.13.0
 
 ---
 
-### 3-3. Create data storage directories
+### 3.3 Create data storage directories
 
 ```bash
 mkdir -p /opt/nexus-mlflow/mlruns       # Experiment metadata DB
@@ -267,7 +307,7 @@ tree /opt/nexus-mlflow
 
 ---
 
-## ✅ Step 4 — Functional Test (Manual Run)
+## 📌 Step 4 — Functional test (manual run)
 
 Before registering the service, run it manually first to verify it works correctly.
 
@@ -308,9 +348,9 @@ Press `Ctrl + C` to stop when done.
 
 ---
 
-## 🔥 Step 5 — Firewall / Port Configuration
+## 📌 Step 5 — Firewall / port configuration
 
-### 5-1. Install and verify SSH server (sshd)
+### 5.1 Install and verify SSH server (sshd)
 
 > ⚠️ **Freshly formatted PCs often do not have `openssh-server` installed.** If the SSH daemon is not running, Blackwell will encounter a `ssh: connect to host 192.168.1.42 port 22: Connection refused` error in Step 8. Verify that sshd is actually running before opening the firewall.
 
@@ -328,7 +368,7 @@ sudo systemctl status ssh
      Active: active (running) since ...
 ```
 
-- `Active: active (running)` → Proceed to Step 5-2.
+- `Active: active (running)` → Proceed to Step 5.2.
 - `Unit ssh.service could not be found` or `inactive (dead)` → Install/start using step 2) below.
 
 **2) Install and start `openssh-server`:**
@@ -355,7 +395,7 @@ LISTEN 0  128  0.0.0.0:22  0.0.0.0:*  users:(("sshd",...))
 
 ---
 
-### 5-2. Check current firewall status
+### 5.2 Check current firewall status
 
 ```bash
 sudo ufw status
@@ -379,7 +419,7 @@ To                         Action      From
 
 ---
 
-### 5-3. Open required ports
+### 5.3 Open required ports
 
 ```bash
 # SSH (required for Blackwell SCP transfer)
@@ -391,7 +431,7 @@ sudo ufw allow 5000/tcp comment 'NEXUS MLflow Server'
 
 ---
 
-### 5-4. Enable firewall
+### 5.4 Enable firewall
 
 ```bash
 sudo ufw enable
@@ -428,18 +468,18 @@ To                         Action      From
 
 ---
 
-## ⚙️ Step 6 — Register systemd Service (Auto-start)
+## 📌 Step 6 — Register systemd service (auto-start)
 
 Register the MLflow server to start automatically even after a PC reboot.
 
-### 6-1. Check current username
+### 6.1 Check current username
 
 ```bash
 echo $USER
 # Example: jonghochoi
 ```
 
-### 6-2. Create service file
+### 6.2 Create service file
 
 ```bash
 sudo tee /etc/systemd/system/nexus-mlflow.service > /dev/null << EOF
@@ -479,7 +519,7 @@ Confirm that the `User=` line shows your account name correctly.
 
 ---
 
-### 6-3. Register and start service
+### 6.3 Register and start service
 
 ```bash
 # Reload systemd (recognize new service file)
@@ -494,7 +534,7 @@ sudo systemctl start nexus-mlflow
 
 ---
 
-### 6-4. Verify service status
+### 6.4 Verify service status
 
 ```bash
 sudo systemctl status nexus-mlflow
@@ -527,7 +567,7 @@ Apr 18 10:20:01 nexus-server mlflow[13579]: [INFO] Listening at: http://0.0.0.0:
 
 ---
 
-### 6-5. Useful service management commands
+### 6.5 Useful service management commands
 
 ```bash
 # Stop service
@@ -581,9 +621,9 @@ source ~/.bashrc
 
 ---
 
-## 👥 Step 7 — Verify Team Member Access
+## 📌 Step 7 — Verify team member access
 
-### 7-1. Confirm final access address
+### 7.1 Confirm final access address
 
 ```bash
 hostname -I | awk '{print $1}'
@@ -596,7 +636,7 @@ Share the following address with your team members:
 http://192.168.1.42:5000
 ```
 
-### 7-2. Connection test from team member PC
+### 7.2 Connection test from team member PC
 
 When a team member opens the above URL in their browser and sees the MLflow UI shown below, the setup is successful.
 
@@ -612,7 +652,7 @@ When a team member opens the above URL in their browser and sees the MLflow UI s
 └─────────────────────────────────────────┘
 ```
 
-### 7-3. Troubleshooting checklist when unable to connect
+### 7.3 Troubleshooting checklist when unable to connect
 
 ```bash
 # Run on the MLflow server PC
@@ -631,9 +671,9 @@ sudo ufw status | grep 5000
 
 ---
 
-## 🔗 Step 8 — Configure Blackwell → MLflow Server Connection
+## 📌 Step 8 — Configure GPU server → MLflow server connection
 
-### 8-1. Generate SSH key on Blackwell
+### 8.1 Generate SSH key on the GPU server
 
 **Run on the Blackwell server:**
 
@@ -658,7 +698,7 @@ SHA256:xxxxxxxxxxxxxxxxxxxx blackwell-to-nexus
 
 ---
 
-### 8-2. Register public key on the MLflow server
+### 8.2 Register public key on the MLflow server
 
 **Run on the Blackwell server:**
 
@@ -682,7 +722,7 @@ and check to make sure that only the key(s) you wanted were added.
 
 ---
 
-### 8-3. Verify key-based access (without password)
+### 8.3 Verify key-based access (without password)
 
 ```bash
 ssh -i ~/.ssh/nexus_key USER@192.168.1.42 "echo 'NEXUS connection successful'"
@@ -698,7 +738,7 @@ NEXUS connection successful
 
 ---
 
-### 8-4. SCP file transfer test
+### 8.4 SCP file transfer test
 
 ```bash
 # Transfer test file
@@ -717,7 +757,7 @@ nexus test
 
 ---
 
-### 8-5. Full sync pipeline validation
+### 8.5 Full sync pipeline validation
 
 Once the SSH key and SCP transfer are confirmed, the server setup is complete.
 
@@ -756,14 +796,24 @@ After setup is complete, the structure will be as follows:
 
 ---
 
-## ⚠️ Common Issues
+## 🛠️ Troubleshooting
 
 | Symptom | Cause | Solution |
 |---|---|---|
 | Cannot access browser | Firewall blocking | `sudo ufw allow 5000/tcp` |
-| `port 22: Connection refused` | `openssh-server` not installed or sshd not running on MLflow server | See Step 5-1 → `sudo apt install -y openssh-server && sudo systemctl enable --now ssh` |
+| `port 22: Connection refused` | `openssh-server` not installed or sshd not running on MLflow server | See Step 5.1 → `sudo apt install -y openssh-server && sudo systemctl enable --now ssh` |
 | Service fails to start | Path error | Check logs with `journalctl -u nexus-mlflow -n 30` |
 | SCP keeps asking for password | Key not registered | Re-run `ssh-copy-id` |
 | Disk full | Artifact accumulation | Check with `df -h` and delete old run artifacts |
 | Server not starting after reboot | Not enabled | `sudo systemctl enable nexus-mlflow` |
-| `tb_to_mlflow.py --upload_artifacts` → `PermissionError: /opt/nexus-mlflow/artifacts/...` | Server was started with `--default-artifact-root <local-path>`, which forces the remote client to write directly to that path. | Restart the server with `--artifacts-destination /opt/nexus-mlflow/artifacts --serve-artifacts` (see Step 4 / 6-2). Clients will then upload artifacts over HTTP through the server. |
+| `tb_to_mlflow.py --upload_artifacts` → `PermissionError: /opt/nexus-mlflow/artifacts/...` | Server was started with `--default-artifact-root <local-path>`, which forces the remote client to write directly to that path. | Restart the server with `--artifacts-destination /opt/nexus-mlflow/artifacts --serve-artifacts` (see Step 4 / 6.2). Clients will then upload artifacts over HTTP through the server. |
+
+---
+
+## 🗺️ Next steps
+
+After the central server is up and team members can reach the MLflow UI:
+
+- **Bring up GPU nodes (offline)** → [`21_AIRGAPPED_GPU_SERVER_SETUP.md`](21_AIRGAPPED_GPU_SERVER_SETUP.md)
+- **Wire scheduled cron sync from each GPU node** → [`12_SCHEDULED_SYNC.md`](12_SCHEDULED_SYNC.md)
+- **Persist team-wide MLflow chart/column layout** → [`31_CHART_SETTINGS_GUIDE.md`](31_CHART_SETTINGS_GUIDE.md)
