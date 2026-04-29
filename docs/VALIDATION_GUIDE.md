@@ -522,7 +522,7 @@ import os
 
 self.writer = make_logger(
     mode="dual",
-    log_dir=output_dir,
+    tb_dir=output_dir,
     run_name=os.path.basename(output_dir),
     tracking_uri="http://127.0.0.1:5100",
     experiment_name="robot_hand_rl",

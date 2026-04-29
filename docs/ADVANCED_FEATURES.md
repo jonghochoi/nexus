@@ -39,7 +39,6 @@ sweep = SweepLogger(
 for lr in [1e-4, 3e-4, 1e-3]:
     logger = make_logger(
         mode="mlflow",
-        log_dir="/tmp/tb",
         run_name=f"ppo_lr_{lr}",
         tracking_uri="http://127.0.0.1:5100",
         experiment_name="robot_hand_rl",

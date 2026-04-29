@@ -38,7 +38,7 @@ self.writer = SummaryWriter(log_dir=output_dir)
 # ✅ After
 self.writer = make_logger(
     mode="dual",                         # "dual" | "mlflow" | "tensorboard"
-    log_dir=output_dir,                  # TensorBoard log dir (same as before)
+    tb_dir=output_dir,                   # TensorBoard log dir (omit when mode="mlflow")
     run_name=os.path.basename(output_dir),
     tracking_uri="http://127.0.0.1:5100",
     experiment_name=agent_cfg.get("experiment_name", "robot_hand_rl"),
@@ -140,7 +140,7 @@ This starts a local MLflow server on `127.0.0.1:5100`. All GPU processes on the 
 -        self.writer = SummaryWriter(log_dir=output_dir)
 +        self.writer = make_logger(
 +            mode="dual",
-+            log_dir=output_dir,
++            tb_dir=output_dir,
 +            run_name=os.path.basename(output_dir),
 +            tracking_uri="http://127.0.0.1:5100",
 +            experiment_name=agent_cfg.get("experiment_name", "robot_hand_rl"),

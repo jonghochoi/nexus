@@ -72,7 +72,7 @@ self.writer = SummaryWriter(log_dir=output_dir)
 
 # ✅ 변경 후 — [NXS] 듀얼 로깅 활성화
 from nexus.logger import make_logger
-self.writer = make_logger(mode="dual", log_dir=output_dir, run_name=..., ...)
+self.writer = make_logger(mode="dual", tb_dir=output_dir, run_name=..., ...)
 ```
 
 > `write_stats()` 는 **단 한 줄도 바꾸지 않습니다.**
