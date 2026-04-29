@@ -492,6 +492,10 @@ def main():
     if args.git_commit:
         tags["git_commit"] = args.git_commit
 
+    # experiment tag is auto-injected from --experiment so required-tag
+    # validation passes without prompting the user for it explicitly.
+    tags.setdefault("experiment", experiment)
+
     required = required_tags(experiment)
 
     if args.interactive:

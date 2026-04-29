@@ -49,7 +49,7 @@
 |---|---|
 | 📈 **Metrics (시계열)** | `losses/actor_loss`, `performance/RLTrainFPS`, `info/kl` |
 | ⚙️ **하이퍼파라미터** | `lr`, `gamma`, `e_clip`, reward weights |
-| 🏷️ **재현성 Tags** | `seed`, `isaac_lab_version`, `physx_solver`, `researcher` |
+| 🏷️ **재현성 Tags** | `experiment`, `researcher`, `task`, `hardware` |
 | 💾 **Artifacts** | `best.pth`, `last.pth` |
 | ℹ️ **Run 메타데이터** | 시작 시각, 소요 시간, 사용 GPU, status |
 | 🔗 **Sim-to-Real 연결** | Real 평가 Run의 `sim_run_id` tag |
@@ -191,14 +191,14 @@ final_real           ← 버전이 없음
 
 | Tag 키 | 설명 | 예시 값 |
 |---|---|---|
+| `experiment` | 실험 그룹 이름 (`--experiment` 에서 자동 주입) | `robot_hand_rl` |
 | `researcher` | 실험 수행자 (환경변수 `$USER` 자동 감지) | `kim` |
-| `seed` | 랜덤 시드 | `42` |
-| `isaac_lab_version` | Isaac Lab 버전 | `1.2.0` |
-| `physx_solver` | PhysX 솔버 종류 | `TGS`, `PGS` |
+| `task` | 태스크 이름 | `in_hand_reorientation` |
+| `hardware` | 사용 하드웨어 식별자 | `robot_22dof` |
 | `method` | 핵심 방법론 | `ppo`, `tactile`, `contact` |
 | `status` | 실험 진행 상태 (자동 갱신) | `running` → `done` / `failed` |
 
-> ⚠️ 위 6개 Tag 중 하나라도 빠지면 재현 및 비교가 불가능합니다.
+> ⚠️ 위 4개 Tag 중 하나라도 빠지면 재현 및 비교가 불가능합니다.
 
 ### 3-2. 선택 Tags *(필요 시 연구자가 추가)*
 
@@ -428,9 +428,9 @@ self.writer = make_logger(
 - [ ] Experiment 이름 결정 (기존 목록에서 선택 또는 팀 합의)
 - [ ] Run 이름 규칙 확인 (`<연구자>_<방법론>_<핵심변수>_<버전>`)
 - [ ] `agent_cfg`에 필수 Tags 항목 포함 확인
-  - [ ] `seed`
-  - [ ] `isaac_lab_version`
-  - [ ] `physx_solver`
+  - [ ] `researcher`
+  - [ ] `task`
+  - [ ] `hardware`
   - [ ] `method`
 - [ ] 로컬 MLflow 서버 실행 확인 (`bash start_local_mlflow.sh`)
 

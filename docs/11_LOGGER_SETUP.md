@@ -44,12 +44,9 @@ self.writer = make_logger(
     experiment_name=agent_cfg.get("experiment_name", "robot_hand_rl"),
     params=agent_cfg,                    # logs all hyperparams once at run start
     tags={
-        "researcher":        os.environ.get("USER", "unknown"),
-        "task":              agent_cfg.get("task", "unknown"),
-        "hardware":          "robot_22dof",
-        "seed":              str(agent_cfg.get("seed", -1)),
-        "isaac_lab_version": agent_cfg.get("isaac_lab_version", "unknown"),
-        "physx_solver":      agent_cfg.get("physx_solver", "TGS"),
+        "researcher": os.environ.get("USER", "unknown"),
+        "task":       agent_cfg.get("task", "unknown"),
+        "hardware":   "robot_22dof",
     },
 )
 ```
@@ -119,7 +116,7 @@ This starts a local MLflow server on `127.0.0.1:5100`. All GPU processes on the 
 | Data | When | MLflow path |
 |---|---|---|
 | Hyperparameters (`agent_cfg`) | Run start | Parameters tab |
-| Tags (researcher, task, seed …) | Run start | Tags tab |
+| Tags (experiment, researcher, task, hardware …) | Run start | Tags tab |
 | `git_commit`, `git_dirty` tags | Run start | Tags tab |
 | `git_patch.diff` | Run start *(dirty tree only)* | `git/git_patch.diff` |
 | Metrics (loss, FPS, reward …) | Every step | Metrics tab |
@@ -146,12 +143,9 @@ This starts a local MLflow server on `127.0.0.1:5100`. All GPU processes on the 
 +            experiment_name=agent_cfg.get("experiment_name", "robot_hand_rl"),
 +            params=agent_cfg,
 +            tags={
-+                "researcher":        os.environ.get("USER", "unknown"),
-+                "task":              agent_cfg.get("task", "unknown"),
-+                "hardware":          "robot_22dof",
-+                "seed":              str(agent_cfg.get("seed", -1)),
-+                "isaac_lab_version": agent_cfg.get("isaac_lab_version", "unknown"),
-+                "physx_solver":      agent_cfg.get("physx_solver", "TGS"),
++                "researcher": os.environ.get("USER", "unknown"),
++                "task":       agent_cfg.get("task", "unknown"),
++                "hardware":   "robot_22dof",
 +            },
 +        )
 

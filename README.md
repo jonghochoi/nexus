@@ -128,7 +128,7 @@ logger = make_logger(
     experiment_name="robot_hand_rl",
     run_name="ppo_baseline_v1",
     tracking_uri="http://127.0.0.1:5100",         # local MLflow on this GPU node
-    tags={"researcher": "kim", "seed": "42", "task": "in_hand_reorientation"},
+    tags={"researcher": "kim", "task": "in_hand_reorientation", "hardware": "robot_22dof"},
 )
 logger.add_scalar("train/loss", 0.5, step=100)    # SummaryWriter-compatible
 ```
@@ -184,16 +184,12 @@ The full flag reference, interactive mode, upload history, `sim_run_id` auto-det
 
 ## 🏷️ Recommended Tags *(reproducibility)*
 
-> ⚠️ Isaac Lab / PhysX results are non-deterministic without fixed seeds and solver configs. Set these tags for **every** run — no exceptions.
->
 > Canonical sources: [`docs/00_PRINCIPLES.md#required-tags`](docs/00_PRINCIPLES.md#-required-tags), [`docs/ko/02_EXPERIMENT_STANDARD.md` § 3-1](docs/ko/02_EXPERIMENT_STANDARD.md#-3-tags-규칙), and [`post_upload/config.py::required_tags()`](post_upload/config.py).
 
 | Tag | Example | Required |
 |---|---|:---:|
+| `experiment` | `robot_hand_rl` | ✅ *(auto from `--experiment`)* |
 | `researcher` | `kim` | ✅ |
-| `seed` | `42` | ✅ |
-| `isaac_lab_version` | `1.2.0` | ✅ |
-| `physx_solver` | `TGS` | ✅ |
 | `task` | `in_hand_reorientation` | ✅ |
 | `hardware` | `robot_22dof` | ✅ |
 | `sim_run_id` | `<upstream_run_id>` | ✅ *(real-robot eval only)* |

@@ -198,8 +198,6 @@ Example:
   "experiment": "robot_hand_rl",
   "tags": {
     "researcher": "kim",
-    "isaac_lab_version": "1.2.0",
-    "physx_solver": "TGS",
     "hardware": "robot_22dof"
   }
 }
@@ -210,7 +208,7 @@ Example:
 | `tracking_uri` | Central MLflow server URL (local testing: `http://127.0.0.1:5100`) |
 | `experiment` | Default experiment name |
 | `tags.researcher` | Your name — per-user, set once and forget |
-| `tags.isaac_lab_version`, `physx_solver`, `hardware` | Team-fixed reproducibility tags |
+| `tags.hardware` | Hardware identifier — team-fixed reproducibility tag |
 
 Override the config path with `--config /path/to/other.json` (useful for CI or second-machine setups).
 
@@ -223,9 +221,10 @@ Override the config path with `--config /path/to/other.json` (useful for CI or s
 
 | Tag | Source | Notes |
 |---|---|---|
+| `experiment` | auto from `--experiment` | Injected automatically — no manual entry needed |
 | `researcher` | `~/.nexus/post_config.json` | Set once per user |
-| `seed` | `--tags` or interactive prompt | Per-run |
 | `task` | `--tags` or interactive prompt | Per-run |
+| `hardware` | `~/.nexus/post_config.json` | Set once per setup |
 | `sim_run_id` | run_meta.json or `--tags` | **Required** when `experiment=real_robot_eval` (see Step 5) |
 
 ### 2.1 Interactive prompting
@@ -233,10 +232,9 @@ Override the config path with `--config /path/to/other.json` (useful for CI or s
 - **Automatic** — if any required tag is missing and `stdin` is a TTY, the CLI enters interactive mode and prompts only for the missing values, showing config values as defaults:
 
   ```
-  Missing required tags: seed, task — entering interactive mode.
+  Missing required tags: task — entering interactive mode.
 
   Interactive tag entry (press Enter to accept default)
-    seed: 42
     task: in_hand_reorientation
   ```
 
@@ -467,8 +465,6 @@ $EDITOR ~/.nexus/post_config.json
   "experiment": "robot_hand_rl",
   "tags": {
     "researcher": "lee",
-    "isaac_lab_version": "1.2.0",
-    "physx_solver": "TGS",
     "hardware": "robot_22dof"
   }
 }
@@ -482,10 +478,9 @@ $ python post_upload/upload_tb.py --tb_dir ./logs/ppo_first_try
 ──────── TensorBoard -> MLflow Uploader ────────
 Config source: /home/lee/.nexus/post_config.json
 
-Missing required tags: seed, task — entering interactive mode.
+Missing required tags: task — entering interactive mode.
 
 Interactive tag entry (press Enter to accept default)
-  seed: 42
   task: in_hand_reorientation
 
 Discovered tfevents files:
@@ -493,7 +488,7 @@ Discovered tfevents files:
 
 [metric summary table ...]
 
-Tags to upload: {researcher: lee, seed: 42, task: in_hand_reorientation, ...}
+Tags to upload: {experiment: robot_hand_rl, researcher: lee, task: in_hand_reorientation, hardware: robot_22dof, ...}
 Upload the above data to MLflow? (y/n): y
 
 [upload progress ...]
@@ -676,9 +671,7 @@ In CI (no TTY) every required tag must be explicit; there's no interactive fallb
         --experiment   robot_hand_rl \
         --run_name     ${RUN_NAME} \
         --tracking_uri ${MLFLOW_URI} \
-        --tags         researcher=ci seed=${SEED} task=${TASK} \
-                       isaac_lab_version=${ISAAC_VER} \
-                       physx_solver=TGS hardware=robot_22dof
+        --tags         researcher=ci task=${TASK} hardware=robot_22dof
 ```
 
 Exit codes you can branch on:

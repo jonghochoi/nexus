@@ -20,15 +20,14 @@ BUILTIN_DEFAULTS = {
     "tracking_uri": "http://127.0.0.1:5000",
     "experiment": "robot_hand_rl",
     "tags": {
-        "isaac_lab_version": "1.2.0",
-        "physx_solver": "TGS",
         "hardware": "robot_22dof",
     },
 }
 
-# Tags that must be present on every uploaded run (seed & task are per-run;
-# researcher is per-user but is typically set in ~/.nexus/post_config.json).
-_BASE_REQUIRED = ("researcher", "seed", "task")
+# Tags that must be present on every uploaded run (experiment & task are per-run;
+# researcher is per-user but is typically set in ~/.nexus/post_config.json;
+# experiment is auto-injected from the --experiment argument in upload_tb.py).
+_BASE_REQUIRED = ("experiment", "researcher", "task", "hardware")
 
 # Experiments where sim_run_id becomes required for Sim-to-Real traceability
 # (see docs/ko/02_EXPERIMENT_STANDARD.md: real_robot_eval needs sim_run_id).

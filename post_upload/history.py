@@ -169,7 +169,7 @@ def print_history(script: Optional[str] = None) -> None:
             )
             extra = ", ".join(
                 f"{k}={r['tags'][k]}"
-                for k in ("seed", "task", "researcher")
+                for k in ("task", "researcher", "hardware")
                 if k in r.get("tags", {})
             )
         table.add_row(
