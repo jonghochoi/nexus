@@ -151,6 +151,64 @@ PPO.write_stats()
 
 ---
 
+## 📁 Repository Structure
+
+```
+nexus/
+│
+├── nexus/                          # Importable Python package (`from nexus.logger import ...`)
+│   └── logger/                     # Unified logging package
+│       ├── __init__.py             # make_logger() factory (core exports only)
+│       ├── dual_logger.py          # TensorBoard + MLflow simultaneously
+│       ├── mlflow_logger.py        # MLflow-only logger
+│       ├── tb_logger.py            # TensorBoard wrapper (legacy compat)
+│       ├── git_utils.py            # Git commit/dirty-state capture (auto-called at run start)
+│       ├── sweep_logger.py         # [Advanced] HP sweep parent run
+│       ├── model_registry.py       # [Advanced] Model Registry operations
+│       ├── rl_metrics.py           # [Advanced] RL diagnostic metric helpers
+│       └── system_metrics.py       # [Advanced] Background CPU/GPU logging
+│
+├── post_upload/                    # Pipeline B — upload after training
+│   ├── tb_to_mlflow.py             # Full tfevents → MLflow batch upload
+│   └── verify_upload.py            # Numeric validation vs. TB source
+│
+├── scheduled_sync/                 # Pipeline A — sync while training runs (air-gapped SCP)
+│   ├── start_local_mlflow.sh       # [GPU Server] start local MLflow server
+│   ├── sync_mlflow_to_server.sh    # [GPU Server] delta export → SCP → import
+│   ├── export_delta.py             # [GPU Server] serialize new metrics only
+│   └── import_delta.py             # [MLflow server] import delta JSON
+│
+├── chart_settings/                 # Persist MLflow UI column/chart settings
+│   ├── chart_settings.json         # Team-standard column and chart configuration
+│   └── apply_chart_settings.py     # CLI: apply / show / bookmarklet
+│
+├── tests/
+│   └── smoke_test.py               # End-to-end local validation script
+│
+├── docs/                           # Filename prefix conveys reading order (00 → 30)
+│   ├── 00_PRINCIPLES.md            # Canonical team-agreed rules + engineering invariants
+│   ├── 10_ARCHITECTURE.md          # ← You are here. System design & component map
+│   ├── 11_LOGGER_SETUP.md          # Pipeline A — logger integration (step-by-step diff)
+│   ├── 12_SCHEDULED_SYNC.md        # Pipeline A — cron sync wiring (config, validate, multi-user)
+│   ├── 13_POST_UPLOAD.md           # Pipeline B — tb_to_mlflow CLI in depth
+│   ├── 20_MLFLOW_SERVER_SETUP.md   # Operator — central MLflow server install (incl. local PC verify)
+│   ├── 21_AIRGAPPED_GPU_SERVER_SETUP.md  # Operator — GPU node offline bring-up (pip wheel / Docker, incl. verify)
+│   ├── 30_ADVANCED_FEATURES.md     # Opt-in — SweepLogger, RL metrics, Model Registry
+│   ├── 31_CHART_SETTINGS_GUIDE.md  # Opt-in — persist MLflow chart/column settings
+│   └── ko/                         # 🇰🇷 Korean onboarding & operational policy track
+│       ├── README.md               # Korean track index + reading order
+│       ├── 01_INTRO.md             # 동기·두 파이프라인 개념·FAQ
+│       └── 02_EXPERIMENT_STANDARD.md  # 명명 규칙·태그·라이프사이클·Confluence 템플릿
+│
+├── brand.py                        # ASCII art, sigils, color constants
+├── setup.sh
+└── github_init.sh
+```
+
+The next section maps each runtime component (factory, loggers, sync scripts) to its on-disk location, with one-line role descriptions.
+
+---
+
 ## 🧩 Component Map
 
 | Component | Location | Purpose |
