@@ -8,13 +8,43 @@
 
 ## 📑 Table of Contents
 
+- [⚡ TL;DR](#-tldr)
 - [📋 Prerequisites](#-prerequisites)
-- [💻 Step 0 — Verify install on local PC first](#-step-0--verify-install-on-local-pc-first-recommended)
+- [📌 Step 0 — Verify install on local PC first](#-step-0--verify-install-on-local-pc-first-recommended)
 - [🅰️ Method A — pip wheel offline transfer](#-method-a--pip-wheel-offline-transfer-no-docker-required-recommended)
 - [🅱️ Method B — Docker image transfer](#-method-b--docker-image-transfer-fully-isolated-environment-when-docker-is-available)
 - [🧭 Method selection criteria](#-method-selection-criteria)
-- [✅ Step C — Verify install on the GPU node](#-step-c--verify-install-on-the-gpu-node)
+- [📌 Step C — Verify install on the GPU node](#-step-c--verify-install-on-the-gpu-node)
 - [🛠️ Troubleshooting](#-troubleshooting)
+- [🗺️ Next steps](#-next-steps)
+
+---
+
+## ⚡ TL;DR
+
+```bash
+# On your internet-connected local PC — pin to the GPU server's Python
+export GPU_PY=3.12 GPU_PLATFORM=manylinux2014_x86_64
+pip download --platform "$GPU_PLATFORM" --python-version "$GPU_PY" \
+    --only-binary=:all: -d ./nexus_wheels \
+    virtualenv mlflow==2.13.0 tbparse==0.0.8 tensorboard==2.16.2 tensorboardX pandas rich
+
+# Transfer to the GPU server
+scp -r nexus_wheels nexus user@gpu-server:~/
+
+# On the GPU server — offline install via virtualenv
+cd ~/nexus
+pip install --no-index --find-links ~/nexus_wheels --break-system-packages virtualenv
+python3 -m virtualenv ~/.nexus/venv && source ~/.nexus/venv/bin/activate
+pip install --no-index --find-links ~/nexus_wheels mlflow==2.13.0 tbparse==0.0.8 \
+    tensorboard==2.16.2 tensorboardX pandas rich
+
+# Verify (Step C)
+python tests/smoke_test.py
+```
+
+> [!IMPORTANT]
+> **Wheels must match the GPU server's Python**, not your local Python. Always pin `--python-version` and `--platform` to the values reported by the GPU server. Defaults below assume Method A; choose Method B (Docker) if your GPU server has Docker.
 
 ---
 
@@ -30,18 +60,18 @@ The GPU server needs **outgoing SSH** to your local PC only for the initial tran
 
 ---
 
-## 💻 Step 0 — Verify install on local PC first *(recommended)*
+## 📌 Step 0 — Verify install on local PC first *(recommended)*
 
 > **Why:** Confirm that NEXUS itself works on a familiar machine before pinning wheels for an offline target. If the smoke test fails locally, it will fail on the GPU node too — debug it once on your laptop.
 
-### 0-1. Clone the repository
+### 0.1 Clone the repository
 
 ```bash
 git clone https://github.com/jonghochoi/nexus.git
 cd nexus
 ```
 
-### 0-2. Verify Python version
+### 0.2 Verify Python version
 
 ```bash
 python3 --version
@@ -49,7 +79,7 @@ python3 --version
 
 Must be `Python 3.8` or higher. 3.10 or 3.11 is recommended.
 
-### 0-3. Install environment
+### 0.3 Install environment
 
 ```bash
 bash setup.sh
@@ -58,7 +88,7 @@ source ~/.nexus/activate.sh   # or: nexus-activate (if you ran setup.sh --alias)
 
 The venv lives at `~/.nexus/venv` — **outside** the repo — so replacing or re-cloning nexus sources does not wipe it.
 
-### 0-4. Verify installation
+### 0.4 Verify installation
 
 ```bash
 python -c "import mlflow; print('mlflow:', mlflow.__version__)"
@@ -68,7 +98,7 @@ python -c "from nexus.logger import make_logger; print('logger OK')"
 
 If all three lines output without errors, the package install is sound.
 
-### 0-5. Start local MLflow + run smoke test
+### 0.5 Start local MLflow + run smoke test
 
 ```bash
 bash scheduled_sync/start_local_mlflow.sh   # boots :5100
@@ -87,7 +117,7 @@ This method works without Docker and transfers only Python packages, so the bund
 
 > ⚠️ **Wheels must match the GPU server's Python, not your local Python.** The OS / Python version on your local PC and the GPU server almost always differ. The `--python-version` flag below refers to the **target (GPU server) Python**, not your local one. Your local Python only needs to be new enough to run `pip download` (any 3.8+ is fine).
 
-### A-1. On local machine — Download wheel files
+### A.1 On local machine — Download wheel files
 
 **Step 1 — Check the GPU server's Python version and architecture first:**
 
@@ -125,7 +155,7 @@ pip download \
     rich
 ```
 
-### A-2. On local machine — Transfer nexus code + wheel files to GPU server
+### A.2 On local machine — Transfer nexus code + wheel files to GPU server
 
 ```bash
 # Transfer nexus_wheels folder and nexus code.
@@ -137,7 +167,7 @@ scp -r nexus        user@gpu-server:~/
 
 > If SSH uses a non-standard port, add the `-P port_number` option. Example: `scp -P 22222 -r nexus_wheels user@gpu-server:~/`
 
-### A-3. On GPU server — Offline installation
+### A.3 On GPU server — Offline installation
 
 After SSH-ing into the GPU server. `~` below automatically expands to the current login user's home directory, so these commands work regardless of your username.
 
@@ -183,7 +213,7 @@ pip install \
 
 If Docker is installed on the GPU server, this method is the most reliable.
 
-### B-1. On local machine — Write Dockerfile
+### B.1 On local machine — Write Dockerfile
 
 Create the following `Dockerfile` in the `nexus/` folder. The base image's Python version is self-contained inside the container — it does **not** need to match the GPU server's system Python. Pick any 3.10+ tag that your code is tested on (`python:3.10-slim`, `python:3.11-slim`, `python:3.12-slim`, etc.).
 
@@ -207,7 +237,7 @@ COPY . /nexus/
 CMD ["bash"]
 ```
 
-### B-2. On local machine — Build and save image
+### B.2 On local machine — Build and save image
 
 ```bash
 cd nexus/
@@ -224,13 +254,13 @@ ls -lh nexus-env.tar.gz
 
 > Image size is typically 500MB–1GB.
 
-### B-3. Transfer image to GPU server
+### B.3 Transfer image to GPU server
 
 ```bash
 scp nexus-env.tar.gz user@gpu-server:~/
 ```
 
-### B-4. On GPU server — Load and run image
+### B.4 On GPU server — Load and run image
 
 ```bash
 # Load image (from the SSH-logged-in user's home directory)
@@ -259,11 +289,11 @@ Run all subsequent commands inside the container.
 
 ---
 
-## ✅ Step C — Verify install on the GPU node
+## 📌 Step C — Verify install on the GPU node
 
 > **Purpose:** Confirm the offline install actually works before wiring cron sync. Run all commands while SSH-connected to the GPU server.
 
-### C-1. Verify installation
+### C.1 Verify installation
 
 ```bash
 cd ~/nexus
@@ -273,7 +303,7 @@ python -c "import mlflow; print('mlflow:', mlflow.__version__)"
 python -c "from nexus.logger import make_logger; print('logger OK')"
 ```
 
-### C-2. Start local MLflow server (inside GPU server)
+### C.2 Start local MLflow server (inside GPU server)
 
 ```bash
 bash scheduled_sync/start_local_mlflow.sh
@@ -287,7 +317,7 @@ bash scheduled_sync/start_local_mlflow.sh
 > # Then access http://localhost:5100 in the local browser
 > ```
 
-### C-3. Run smoke test
+### C.3 Run smoke test
 
 ```bash
 python tests/smoke_test.py
@@ -295,7 +325,7 @@ python tests/smoke_test.py
 
 All items must show `[PASS]`, same as on the local PC.
 
-### C-4. Integrated test with actual training code (optional)
+### C.4 Integrated test with actual training code (optional)
 
 If you have modified the trainer to use `make_logger`, run a short training session (e.g., 100 steps) to verify metrics are recorded. See [`11_LOGGER_SETUP.md`](11_LOGGER_SETUP.md) for the integration diff.
 
@@ -349,7 +379,7 @@ After creating and activating a virtual environment (e.g. `python3 -m virtualenv
 Starting from setuptools version 70+, `pkg_resources` has been removed from wheels. Switch to the last stable version that includes `pkg_resources` (69.5.1):
 
 ```bash
-# On local machine: download pinned version (uses GPU_PY / GPU_PLATFORM from A-1)
+# On local machine: download pinned version (uses GPU_PY / GPU_PLATFORM from A.1)
 pip download --platform "${GPU_PLATFORM}" --python-version "${GPU_PY}" \
     --only-binary=:all: -d ./nexus_wheels "setuptools==69.5.1"
 
@@ -367,7 +397,7 @@ python -c "import pkg_resources; print('OK')"
 Some packages don't have binary wheels and require source compilation. Separate individual packages instead of using `--only-binary=:all:`:
 
 ```bash
-# Packages with binary wheels (uses GPU_PY / GPU_PLATFORM from A-1)
+# Packages with binary wheels (uses GPU_PY / GPU_PLATFORM from A.1)
 pip download --platform "${GPU_PLATFORM}" --python-version "${GPU_PY}" \
     --only-binary=:all: -d ./nexus_wheels \
     mlflow==2.13.0 pandas rich virtualenv
