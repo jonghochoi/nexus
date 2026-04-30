@@ -18,8 +18,10 @@ Key behaviors:
 from __future__ import annotations
 
 import atexit
+import dataclasses
 import json
 import os
+import re
 import shutil
 import tempfile
 import time
@@ -56,6 +58,7 @@ class MLflowLogger:
         tags: Optional[dict] = None,
         parent_run_id: Optional[str] = None,
         track_git: bool = True,  # set False if not inside a git repo or to suppress git tags
+        max_param_depth: Optional[int] = None,  # None = flatten fully; 1 = top-level scalars only
     ):
         self.run_name = run_name
         self.tracking_uri = tracking_uri
@@ -76,12 +79,12 @@ class MLflowLogger:
         self._track_git = track_git
 
         if params:
-            self._log_params(params)
+            self._log_params(params, max_depth=max_param_depth)
         if agent_params:
-            self._log_params(agent_params, prefix="agent")
+            self._log_params(agent_params, prefix="agent", max_depth=max_param_depth)
             self._log_params_as_artifact(agent_params, "agent_params.json")
         if env_params:
-            self._log_params(env_params, prefix="env")
+            self._log_params(env_params, prefix="env", max_depth=max_param_depth)
             self._log_params_as_artifact(env_params, "env_params.json")
 
         if track_git:
@@ -228,43 +231,113 @@ class MLflowLogger:
         return run.info.run_id
 
     def _log_git_patch(self) -> None:
-        """Upload git diff HEAD as artifacts/git/git_patch.diff when the tree is dirty."""
+        """Upload git diff HEAD as artifacts/git/ when the tree is dirty.
+
+        Two files are written: git_patch.diff (raw, for git apply) and
+        git_patch.html (color-rendered, viewable inline in the MLflow UI).
+        """
         patch = get_git_patch()
         if not patch:
             return
         with tempfile.TemporaryDirectory() as tmp:
-            patch_path = os.path.join(tmp, "git_patch.diff")
-            with open(patch_path, "w") as f:
+            diff_path = os.path.join(tmp, "git_patch.diff")
+            with open(diff_path, "w") as f:
                 f.write(patch)
-            self._client.log_artifact(self._run_id, patch_path, "git")
+            html_path = os.path.join(tmp, "git_patch.html")
+            with open(html_path, "w") as f:
+                f.write(self._render_diff_html(patch))
+            self._client.log_artifact(self._run_id, diff_path, "git")
+            self._client.log_artifact(self._run_id, html_path, "git")
         print(
-            "[MLflowLogger] Dirty working tree detected — git patch saved to artifacts/git/git_patch.diff"
+            "[MLflowLogger] Dirty working tree detected — git patch saved to artifacts/git/"
         )
 
-    def _log_params(self, params: dict, prefix: str = "") -> None:
-        flat = self._flatten(params)
+    @staticmethod
+    def _render_diff_html(patch: str) -> str:
+        """Wrap a unified diff in a self-contained HTML page with line-level colouring."""
+        import html as _html
+
+        line_styles = {
+            "+": "background:#e6ffec; color:#116329;",
+            "-": "background:#ffebe9; color:#82071e;",
+            "@": "background:#ddf4ff; color:#0550ae; font-style:italic;",
+        }
+        rows = []
+        for line in patch.splitlines():
+            style = line_styles.get(line[0] if line else "", "color:#24292f;")
+            escaped = _html.escape(line)
+            rows.append(f'<div style="margin:0; padding:0 4px; {style}">{escaped}</div>')
+
+        body = "\n".join(rows)
+        return (
+            "<!DOCTYPE html><html><head><meta charset='utf-8'>"
+            "<style>body{margin:0; font:13px/1.5 monospace; background:#fff;}"
+            "div{white-space:pre;}</style></head>"
+            f"<body>{body}</body></html>"
+        )
+
+    def _log_params(self, params: Any, prefix: str = "", max_depth: Optional[int] = None) -> None:
+        if max_depth == 0:
+            return
+        flat = self._flatten(params, max_depth=max_depth)
         if prefix:
             flat = {f"{prefix}.{k}": v for k, v in flat.items()}
         items = [mlflow.entities.Param(k, str(v)) for k, v in flat.items()]
         for i in range(0, len(items), 100):
             self._client.log_batch(run_id=self._run_id, params=items[i : i + 100])
 
-    def _log_params_as_artifact(self, params: dict, filename: str) -> None:
-        """Serialize params dict to JSON and upload under artifacts/params/."""
+    def _log_params_as_artifact(self, params: Any, filename: str) -> None:
+        """Serialize params to JSON and upload under artifacts/params/."""
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, filename)
             with open(path, "w") as f:
-                json.dump(params, f, indent=2, default=str)
+                json.dump(self._to_jsonable(params), f, indent=2)
             self._client.log_artifact(self._run_id, path, "params")
 
     @staticmethod
-    def _flatten(d: dict, parent: str = "", sep: str = ".") -> dict:
+    def _to_jsonable(obj: Any) -> Any:
+        """Recursively convert dataclasses and arbitrary objects to JSON-serializable form."""
+        if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+            return {f.name: MLflowLogger._to_jsonable(getattr(obj, f.name)) for f in dataclasses.fields(obj)}
+        if isinstance(obj, dict):
+            return {k: MLflowLogger._to_jsonable(v) for k, v in obj.items()}
+        if hasattr(obj, "items") and not isinstance(obj, str):
+            return {k: MLflowLogger._to_jsonable(v) for k, v in obj.items()}
+        if isinstance(obj, (list, tuple)):
+            return [MLflowLogger._to_jsonable(v) for v in obj]
+        if hasattr(obj, "__dict__") and not isinstance(obj, type):
+            return {k: MLflowLogger._to_jsonable(v) for k, v in vars(obj).items()}
+        return obj
+
+    @staticmethod
+    def _flatten(d: Any, parent: str = "", sep: str = ".", max_depth: Optional[int] = None, _depth: int = 0) -> dict:
+        def to_pairs(obj: Any):
+            """Return (key, value) pairs if obj is dict-like or a dataclass; else None."""
+            if isinstance(obj, dict) or (hasattr(obj, "items") and not isinstance(obj, str)):
+                return obj.items()
+            if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+                return ((f.name, getattr(obj, f.name)) for f in dataclasses.fields(obj))
+            if hasattr(obj, "__dict__") and not isinstance(obj, type):
+                return vars(obj).items()
+            return None
+
+        def sanitize_segment(s: str) -> str:
+            # * is a wildcard pattern in configs (e.g. IsaacLab joint specs) — use W so
+            # ".*" becomes ".W" then strip leading dot → "W" rather than a bare "_"
+            s = s.replace("*", "W")
+            # MLflow allows: alphanumerics, _, -, ., space, / — replace anything else with _
+            return re.sub(r"[^a-zA-Z0-9_\-\. /]", "_", s).strip(".")
+
+        pairs = to_pairs(d)
+        if pairs is None:
+            return {parent: d} if parent else {}
         out: dict[str, Any] = {}
-        for k, v in d.items():
-            key = f"{parent}{sep}{k}" if parent else k
-            # Accept plain dicts and any dict-like object (e.g. OmegaConf DictConfig)
-            if isinstance(v, dict) or (hasattr(v, "items") and not isinstance(v, str)):
-                out.update(MLflowLogger._flatten(v, key, sep))
+        for k, v in pairs:
+            seg = sanitize_segment(str(k))
+            key = f"{parent}{sep}{seg}" if parent else seg
+            recurse = to_pairs(v) is not None and (max_depth is None or _depth < max_depth - 1)
+            if recurse:
+                out.update(MLflowLogger._flatten(v, key, sep, max_depth, _depth + 1))
             else:
                 out[key] = v
         return out
