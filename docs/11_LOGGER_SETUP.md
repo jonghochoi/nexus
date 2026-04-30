@@ -118,7 +118,7 @@ This starts a local MLflow server on `127.0.0.1:5100`. All GPU processes on the 
 | Hyperparameters (`agent_cfg`) | Run start | Parameters tab |
 | Tags (experiment, researcher, task, hardware …) | Run start | Tags tab |
 | `git_commit`, `git_dirty` tags | Run start | Tags tab |
-| `git_patch.diff` | Run start *(dirty tree only)* | `git/git_patch.diff` |
+| `git_patch.html` | Run start *(dirty tree only)* | `git/git_patch.html` |
 | Metrics (loss, FPS, reward …) | Every step | Metrics tab |
 | `best.pth` | When best score improves | `checkpoints/best.pth` |
 | `last.pth` | Every epoch end | `checkpoints/last.pth` |

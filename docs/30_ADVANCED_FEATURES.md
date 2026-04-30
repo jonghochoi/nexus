@@ -222,17 +222,11 @@ pip install psutil pynvml
 |---|---|---|
 | Tags tab | `git_commit` | Full SHA of HEAD — e.g. `54696cb326bb...` |
 | Tags tab | `git_dirty` | `"false"` when tree is clean, `"true"` when there are uncommitted changes |
-| Artifacts | `git/git_patch.diff` | Full `git diff HEAD` output — **only present when `git_dirty = "true"`** |
+| Artifacts | `git/git_patch.html` | Full `git diff HEAD` rendered as a self-contained HTML page with line-level colouring — **only present when `git_dirty = "true"`** |
 
-### 5.2 Restoring a dirty-tree run
+### 5.2 Inspecting a dirty-tree run
 
-If training was launched with uncommitted changes, the exact state can be recovered from any machine that has the base commit:
-
-```bash
-git checkout <git_commit>
-# download git_patch.diff from the MLflow run's Artifacts tab
-git apply git_patch.diff
-```
+If training was launched with uncommitted changes, open `git/git_patch.html` directly in the MLflow Artifacts tab to view the diff inline (additions in green, deletions in red, hunk headers in blue). The page is self-contained — no external assets needed. For byte-exact reproducibility, commit before training so `git_dirty = "false"` and `git_commit` alone identifies the source state.
 
 ### 5.3 Opting out
 

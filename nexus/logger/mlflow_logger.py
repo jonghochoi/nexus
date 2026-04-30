@@ -9,7 +9,7 @@ Key behaviors:
   - Creates or resumes an MLflow run by run_name (crash-safe)
   - Logs hyperparameters once at run start
   - Captures git_commit / git_dirty tags at run start (track_git=True by default)
-  - Uploads git diff HEAD as artifacts/git/git_patch.diff when working tree is dirty
+  - Uploads git diff HEAD as artifacts/git/git_patch.html when working tree is dirty
   - Marks run FINISHED on close() or process exit
   - Supports split agent_params / env_params — each logged with a namespace prefix
     and saved as params/agent_params.json and params/env_params.json artifacts
@@ -231,22 +231,18 @@ class MLflowLogger:
         return run.info.run_id
 
     def _log_git_patch(self) -> None:
-        """Upload git diff HEAD as artifacts/git/ when the tree is dirty.
+        """Upload git diff HEAD as artifacts/git/git_patch.html when the tree is dirty.
 
-        Two files are written: git_patch.diff (raw, for git apply) and
-        git_patch.html (color-rendered, viewable inline in the MLflow UI).
+        The patch is rendered to a self-contained HTML page so the MLflow UI
+        can preview it inline with line-level colouring.
         """
         patch = get_git_patch()
         if not patch:
             return
         with tempfile.TemporaryDirectory() as tmp:
-            diff_path = os.path.join(tmp, "git_patch.diff")
-            with open(diff_path, "w") as f:
-                f.write(patch)
             html_path = os.path.join(tmp, "git_patch.html")
             with open(html_path, "w") as f:
                 f.write(self._render_diff_html(patch))
-            self._client.log_artifact(self._run_id, diff_path, "git")
             self._client.log_artifact(self._run_id, html_path, "git")
         print("[MLflowLogger] Dirty working tree detected — git patch saved to artifacts/git/")
 
