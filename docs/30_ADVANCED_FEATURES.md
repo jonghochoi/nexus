@@ -178,7 +178,7 @@ registry.set_sim_to_real_link(
 
 ## 🧩 4. SystemMetricsLogger — background resource logging
 
-Spawns a daemon thread that periodically logs CPU, RAM, and GPU memory to MLflow without blocking training.
+Spawns a daemon thread that periodically logs CPU, RAM, and GPU metrics to MLflow without blocking training.
 
 ```python
 from nexus.logger.system_metrics import SystemMetricsLogger
@@ -202,8 +202,11 @@ logger.close()
 | `system/cpu_percent` | `psutil` |
 | `system/ram_gb` | `psutil` |
 | `system/gpu_memory_mb` | `pynvml` or `nvidia-smi` |
+| `system/gpu_util_percent` | `pynvml` or `nvidia-smi` |
 
 Silently skips any metric whose dependency is not installed. The thread is a daemon — it will not prevent process exit if `stop()` is not called explicitly.
+
+**GPU auto-detection:** on shared servers where each job occupies a different GPU, the logger automatically finds the physical GPU index the current process is using — regardless of whether the GPU was selected via `CUDA_VISIBLE_DEVICES=2` or `--device cuda:2`. Detection is done by scanning which GPU has the current PID's compute allocation via pynvml. It is **lazy** — GPU metrics are skipped until the process has actually allocated GPU memory (e.g. after `model.to(device)`), then the index is locked and written to the run tag `system.gpu_index` so the active device is visible in the MLflow UI.
 
 Optional installs:
 ```bash

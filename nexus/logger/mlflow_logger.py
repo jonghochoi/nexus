@@ -115,6 +115,10 @@ class MLflowLogger:
     def add_image(self, *args, **kwargs) -> None:
         pass  # Not supported
 
+    def set_tag(self, key: str, value: str) -> None:
+        """Set a single tag on the active run."""
+        self._client.set_tag(self._run_id, key, value)
+
     def log_artifact(self, local_path: str, artifact_path: Optional[str] = None) -> None:
         if not os.path.exists(local_path):
             print(f"[MLflowLogger] Skipping artifact (not found): {local_path}")
