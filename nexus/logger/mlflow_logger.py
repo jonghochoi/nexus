@@ -248,9 +248,7 @@ class MLflowLogger:
                 f.write(self._render_diff_html(patch))
             self._client.log_artifact(self._run_id, diff_path, "git")
             self._client.log_artifact(self._run_id, html_path, "git")
-        print(
-            "[MLflowLogger] Dirty working tree detected — git patch saved to artifacts/git/"
-        )
+        print("[MLflowLogger] Dirty working tree detected — git patch saved to artifacts/git/")
 
     @staticmethod
     def _render_diff_html(patch: str) -> str:
@@ -296,21 +294,45 @@ class MLflowLogger:
 
     @staticmethod
     def _to_jsonable(obj: Any) -> Any:
-        """Recursively convert dataclasses and arbitrary objects to JSON-serializable form."""
-        if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
-            return {f.name: MLflowLogger._to_jsonable(getattr(obj, f.name)) for f in dataclasses.fields(obj)}
+        """Recursively convert dataclasses and arbitrary objects to JSON-serializable form.
+
+        Atoms (None, bool, int, float, str) pass through. Classes and callables
+        are reduced to their dotted qualified name — env configs from frameworks
+        like Hydra / IsaacLab routinely embed class refs (`class_type`, `func`)
+        as values. Anything else that survives the walk falls back to repr(),
+        so json.dump never sees an unsupported type.
+        """
+        if obj is None or isinstance(obj, (bool, int, float, str)):
+            return obj
+        if isinstance(obj, type):
+            return MLflowLogger._qualname(obj)
+        if dataclasses.is_dataclass(obj):
+            return {
+                f.name: MLflowLogger._to_jsonable(getattr(obj, f.name))
+                for f in dataclasses.fields(obj)
+            }
         if isinstance(obj, dict):
             return {k: MLflowLogger._to_jsonable(v) for k, v in obj.items()}
         if hasattr(obj, "items") and not isinstance(obj, str):
             return {k: MLflowLogger._to_jsonable(v) for k, v in obj.items()}
-        if isinstance(obj, (list, tuple)):
+        if isinstance(obj, (list, tuple, set, frozenset)):
             return [MLflowLogger._to_jsonable(v) for v in obj]
-        if hasattr(obj, "__dict__") and not isinstance(obj, type):
+        if callable(obj):
+            return MLflowLogger._qualname(obj)
+        if hasattr(obj, "__dict__"):
             return {k: MLflowLogger._to_jsonable(v) for k, v in vars(obj).items()}
-        return obj
+        return repr(obj)
 
     @staticmethod
-    def _flatten(d: Any, parent: str = "", sep: str = ".", max_depth: Optional[int] = None, _depth: int = 0) -> dict:
+    def _qualname(obj: Any) -> str:
+        mod = getattr(obj, "__module__", "") or ""
+        qual = getattr(obj, "__qualname__", None) or getattr(obj, "__name__", "")
+        return f"{mod}.{qual}" if mod and qual else (qual or repr(obj))
+
+    @staticmethod
+    def _flatten(
+        d: Any, parent: str = "", sep: str = ".", max_depth: Optional[int] = None, _depth: int = 0
+    ) -> dict:
         def to_pairs(obj: Any):
             """Return (key, value) pairs if obj is dict-like or a dataclass; else None."""
             if isinstance(obj, dict) or (hasattr(obj, "items") and not isinstance(obj, str)):
