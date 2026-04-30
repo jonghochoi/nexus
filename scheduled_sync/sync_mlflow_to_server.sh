@@ -4,9 +4,9 @@
 #
 # Incremental (delta) MLflow sync to central server.
 #
-#   1. export_delta.py  — queries local MLflow, writes delta JSON
-#                         (only metric points with step > last synced step)
-#   2. SCP              — transfers delta JSON to MLflow server inbox
+#   1. export_delta.py  — queries local MLflow, writes delta bundle (tar.gz)
+#                         (new metric points + new/changed artifact files)
+#   2. SCP              — transfers delta bundle to MLflow server inbox
 #   3. SSH              — runs import_delta.py on server to load delta
 #
 # State file (GPU server): ~/.nexus/sync_state/{experiment}.json
@@ -222,7 +222,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # previous `delta_<TS>.json` collided in /tmp and on the remote inbox.
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 DELTA_USER="${USER:-$(id -un)}"
-DELTA_FILENAME="delta_${DELTA_USER}_$(date '+%Y%m%d_%H%M%S')_$$.json"
+DELTA_FILENAME="delta_${DELTA_USER}_$(date '+%Y%m%d_%H%M%S')_$$.tar.gz"
 DELTA_FILE="/tmp/${DELTA_FILENAME}"
 
 echo "[$TIMESTAMP] MLflow delta sync: $EXPERIMENT${RESEARCHER:+ (researcher=$RESEARCHER)}"
@@ -268,7 +268,7 @@ if [[ $DRY_RUN -eq 1 ]]; then
     exit 0
 fi
 
-# ── Step 2: SCP delta JSON to MLflow server (with retry)
+# ── Step 2: SCP delta bundle to MLflow server (with retry)
 echo "  [2/3] Transferring delta to $REMOTE_HOST..."
 ssh $SSH_OPTS "$REMOTE_HOST" "mkdir -p '$REMOTE_PATH'" || {
     echo "  [ERROR] Cannot prepare remote inbox '$REMOTE_PATH' on $REMOTE_HOST."
@@ -307,7 +307,12 @@ ssh $SSH_OPTS "$REMOTE_HOST" \
         --tracking_uri '$REMOTE_MLFLOW_URI' && \
      rm -f '${REMOTE_PATH}/${DELTA_FILENAME}'" || {
     echo "  [ERROR] Remote import_delta.py failed on $REMOTE_HOST."
-    echo "          Check --remote_nexus_dir ($REMOTE_NEXUS_DIR) and remote MLflow at $REMOTE_MLFLOW_URI."
+    echo "          Likely causes:"
+    echo "            - Stale import_delta.py on central — pre-artifact-sync versions"
+    echo "              crash on tar.gz bundles with UnicodeDecodeError 0x8b."
+    echo "              Fix: ssh $REMOTE_HOST 'cd $REMOTE_NEXUS_DIR && git pull'"
+    echo "            - Remote MLflow at $REMOTE_MLFLOW_URI not reachable from $REMOTE_HOST."
+    echo "            - --remote_python ($REMOTE_PYTHON) cannot import mlflow."
     rm -f "$DELTA_FILE"
     exit 5
 }

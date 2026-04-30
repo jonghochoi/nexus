@@ -195,14 +195,21 @@ else
     fail "Cannot create or write to $REMOTE_PATH on $REMOTE_HOST. Check permissions."
 fi
 
-# ── 3. Remote import_delta.py exists
-step "3/7  Remote import_delta.py present"
+# ── 3. Remote import_delta.py exists AND understands tar.gz bundles
+#       Pre-feature import_delta.py crashes on gzip magic bytes with
+#       `UnicodeDecodeError: 0x8b` and the wrapper exits 5 every cycle —
+#       silently losing every run. Catch it here once instead.
+step "3/7  Remote import_delta.py present and current"
 REMOTE_IMPORT_PY="${REMOTE_NEXUS_DIR}/scheduled_sync/import_delta.py"
-if ssh $SSH_OPTS "$REMOTE_HOST" "test -f '$REMOTE_IMPORT_PY'" 2>/dev/null; then
-    ok "$REMOTE_IMPORT_PY exists"
-else
+if ! ssh $SSH_OPTS "$REMOTE_HOST" "test -f '$REMOTE_IMPORT_PY'" 2>/dev/null; then
     fail "$REMOTE_IMPORT_PY not found. Verify --remote_nexus_dir points at the nexus checkout."
 fi
+if ! ssh $SSH_OPTS "$REMOTE_HOST" "grep -q 'tarfile.is_tarfile' '$REMOTE_IMPORT_PY'" 2>/dev/null; then
+    fail "$REMOTE_IMPORT_PY is from before the artifact-sync feature and cannot
+        decode tar.gz delta bundles. Update the central server:
+            ssh $REMOTE_HOST 'cd $REMOTE_NEXUS_DIR && git pull'"
+fi
+ok "$REMOTE_IMPORT_PY exists and supports tar.gz bundles"
 
 # ── 4. Remote Python can import mlflow
 step "4/7  Remote Python — $REMOTE_PYTHON"

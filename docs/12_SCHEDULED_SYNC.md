@@ -1,6 +1,6 @@
 # 🔄 Scheduled Sync — Pipeline A delta upload
 
-> **Purpose:** Wire each GPU server's local MLflow (`127.0.0.1:5100`) to the central NEXUS MLflow server via cron. Each cron tick exports only the new metric points since the last sync and ships them through SCP + remote `import_delta.py`.
+> **Purpose:** Wire each GPU server's local MLflow (`127.0.0.1:5100`) to the central NEXUS MLflow server via cron. Each cron tick exports new metric points + new/changed artifact files since the last sync, packages them into a tar.gz delta bundle, and ships it through SCP + remote `import_delta.py` so both metrics and artifacts (checkpoints, configs, git diffs, eval reports) end up browsable in the central UI.
 >
 > This guide is for **operators** registering or auditing the cron sync. The system architecture is in [`10_ARCHITECTURE.md`](10_ARCHITECTURE.md); the canonical principle for the multi-user invariant is in [`00_PRINCIPLES.md#multi-user-researcher`](00_PRINCIPLES.md#-multi-user-researcher).
 
@@ -132,9 +132,9 @@ bash scheduled_sync/sync_mlflow_to_server.sh --config /etc/nexus/sync.json
 
 > 💡 Add `--dry-run` to exercise the local export step only (state file is updated, no SCP, no remote import). Useful before committing the cron entry.
 
-On success, the run will appear in the NEXUS server's MLflow UI. Each imported run also gets `nexus.lastSyncTime` and `nexus.syncedFromHost` tags so you can spot stale GPU servers from the central UI.
+On success, the run will appear in the NEXUS server's MLflow UI — both the metric curves and the run's artifacts (checkpoints, params, git diff, anything else logged via `MLflowLogger`) are browsable from the same page. Each imported run also gets `nexus.lastSyncTime` and `nexus.syncedFromHost` tags so you can spot stale GPU servers from the central UI.
 
-**On second run:** If there are no new metrics, SCP is skipped with the message `[OK] No new data since last sync.`
+**On second run:** If there are no new metrics or artifacts, SCP is skipped with the message `[OK] No new data since last sync.`
 
 ---
 
@@ -175,19 +175,20 @@ When kim, lee, and park all train on the same GPU server, each user runs their o
    2-59/5 * * * * bash $HOME/nexus/scheduled_sync/sync_mlflow_to_server.sh >> $HOME/nexus_sync.log 2>&1
    ```
 
-   The wrapper writes per-user, per-PID delta filenames (`delta_${USER}_<TS>_<PID>.json`) so concurrent runs don't corrupt each other's `/tmp` files or remote inbox even if you don't stagger — staggering is just polite.
+   The wrapper writes per-user, per-PID delta filenames (`delta_${USER}_<TS>_<PID>.tar.gz`) so concurrent runs don't corrupt each other's `/tmp` files or remote inbox even if you don't stagger — staggering is just polite.
 
 ---
 
 ## 📁 State file & incremental sync
 
-The local state file (`~/.nexus/sync_state/{experiment}[__{researcher}].json`) records the last synced step for each run and tag — this is the **source of truth** for "what has been synced." On every cron tick, `export_delta.py` reads this file, queries local MLflow for points with step beyond what's recorded, and only ships the new ones.
+The local state file (`~/.nexus/sync_state/{experiment}[__{researcher}].json`) records two things per run — the last synced step for each metric tag, and the per-run `__artifacts__` skip set listing artifact paths already shipped. This is the **source of truth** for "what has been synced." On every cron tick, `export_delta.py` reads this file, queries local MLflow for new metric points and new/changed artifact files, packages everything into a tar.gz bundle (`delta.json` + `artifacts/<run_id>/...`), and only ships the delta.
 
 | Behavior | Detail |
 |---|---|
 | **Survives reboot** | The state file lives in `~/.nexus/`, which persists across reboots (unlike `/tmp`). |
-| **Deletion forces full re-sync** | Removing the file makes the next cron run treat every run as "never synced" and ship everything. Use this if state diverges from what's on the central server. |
+| **Deletion forces full re-sync** | Removing the file makes the next cron run treat every run as "never synced" and re-ship every metric and artifact. Use this if state diverges from what's on the central server. |
 | **Per-researcher namespacing** | When `researcher` is set, the file is namespaced — `~/.nexus/sync_state/{exp}__{researcher}.json` — so one operator account can host multiple sync identities. |
+| **Artifact sync policy** | Paths under `checkpoints/` are re-synced every cycle (since `best.pth` / `last.pth` are overwritten in place during training). Every other artifact is synced once and recorded in `__artifacts__` so subsequent cycles skip it. The predicate is `export_delta.is_always_sync()`. |
 | **Exit codes (cron-friendly)** | `0` = data transferred · `1` = configuration error · `2` = no new data (wrapper skips SCP and exits cleanly). |
 
 ---
@@ -414,6 +415,16 @@ Two GPU server users are running cron without setting their `researcher` tag, so
 ### ⚠️ Sync claims success but central UI shows no new data
 
 Check the state file: `cat ~/.nexus/sync_state/{experiment}__{researcher}.json`. If the recorded steps are ahead of what's actually on the central server (e.g. central was wiped), delete the state file and let the next cron tick re-sync from scratch.
+
+### ⚠️ Wrapper exits 5 with `UnicodeDecodeError: 0x8b` after upgrading
+
+The `0x8b` byte is the gzip magic header — a pre-artifact-sync `import_delta.py` is trying to `json.load()` the new tar.gz delta bundle. The GPU server has the new `export_delta.py` (writes `.tar.gz`) but the central server is still on the old `import_delta.py` (only reads plain JSON). Every cron tick fails this way, so **runs disappear from central until central is upgraded**.
+
+```bash
+ssh <central-host> "cd <remote_nexus_dir> && git pull"
+```
+
+`validate_sync.sh` now guards this check at step 3, so re-running it after an upgrade catches a half-upgraded fleet before you re-register cron.
 
 ### ⚠️ How do I add a new sync option to the wrapper?
 
