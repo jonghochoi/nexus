@@ -86,7 +86,7 @@ Important behaviors (apply primarily to `upload_tb.py`):
 ```python
 from nexus.logger.sweep_logger   import SweepLogger          # parent run for HP sweeps; pass parent_run_id to children
 from nexus.logger.model_registry import ModelRegistry        # MLflow Model Registry helpers (sim_run_id linkage)
-from nexus.logger.system_metrics import SystemMetricsLogger  # background thread, 30s default, optional psutil/pynvml
+from nexus.logger.system_metrics import SystemMetricsLogger  # background thread, 30s default, optional psutil/nvidia-ml-py
 from nexus.logger                import rl_metrics           # pure-numpy explained_variance, approx_kl, clip_fraction, grad_norm
 ```
 

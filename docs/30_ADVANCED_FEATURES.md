@@ -201,16 +201,16 @@ logger.close()
 |---|---|
 | `system/cpu_percent` | `psutil` |
 | `system/ram_gb` | `psutil` |
-| `system/gpu_memory_mb` | `pynvml` or `nvidia-smi` |
-| `system/gpu_util_percent` | `pynvml` or `nvidia-smi` |
+| `system/gpu_memory_mb` | `nvidia-ml-py` or `nvidia-smi` |
+| `system/gpu_util_percent` | `nvidia-ml-py` or `nvidia-smi` |
 
 Silently skips any metric whose dependency is not installed. The thread is a daemon — it will not prevent process exit if `stop()` is not called explicitly.
 
-**GPU auto-detection:** on shared servers where each job occupies a different GPU, the logger automatically finds the physical GPU index the current process is using — regardless of whether the GPU was selected via `CUDA_VISIBLE_DEVICES=2` or `--device cuda:2`. Detection is done by scanning which GPU has the current PID's compute allocation via pynvml. It is **lazy** — GPU metrics are skipped until the process has actually allocated GPU memory (e.g. after `model.to(device)`), then the index is locked and written to the run tag `system.gpu_index` so the active device is visible in the MLflow UI.
+**GPU auto-detection:** on shared servers where each job occupies a different GPU, the logger automatically finds the physical GPU index the current process is using — regardless of whether the GPU was selected via `CUDA_VISIBLE_DEVICES=2` or `--device cuda:2`. Detection is done by scanning which GPU has the current PID's compute allocation via `nvidia-ml-py` (pynvml). Works correctly inside **containers** by resolving the host-namespace PID from `/proc/self/sched`; falls back to `CUDA_VISIBLE_DEVICES` when it specifies exactly one device. Detection is **lazy** — GPU metrics are skipped until the process has actually allocated GPU memory (e.g. after `model.to(device)`), then the index is locked and written to the run tag `system.gpu_index` so the active device is visible in the MLflow UI.
 
 Optional installs:
 ```bash
-pip install psutil pynvml
+pip install psutil nvidia-ml-py
 ```
 
 ---
