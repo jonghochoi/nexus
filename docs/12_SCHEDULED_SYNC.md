@@ -18,6 +18,7 @@
 - [📌 Step 5 — Multi-user GPU servers](#-step-5--multi-user-gpu-servers)
 - [📁 State file & incremental sync](#-state-file--incremental-sync)
 - [✅ Verification checklist](#-verification-checklist)
+- [📊 Monitoring & log inspection](#-monitoring--log-inspection)
 - [⏹️ Stopping sync](#-stopping-sync)
 - [🛠️ Troubleshooting](#-troubleshooting)
 - [🗺️ Next steps](#-next-steps)
@@ -205,6 +206,137 @@ After `validate_sync.sh` passes, run through this checklist before declaring the
 - [ ] Each imported run on the central server carries `nexus.lastSyncTime` and `nexus.syncedFromHost` tags
 
 > ⚠️ **Multi-user invariant** — without per-user `researcher`, every cron exports every other user's runs and the central server logs duplicate metric points at identical steps. Canonical: [`00_PRINCIPLES.md#multi-user-researcher`](00_PRINCIPLES.md#-multi-user-researcher).
+
+---
+
+## 📊 Monitoring & log inspection
+
+After cron is registered, sync runs unattended. The three places to check whether it's still healthy are: the **wrapper log** on the GPU server, the **state file** on the GPU server, and the **`nexus.*` tags** on the central MLflow UI. None of them require restarting anything.
+
+### ── Where the log lives
+
+`~/nexus_sync.log` is just the stdout/stderr of `sync_mlflow_to_server.sh`, redirected by the cron line you registered in [§ Step 4](#-step-4--register-cron). Cron itself does not rotate this file — it grows by ~1–2 lines per "no new data" tick and ~10 lines per real upload, so on a typical 5-minute cadence it stays under a few MB per month. Rotate it manually if it ever bothers you (`mv ~/nexus_sync.log ~/nexus_sync.log.old`); the next cron tick will re-create it.
+
+### ── Healthy output — the two normal shapes
+
+**Shape 1 — new data was transferred (most common during active training):**
+
+```
+[2026-04-30 14:35:01] MLflow delta sync: robot_hand_rl_pilot (researcher=kim)
+  [1/3] Exporting delta from local MLflow (http://127.0.0.1:5100)...
+[INFO] Delta: 3 run(s) — 1840 new metric points, 0 new run(s)
+[OK] Delta written to: /tmp/delta_kim_20260430_143501_28714.json
+  [OK] Delta exported (47 KB)
+  [2/3] Transferring delta to nexus@nexus-server...
+  [OK] Transfer complete
+  [3/3] Importing delta on remote server...
+  [OK] my_run_v3: 612 metric points
+  [OK] my_run_v4: 612 metric points
+  [OK] my_run_v5: 616 metric points
+[DONE] Total imported: 1840 metric points.
+  [OK] Import complete
+  [DONE] Delta sync complete at 2026-04-30 14:35:04
+```
+
+**Shape 2 — no new metrics since last tick (most common when nothing is training):**
+
+```
+[2026-04-30 14:40:01] MLflow delta sync: robot_hand_rl_pilot (researcher=kim)
+  [1/3] Exporting delta from local MLflow (http://127.0.0.1:5100)...
+[INFO] No new data since last sync.
+  [OK] No new data since last sync. Nothing to transfer.
+```
+
+This is **not** an error — `export_delta.py` exits `2`, the wrapper catches it and skips SCP + remote import. Seeing long stretches of Shape 2 just means no training is currently writing to local MLflow.
+
+### ── Quick health-check commands
+
+```bash
+# Most recent tick — was it OK or an error?
+tail -n 20 ~/nexus_sync.log
+
+# Last successful upload (Shape 1 above)
+grep "DONE.*Delta sync complete" ~/nexus_sync.log | tail -n 1
+
+# All errors in the last 24 hours (only timestamp-prefixed header lines reset ts)
+awk -v cutoff="$(date -d '24 hours ago' '+%Y-%m-%d %H:%M:%S')" \
+    '/^\[20[0-9][0-9]-/{ts=substr($0,2,19)} ts>=cutoff && /\[ERROR\]/' ~/nexus_sync.log
+
+# Is anything stuck in flight right now?
+pgrep -a -f "sync_mlflow_to_server|export_delta"
+```
+
+> 💡 If `pgrep` shows a process older than ~5 minutes, the sync is wedged (most often on `ssh`/`scp`). Inspect with `ps -o pid,etime,args -p <pid>` and kill if needed — the state file is only updated on a clean export, so killing mid-flight loses no points.
+
+### ── Exit code reference
+
+The wrapper's exit code is what cron sees, and what shows up in `MAILTO=` cron mail subjects if you have one configured. Each code maps to a specific failure point so you can branch monitoring on it.
+
+| Exit | Meaning | What to look at |
+|------|---------|-----------------|
+| `0` | Data transferred successfully **or** no new data since last tick | Nothing — both are healthy outcomes (Shape 1 / Shape 2) |
+| `1` | Configuration error — unknown CLI flag, malformed `--config` JSON, missing required key, or `export_delta.py` couldn't find the experiment | The `[ERROR] ...` line just above; fix the offending key in `~/.nexus/sync_config.json` (most often `experiment`) |
+| `3` | Remote inbox not writable (`ssh ... mkdir -p` failed) | SSH key, `remote`, `remote_nexus_dir`, and central server's inbox directory permissions |
+| `4` | SCP failed after 3 retries with 5s/10s backoff | Network between GPU server and central server; firewall; key-based auth |
+| `5` | Remote `import_delta.py` failed | `remote_python` (most common — venv interpreter not on `PATH`); `remote_nexus_dir`; central MLflow at `remote_uri` |
+
+> 💡 Exit `2` from `export_delta.py` ("no new data") is **swallowed by the wrapper and re-mapped to `0`** — cron and any monitoring layered on top see only `0`. The raw `2` is documented in [§ State file & incremental sync](#-state-file--incremental-sync) for the case where you invoke `export_delta.py` directly.
+
+### ── State file inspection
+
+The state file (`~/.nexus/sync_state/{experiment}[__{researcher}].json`) is human-readable JSON and is the easiest way to confirm "yes, sync is keeping up."
+
+```bash
+# Replace path components to match your config
+cat ~/.nexus/sync_state/robot_hand_rl_pilot__kim.json
+```
+
+```json
+{
+  "runs": {
+    "a3f1...": { "loss": 12480, "reward": 12480, "lr": 12480 },
+    "b7c2...": { "loss":  8192, "reward":  8192 }
+  },
+  "last_sync_time": 1745001304.812
+}
+```
+
+What to look at:
+
+- **`last_sync_time`** — UNIX seconds of the most recent successful export. Convert with `date -d @1745001304`. If this is more than 2× your cron interval old while training is active, sync is failing silently — go check `~/nexus_sync.log`.
+- **Per-run, per-tag steps** — the highest step already shipped for each metric of each run. If these are advancing on every tick, sync is keeping pace with training.
+- **Run count** — should match what you see in your local MLflow's experiment (modulo runs filtered out by your `researcher` tag).
+
+> 💡 If the state file's recorded steps are ahead of what's actually on the central server (e.g. central was wiped and restored from an older backup), delete the state file — the next tick re-exports every run from step 0. See also [§ Troubleshooting](#-troubleshooting) → "Sync claims success but central UI shows no new data".
+
+### ── Central-side check — finding stale GPU servers
+
+Every run imported by `import_delta.py` is stamped with two tags on the central MLflow:
+
+| Tag | Value | Use |
+|-----|-------|-----|
+| `nexus.lastSyncTime` | UTC ISO timestamp of the most recent import for that run | Sort runs by this column to surface ones whose origin GPU server has gone quiet |
+| `nexus.syncedFromHost` | Hostname of the GPU server the data came from | Group / filter to see "is host `gpu-03` still syncing?" |
+
+Add them as columns in the MLflow UI and the staleness story becomes visible at a glance. The same data is queryable programmatically — `MlflowClient.search_runs` accepts a `tags.*` filter, so a small Python snippet on the central server (or anywhere with `--tracking_uri` reachable) lists every run whose sync has gone quiet:
+
+```python
+from datetime import datetime, timedelta, timezone
+from mlflow.tracking import MlflowClient
+
+client = MlflowClient(tracking_uri="http://nexus-server:5000")
+exp = client.get_experiment_by_name("robot_hand_rl_pilot")
+cutoff = (datetime.now(timezone.utc) - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%S")
+
+stale = client.search_runs(
+    experiment_ids=[exp.experiment_id],
+    filter_string=f"tags.`nexus.lastSyncTime` < '{cutoff}'",
+)
+for r in stale:
+    print(r.data.tags.get("mlflow.runName"), r.data.tags.get("nexus.syncedFromHost"))
+```
+
+A run that is supposed to be training but hasn't had its `nexus.lastSyncTime` updated in several cron intervals points at a sync-side problem (cron not firing, log file growing with `[ERROR]`s, or the GPU server itself rebooted without the cron re-arming). Start the diagnosis at `tail ~/nexus_sync.log` on the affected GPU server.
 
 ---
 
