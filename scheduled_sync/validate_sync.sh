@@ -265,9 +265,12 @@ case "$EXP_OK" in
         echo "  [WARN]  Experiment '$EXPERIMENT' exists, but no runs are tagged"
         echo "          researcher=$RESEARCHER yet. The first sync after you"
         echo "          start training will pick them up." ;;
+    NO_EXP*)
+        # Not fatal — operator may be registering cron before the first training run.
+        echo "  [WARN]  Experiment '$EXPERIMENT' not found on local MLflow yet."
+        echo "          It will be created automatically when training starts." ;;
     *)
-        AVAIL="${EXP_OK#NO_EXP|}"
-        fail "Experiment '$EXPERIMENT' not found on local MLflow. Available: $AVAIL" ;;
+        fail "Unexpected response checking experiment: $EXP_OK" ;;
 esac
 
 # ── 7. End-to-end dry run
