@@ -253,6 +253,7 @@ else:
     print("YES")
 PYEOF
 )
+EXP_EXISTS=1
 case "$EXP_OK" in
     YES)
         if [[ -n "$RESEARCHER" ]]; then
@@ -268,26 +269,31 @@ case "$EXP_OK" in
     NO_EXP*)
         # Not fatal — operator may be registering cron before the first training run.
         echo "  [WARN]  Experiment '$EXPERIMENT' not found on local MLflow yet."
-        echo "          It will be created automatically when training starts." ;;
+        echo "          It will be created automatically when training starts."
+        EXP_EXISTS=0 ;;
     *)
         fail "Unexpected response checking experiment: $EXP_OK" ;;
 esac
 
 # ── 7. End-to-end dry run
 step "7/7  Dry-run sync (export only — no SCP, no remote import)"
-DRY_ARGS=()
-[[ -n "$CONFIG_FILE" ]] && DRY_ARGS+=("--config" "$CONFIG_FILE")
-DRY_ARGS+=("--dry-run")
-# Pass through any per-key overrides so the dry-run sees the same values we validated.
-[[ -n "$EXPERIMENT"        ]] && DRY_ARGS+=("--experiment" "$EXPERIMENT")
-[[ -n "$RESEARCHER"        ]] && DRY_ARGS+=("--researcher" "$RESEARCHER")
-[[ -n "$REMOTE"            ]] && DRY_ARGS+=("--remote" "$REMOTE")
-[[ -n "$REMOTE_NEXUS_DIR"  ]] && DRY_ARGS+=("--remote_nexus_dir" "$REMOTE_NEXUS_DIR")
-[[ -n "$REMOTE_PYTHON"     ]] && DRY_ARGS+=("--remote_python"    "$REMOTE_PYTHON")
-if bash "${SCRIPT_DIR}/sync_mlflow_to_server.sh" "${DRY_ARGS[@]}"; then
-    ok "Dry-run completed"
+if [[ $EXP_EXISTS -eq 0 ]]; then
+    echo "  [SKIP]  Experiment not found — skipping dry-run (nothing to export yet)."
 else
-    fail "Dry-run failed — see output above."
+    DRY_ARGS=()
+    [[ -n "$CONFIG_FILE" ]] && DRY_ARGS+=("--config" "$CONFIG_FILE")
+    DRY_ARGS+=("--dry-run")
+    # Pass through any per-key overrides so the dry-run sees the same values we validated.
+    [[ -n "$EXPERIMENT"        ]] && DRY_ARGS+=("--experiment" "$EXPERIMENT")
+    [[ -n "$RESEARCHER"        ]] && DRY_ARGS+=("--researcher" "$RESEARCHER")
+    [[ -n "$REMOTE"            ]] && DRY_ARGS+=("--remote" "$REMOTE")
+    [[ -n "$REMOTE_NEXUS_DIR"  ]] && DRY_ARGS+=("--remote_nexus_dir" "$REMOTE_NEXUS_DIR")
+    [[ -n "$REMOTE_PYTHON"     ]] && DRY_ARGS+=("--remote_python"    "$REMOTE_PYTHON")
+    if bash "${SCRIPT_DIR}/sync_mlflow_to_server.sh" "${DRY_ARGS[@]}"; then
+        ok "Dry-run completed"
+    else
+        fail "Dry-run failed — see output above."
+    fi
 fi
 
 # ── Success — print a paste-ready cron line (we deliberately do NOT touch crontab)
@@ -295,7 +301,7 @@ echo ""
 echo "════════════════════════════════════════════════════════════"
 echo "  All checks passed. Suggested cron line (edit interval as needed):"
 echo "════════════════════════════════════════════════════════════"
-if [[ -n "$CONFIG_FILE" && "$CONFIG_FILE" == "$DEFAULT_CONFIG" ]]; then
+if [[ -n "$CONFIG_FILE" && "$CONFIG_FILE" == "$USER_CONFIG" ]]; then
     echo "*/5 * * * * bash ${SCRIPT_DIR}/sync_mlflow_to_server.sh >> \$HOME/nexus_sync.log 2>&1"
 elif [[ -n "$CONFIG_FILE" ]]; then
     echo "*/5 * * * * bash ${SCRIPT_DIR}/sync_mlflow_to_server.sh --config $CONFIG_FILE >> \$HOME/nexus_sync.log 2>&1"
