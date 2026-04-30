@@ -28,7 +28,7 @@
 | 학습 코드를 NEXUS 로거에 연결하려는 사람 | [`../10_ARCHITECTURE.md`](../10_ARCHITECTURE.md) → [`../11_LOGGER_SETUP.md`](../11_LOGGER_SETUP.md) → [`../12_SCHEDULED_SYNC.md`](../12_SCHEDULED_SYNC.md) |
 | 완료된 tfevents를 사후 업로드하려는 사람 | [`../13_POST_UPLOAD.md`](../13_POST_UPLOAD.md) |
 | 중앙 MLflow 서버를 구축하려는 운영자 | [`../20_MLFLOW_SERVER_SETUP.md`](../20_MLFLOW_SERVER_SETUP.md) *(Step 0에 로컬 PC 검증 포함)* |
-| 인터넷 차단된 GPU 노드를 셋업하려는 운영자 | [`../21_AIRGAPPED_GPU_SERVER_SETUP.md`](../21_AIRGAPPED_GPU_SERVER_SETUP.md) *(Step 0 + Step C에 검증 포함)* |
+| 인터넷 차단된 GPU 노드를 셋업하려는 운영자 | [`../21_AIRGAPPED_GPU_SERVER_SETUP.md`](../21_AIRGAPPED_GPU_SERVER_SETUP.md) *(Step 0 + Step 1에 검증 포함)* |
 | Pipeline A cron sync을 운영하려는 운영자 | [`../12_SCHEDULED_SYNC.md`](../12_SCHEDULED_SYNC.md) *(Verification checklist 포함)* |
 | 옵션 기능을 살펴보려는 사람 | [`../30_ADVANCED_FEATURES.md`](../30_ADVANCED_FEATURES.md), [`../31_CHART_SETTINGS_GUIDE.md`](../31_CHART_SETTINGS_GUIDE.md) |
 
