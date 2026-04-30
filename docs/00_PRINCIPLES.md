@@ -108,5 +108,5 @@ The default install (`pip install nexus-logger`) pulls `mlflow-skinny` to slot i
 | 🛠️ Engineer integrating Pipeline A | [`10_ARCHITECTURE.md`](10_ARCHITECTURE.md) → [`11_LOGGER_SETUP.md`](11_LOGGER_SETUP.md) → [`12_SCHEDULED_SYNC.md`](12_SCHEDULED_SYNC.md) |
 | 📤 Engineer using Pipeline B (post-upload) | [`13_POST_UPLOAD.md`](13_POST_UPLOAD.md) |
 | 🖥️ Operator — central server install | [`20_MLFLOW_SERVER_SETUP.md`](20_MLFLOW_SERVER_SETUP.md) (Step 0 covers local-PC verification) |
-| 🖥️ Operator — air-gapped GPU node bring-up | [`21_AIRGAPPED_GPU_SERVER_SETUP.md`](21_AIRGAPPED_GPU_SERVER_SETUP.md) (Step 0 + Step C cover verification) |
+| 🖥️ Operator — air-gapped GPU node bring-up | [`21_AIRGAPPED_GPU_SERVER_SETUP.md`](21_AIRGAPPED_GPU_SERVER_SETUP.md) (Step 0 + Step 1 cover verification) |
 | ⚡ Anyone exploring opt-in features | [`30_ADVANCED_FEATURES.md`](30_ADVANCED_FEATURES.md), [`31_CHART_SETTINGS_GUIDE.md`](31_CHART_SETTINGS_GUIDE.md) |
