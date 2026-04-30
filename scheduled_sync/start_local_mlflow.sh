@@ -20,6 +20,8 @@ set -e
 PORT=5100
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MLRUNS_DIR="${SCRIPT_DIR}/mlruns_training"
+DB_FILE="${MLRUNS_DIR}/mlflow.db"
+ARTIFACTS_DIR="${MLRUNS_DIR}/artifacts"
 LOG_FILE="${SCRIPT_DIR}/mlflow_training.log"
 PID_FILE="${SCRIPT_DIR}/.mlflow_local.pid"
 
@@ -39,15 +41,15 @@ if lsof -Pi :$PORT -sTCP:LISTEN -t >/dev/null 2>&1; then
     exit 0
 fi
 
-mkdir -p "$MLRUNS_DIR"
+mkdir -p "$MLRUNS_DIR" "$ARTIFACTS_DIR"
 
 echo "[INFO] Starting local MLflow server on 127.0.0.1:$PORT ..."
 
 mlflow server \
     --host 127.0.0.1 \
     --port $PORT \
-    --backend-store-uri "$MLRUNS_DIR" \
-    --artifacts-destination "$MLRUNS_DIR" \
+    --backend-store-uri "sqlite:///${DB_FILE}" \
+    --artifacts-destination "$ARTIFACTS_DIR" \
     --serve-artifacts \
     > "$LOG_FILE" 2>&1 &
 
@@ -57,9 +59,10 @@ echo $! > "$PID_FILE"
 for i in {1..10}; do
     if curl -s http://127.0.0.1:$PORT/health > /dev/null 2>&1; then
         echo "[OK] Local MLflow server ready"
-        echo "  PID     : $(cat $PID_FILE)"
-        echo "  Storage : $MLRUNS_DIR"
-        echo "  Port    : $PORT"
+        echo "  PID       : $(cat $PID_FILE)"
+        echo "  DB        : $DB_FILE"
+        echo "  Artifacts : $ARTIFACTS_DIR"
+        echo "  Port      : $PORT"
         echo ""
         echo "Stop with: lsof -ti :$PORT | xargs kill"
         exit 0
