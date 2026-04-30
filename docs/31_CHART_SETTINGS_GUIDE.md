@@ -165,7 +165,7 @@ python chart_settings/apply_chart_settings.py --help
 
 ---
 
-## 🗺️ Next steps
+## 🗺 Next steps
 
 - **Other opt-in features (SweepLogger, RL metrics, Model Registry)** → [`30_ADVANCED_FEATURES.md`](30_ADVANCED_FEATURES.md)
 - **Architecture detail (where experiment tags fit in the data flow)** → [`10_ARCHITECTURE.md`](10_ARCHITECTURE.md)

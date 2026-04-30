@@ -208,7 +208,7 @@ After `validate_sync.sh` passes, run through this checklist before declaring the
 
 ---
 
-## ⏹️ Stopping sync
+## ⏹ Stopping sync
 
 ### Remove the cron entry (required)
 
@@ -256,7 +256,7 @@ lsof -ti :5100 | xargs kill
 
 ---
 
-## 🛠️ Troubleshooting
+## 🛠 Troubleshooting
 
 ### ⚠️ `python3: command not found` on the central server
 
@@ -289,7 +289,7 @@ See `CLAUDE.md` → "When adding new features" → "New Pipeline A sync option".
 
 ---
 
-## 🗺️ Next steps
+## 🗺 Next steps
 
 - **Architecture detail (export → SCP → import flow)** → [`10_ARCHITECTURE.md`](10_ARCHITECTURE.md)
 - **Pipeline B alternative** (one-shot, no cron) → [`13_POST_UPLOAD.md`](13_POST_UPLOAD.md)

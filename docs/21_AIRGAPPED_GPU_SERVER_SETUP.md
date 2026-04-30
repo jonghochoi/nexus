@@ -111,7 +111,7 @@ The smoke test creates real runs under the `nexus_smoke_test` experiment on `htt
 
 ---
 
-## 🅰️ Method A — pip wheel offline transfer *(no Docker required, recommended)*
+## 🅰 Method A — pip wheel offline transfer *(no Docker required, recommended)*
 
 This method works without Docker and transfers only Python packages, so the bundle size is small (~100MB).
 
@@ -209,7 +209,7 @@ pip install \
 
 ---
 
-## 🅱️ Method B — Docker image transfer *(fully isolated environment, when Docker is available)*
+## 🅱 Method B — Docker image transfer *(fully isolated environment, when Docker is available)*
 
 If Docker is installed on the GPU server, this method is the most reliable.
 
@@ -361,7 +361,7 @@ Once Step C passes, proceed to [`12_SCHEDULED_SYNC.md`](12_SCHEDULED_SYNC.md) to
 
 ---
 
-## 🛠️ Troubleshooting
+## 🛠 Troubleshooting
 
 ### ⚠️ `externally-managed-environment` error during `pip install`
 
@@ -461,7 +461,7 @@ Almost always this means the local MLflow at `:5100` is not running, since dual 
 
 ---
 
-## 🗺️ Next steps
+## 🗺 Next steps
 
 After Step C passes:
 

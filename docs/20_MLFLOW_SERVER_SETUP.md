@@ -765,7 +765,7 @@ For the full sync pipeline setup (config file, pre-flight check, cron registrati
 
 ---
 
-## 🗂️ Final Configuration Summary
+## 🗂 Final Configuration Summary
 
 After setup is complete, the structure will be as follows:
 
@@ -796,7 +796,7 @@ After setup is complete, the structure will be as follows:
 
 ---
 
-## 🛠️ Troubleshooting
+## 🛠 Troubleshooting
 
 | Symptom | Cause | Solution |
 |---|---|---|
@@ -810,7 +810,7 @@ After setup is complete, the structure will be as follows:
 
 ---
 
-## 🗺️ Next steps
+## 🗺 Next steps
 
 After the central server is up and team members can reach the MLflow UI:
 

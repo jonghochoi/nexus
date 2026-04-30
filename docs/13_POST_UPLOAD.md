@@ -337,7 +337,7 @@ python post_upload/verify_tb.py --from-last
 
 ## 📌 Step 5 — Real-robot evaluation — `sim_run_id` auto-detection
 
-Sim-to-Real traceability requires every real-robot eval run to carry a `sim_run_id` tag pointing at the sim training run whose policy was deployed (see [`00_PRINCIPLES.md#sim-run-id`](./00_PRINCIPLES.md#-sim-run-id) and [`ko/02_EXPERIMENT_STANDARD.md`](./ko/02_EXPERIMENT_STANDARD.md#-8-sim-to-real-연결-규칙) § "Sim-to-Real 연결").
+Sim-to-Real traceability requires every real-robot eval run to carry a `sim_run_id` tag pointing at the sim training run whose policy was deployed (see [`00_PRINCIPLES.md#sim-run-id`](./00_PRINCIPLES.md#-sim_run_id) and [`ko/02_EXPERIMENT_STANDARD.md`](./ko/02_EXPERIMENT_STANDARD.md#-8-sim-to-real-연결-규칙) § "Sim-to-Real 연결").
 
 > [!IMPORTANT]
 > When `--experiment real_robot_eval`, **`sim_run_id` is mandatory.** The CLI promotes it to a required tag and blocks the upload if missing — there is no `--force` for this check, because a real-robot eval without `sim_run_id` is unreproducible.
@@ -692,7 +692,7 @@ python post_upload/upload_tb.py \
 
 ---
 
-## 🛠️ Troubleshooting
+## 🛠 Troubleshooting
 
 | Symptom | Cause / Fix |
 |---|---|
@@ -705,7 +705,7 @@ python post_upload/upload_tb.py \
 
 ---
 
-## 🗺️ Next steps
+## 🗺 Next steps
 
 - **Switch to live logging instead of post-hoc** → [`11_LOGGER_SETUP.md`](11_LOGGER_SETUP.md) (Pipeline A integration) → [`12_SCHEDULED_SYNC.md`](12_SCHEDULED_SYNC.md) (cron sync)
 - **Architecture detail (parser → log_batch flow)** → [`10_ARCHITECTURE.md`](10_ARCHITECTURE.md)

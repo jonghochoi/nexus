@@ -292,7 +292,7 @@ python tests/smoke_test.py --advanced
 
 ---
 
-## 🗺️ Next steps
+## 🗺 Next steps
 
 - **Persistent MLflow chart/column layout** → [`31_CHART_SETTINGS_GUIDE.md`](31_CHART_SETTINGS_GUIDE.md)
 - **Architecture detail (pipelines, run lifecycle, registry)** → [`10_ARCHITECTURE.md`](10_ARCHITECTURE.md)

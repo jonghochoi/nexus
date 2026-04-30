@@ -14,19 +14,19 @@
 
 ## 목차
 
-- [0. 도구 역할 분리 원칙](#0-도구-역할-분리-원칙)
-- [1. Experiment 구조](#1-experiment-구조)
-- [2. Run 이름 규칙](#2-run-이름-규칙)
-- [3. Tags 규칙](#3-tags-규칙)
-- [4. Run 구조 — 단독 vs Parent/Child](#4-run-구조-단독-vs-parent-child)
-- [5. Artifact 관리](#5-artifact-관리)
-- [6. 실험 생명주기](#6-실험-생명주기)
-- [7. Failed Run 처리 규칙](#7-failed-run-처리-규칙)
-- [8. Sim-to-Real 연결 규칙](#8-sim-to-real-연결-규칙)
-- [9. MLflow UI 활용 가이드](#9-mlflow-ui-활용-가이드)
-- [10. 절대 하지 말아야 할 것](#10-절대-하지-말아야-할-것)
-- [11. 체크리스트](#11-체크리스트)
-- [12. Confluence 실험 페이지 템플릿](#12-confluence-실험-페이지-템플릿)
+- [0. 도구 역할 분리 원칙](#-0-도구-역할-분리-원칙)
+- [1. Experiment 구조](#-1-experiment-구조)
+- [2. Run 이름 규칙](#-2-run-이름-규칙)
+- [3. Tags 규칙](#-3-tags-규칙)
+- [4. Run 구조 — 단독 vs Parent/Child](#-4-run-구조--단독-vs-parentchild)
+- [5. Artifact 관리](#-5-artifact-관리)
+- [6. 실험 생명주기](#-6-실험-생명주기)
+- [7. Failed Run 처리 규칙](#-7-failed-run-처리-규칙)
+- [8. Sim-to-Real 연결 규칙](#-8-sim-to-real-연결-규칙)
+- [9. MLflow UI 활용 가이드](#-9-mlflow-ui-활용-가이드)
+- [10. 절대 하지 말아야 할 것](#-10-절대-하지-말아야-할-것)
+- [11. 체크리스트](#-11-체크리스트)
+- [12. Confluence 실험 페이지 템플릿](#-12-confluence-실험-페이지-템플릿)
 
 ---
 
@@ -103,7 +103,7 @@
 
 ---
 
-## 🗂️ 1. Experiment 구조
+## 🗂 1. Experiment 구조
 
 ### 1-1. Experiment 계층 설계 원칙
 
@@ -141,7 +141,7 @@ NEXUS MLflow
 
 ---
 
-## ✏️ 2. Run 이름 규칙
+## ✏ 2. Run 이름 규칙
 
 ### 2-1. 네이밍 포맷
 
@@ -182,7 +182,7 @@ final_real           ← 버전이 없음
 
 ---
 
-## 🏷️ 3. Tags 규칙
+## 🏷 3. Tags 규칙
 
 ### 3-1. 필수 Tags *(학습 시작 시 자동 기록 — `make_logger()` 처리)*
 

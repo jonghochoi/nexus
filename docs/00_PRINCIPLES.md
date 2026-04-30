@@ -12,7 +12,7 @@
 |---|---|
 | [`#tool-role-separation`](#-tool-role-separation) | MLflow = numbers, Confluence = judgment |
 | [`#required-tags`](#-required-tags) | 4 reproducibility tags (+ `sim_run_id` for real-robot eval) |
-| [`#sim-run-id`](#-sim-run-id) | Real-robot eval must carry `sim_run_id` |
+| [`#sim-run-id`](#-sim_run_id) | Real-robot eval must carry `sim_run_id` |
 | [`#failed-run-preservation`](#-failed-run-preservation) | Never delete failed runs |
 | [`#multi-user-researcher`](#-multi-user-researcher) | Each user must set their own `researcher` on shared GPU servers |
 | [`#checkpoint-policy`](#-checkpoint-policy) | Exactly two artifacts per run: `best.pth`, `last.pth` |
@@ -33,7 +33,7 @@ These are rules every team member must follow. Detailed walkthroughs (Korean) li
 
 If you write interpretation in MLflow descriptions, the team won't see it. If you paste numbers into Confluence, they go stale the moment a run is rerun. Detailed rationale and templates: [`ko/02_EXPERIMENT_STANDARD.md` § 0](ko/02_EXPERIMENT_STANDARD.md#-0-도구-역할-분리-원칙).
 
-### 🏷️ Required tags
+### 🏷 Required tags
 
 Every run must carry these four tags — without them, the run cannot be reproduced or compared:
 
