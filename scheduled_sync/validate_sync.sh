@@ -176,7 +176,7 @@ if [[ -z "$RESEARCHER" ]]; then
 fi
 
 # ── 1. SSH reachability
-step "1/6  SSH reachability — $REMOTE_HOST"
+step "1/7  SSH reachability — $REMOTE_HOST"
 if ssh $SSH_OPTS "$REMOTE_HOST" true 2>/dev/null; then
     ok "ssh $REMOTE_HOST true succeeded"
 else
@@ -184,7 +184,7 @@ else
 fi
 
 # ── 2. Remote inbox writable
-step "2/6  Remote inbox writable — $REMOTE_PATH"
+step "2/7  Remote inbox writable — $REMOTE_PATH"
 MARKER=".nexus_validate_$(date +%s)_$$"
 if ssh $SSH_OPTS "$REMOTE_HOST" "mkdir -p '$REMOTE_PATH' && \
         echo ok > '$REMOTE_PATH/$MARKER' && \

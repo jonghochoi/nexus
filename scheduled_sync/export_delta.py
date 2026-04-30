@@ -53,8 +53,10 @@ import sys
 import tarfile
 import tempfile
 import time
+import traceback
 from pathlib import Path
 
+import mlflow
 from mlflow.tracking import MlflowClient
 
 
@@ -134,6 +136,7 @@ def main():
     args = parse_args()
     state_path = args.state_file or default_state_path(args.experiment, args.researcher)
 
+    mlflow.set_tracking_uri(args.tracking_uri)
     client = MlflowClient(tracking_uri=args.tracking_uri)
 
     experiment = client.get_experiment_by_name(args.experiment)
@@ -215,7 +218,8 @@ def main():
                         new_run_state["__artifacts__"][apath] = True
                 except Exception as e:
                     print(
-                        f"[WARN] Could not download artifact {apath!r} for run {run_id}: {e}",
+                        f"[WARN] Could not download artifact {apath!r} for run {run_id}: {e}\n"
+                        + traceback.format_exc(),
                         flush=True,
                     )
 
