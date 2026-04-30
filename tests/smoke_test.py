@@ -211,7 +211,24 @@ def test_split_params(tracking_uri: str) -> bool:
 
         run_name = f"split_params_test_{int(time.time())}"
         agent_cfg = {"lr": 3e-4, "clip_eps": 0.2, "network": {"hidden": 256}}
-        env_cfg   = {"task": "robot_hand", "max_steps": 1000, "reward_scale": 0.1}
+        # Include a class ref and a callable to exercise _to_jsonable —
+        # IsaacLab/Hydra env configs routinely embed `class_type` / `func` as values,
+        # and the JSON artifact build must reduce them to qualified names rather
+        # than handing raw `type` objects to json.dump.
+
+        class _DummyAction:
+            pass
+
+        def _dummy_reward(env):
+            return 0.0
+
+        env_cfg = {
+            "task": "robot_hand",
+            "max_steps": 1000,
+            "reward_scale": 0.1,
+            "class_type": _DummyAction,
+            "reward_fn": _dummy_reward,
+        }
 
         logger = MLflowLogger(
             run_name=run_name,
@@ -225,12 +242,12 @@ def test_split_params(tracking_uri: str) -> bool:
 
         import mlflow as _mlflow
         from mlflow.tracking import MlflowClient
+
         _mlflow.set_tracking_uri(tracking_uri)
         client = MlflowClient(tracking_uri=tracking_uri)
         exp = _mlflow.get_experiment_by_name("nexus_smoke_test")
         runs = client.search_runs(
-            experiment_ids=[exp.experiment_id],
-            filter_string=f"tags.mlflow.runName = '{run_name}'",
+            experiment_ids=[exp.experiment_id], filter_string=f"tags.mlflow.runName = '{run_name}'"
         )
         if not runs:
             fail("Split-params run not found")
@@ -239,8 +256,12 @@ def test_split_params(tracking_uri: str) -> bool:
         # ── validate prefixed MLflow params ──────────────────────────────────
         params = runs[0].data.params
         expected_keys = {
-            "agent.lr", "agent.clip_eps", "agent.network.hidden",
-            "env.task", "env.max_steps", "env.reward_scale",
+            "agent.lr",
+            "agent.clip_eps",
+            "agent.network.hidden",
+            "env.task",
+            "env.max_steps",
+            "env.reward_scale",
         }
         missing = expected_keys - set(params.keys())
         if missing:
@@ -262,7 +283,9 @@ def test_split_params(tracking_uri: str) -> bool:
 
     except Exception as e:
         fail(f"Split params test failed: {e}")
-        import traceback; traceback.print_exc()
+        import traceback
+
+        traceback.print_exc()
         return False
 
 
