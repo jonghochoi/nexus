@@ -119,6 +119,23 @@ class MLflowLogger:
         """Set a single tag on the active run."""
         self._client.set_tag(self._run_id, key, value)
 
+    def log_metrics_now(self, metrics: dict, step: int) -> None:
+        """Send metrics directly to MLflow, bypassing the step buffer.
+
+        Use this from background threads (e.g. SystemMetricsLogger) that maintain
+        their own step counter — calling add_scalar from a second thread would race
+        on _last_step / _buffer and corrupt both the training and system metric streams.
+        """
+        if self._closed or not metrics:
+            return
+        ts = int(time.time() * 1000)
+        batch = [
+            Metric(key=self._sanitize(k), value=float(v), timestamp=ts, step=step)
+            for k, v in metrics.items()
+        ]
+        for i in range(0, len(batch), _BATCH_SIZE):
+            self._client.log_batch(run_id=self._run_id, metrics=batch[i : i + _BATCH_SIZE])
+
     def log_artifact(self, local_path: str, artifact_path: Optional[str] = None) -> None:
         if not os.path.exists(local_path):
             print(f"[MLflowLogger] Skipping artifact (not found): {local_path}")

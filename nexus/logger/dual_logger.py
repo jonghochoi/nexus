@@ -85,6 +85,10 @@ class DualLogger:
         self._mlflow.set_tag(key, value)
         # TensorBoard does not support tags — skipped silently
 
+    def log_metrics_now(self, metrics: dict, step: int) -> None:
+        self._mlflow.log_metrics_now(metrics, step)
+        # TensorBoard has no equivalent direct-flush path — skipped silently
+
     def log_artifact(self, local_path: str, artifact_path: Optional[str] = None) -> None:
         self._mlflow.log_artifact(local_path, artifact_path)
         # TensorBoard does not support artifacts — skipped silently

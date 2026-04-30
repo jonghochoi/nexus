@@ -149,7 +149,7 @@ class SystemMetricsLogger:
         step = 0
         while not self._stop_event.is_set():
             metrics = self._collect()
-            for tag, value in metrics.items():
-                self._logger.add_scalar(tag, value, step)
+            if metrics:
+                self._logger.log_metrics_now(metrics, step)
             step += 1
             self._stop_event.wait(timeout=self._interval)
