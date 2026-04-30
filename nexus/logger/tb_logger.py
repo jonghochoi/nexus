@@ -30,6 +30,9 @@ class TBLogger:
     def add_image(self, tag: str, img_tensor, global_step: int) -> None:
         self._writer.add_image(tag, img_tensor, global_step)
 
+    def set_tag(self, key: str, value: str) -> None:
+        pass  # TensorBoard does not support tags
+
     def log_artifact(self, local_path: str, artifact_path: Optional[str] = None) -> None:
         pass  # TensorBoard does not support artifacts
 

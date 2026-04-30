@@ -200,8 +200,7 @@ def main():
                 all_artifact_paths = []
 
             artifacts_to_sync = [
-                p for p in all_artifact_paths
-                if p not in synced_artifacts or is_always_sync(p)
+                p for p in all_artifact_paths if p not in synced_artifacts or is_always_sync(p)
             ]
 
             run_artifact_dir = os.path.join(artifact_tmp, run_id)
@@ -216,8 +215,7 @@ def main():
                         new_run_state["__artifacts__"][apath] = True
                 except Exception as e:
                     print(
-                        f"[WARN] Could not download artifact {apath!r} "
-                        f"for run {run_id}: {e}",
+                        f"[WARN] Could not download artifact {apath!r} for run {run_id}: {e}",
                         flush=True,
                     )
 

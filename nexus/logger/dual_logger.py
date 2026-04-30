@@ -81,6 +81,10 @@ class DualLogger:
     def add_image(self, tag: str, img_tensor, global_step: int) -> None:
         self._tb.add_image(tag, img_tensor, global_step)
 
+    def set_tag(self, key: str, value: str) -> None:
+        self._mlflow.set_tag(key, value)
+        # TensorBoard does not support tags — skipped silently
+
     def log_artifact(self, local_path: str, artifact_path: Optional[str] = None) -> None:
         self._mlflow.log_artifact(local_path, artifact_path)
         # TensorBoard does not support artifacts — skipped silently
