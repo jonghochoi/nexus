@@ -52,6 +52,7 @@ class DualLogger:
         env_params: Optional[dict] = None,
         tags: Optional[dict] = None,
         parent_run_id: Optional[str] = None,
+        max_param_depth: Optional[int] = None,
     ):
         self._tb = TBLogger(log_dir=tb_dir)
         self._mlflow = MLflowLogger(
@@ -63,6 +64,7 @@ class DualLogger:
             env_params=env_params,
             tags=tags,
             parent_run_id=parent_run_id,
+            max_param_depth=max_param_depth,
         )
         print("[DualLogger] Active: TensorBoard + MLflow")
 
@@ -136,6 +138,7 @@ def make_logger(
     env_params: Optional[dict] = None,
     tags: Optional[dict] = None,
     parent_run_id: Optional[str] = None,
+    max_param_depth: Optional[int] = None,
 ):
     """
     Factory that returns the right logger based on mode.
@@ -152,6 +155,10 @@ def make_logger(
     "agent." / "env." prefix respectively, and each is also serialized to
     artifacts/params/agent_params.json and artifacts/params/env_params.json.
     `params` is kept for backward compatibility and is logged without a prefix.
+
+    `max_param_depth` limits how many levels deep the config is flattened into
+    MLflow params (0 = no params; 1 = top-level scalars only; None = fully flatten).
+    The full config is always preserved in the JSON artifact regardless of this setting.
 
     Example:
         self.writer = make_logger(
@@ -177,6 +184,7 @@ def make_logger(
             env_params=env_params,
             tags=tags,
             parent_run_id=parent_run_id,
+            max_param_depth=max_param_depth,
         )
     elif mode == "mlflow":
         return MLflowLogger(
@@ -188,6 +196,7 @@ def make_logger(
             env_params=env_params,
             tags=tags,
             parent_run_id=parent_run_id,
+            max_param_depth=max_param_depth,
         )
     elif mode == "tensorboard":
         if tb_dir is None:
