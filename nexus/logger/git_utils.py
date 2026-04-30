@@ -10,8 +10,8 @@ Produces two MLflow tags on every run:
   git_dirty    — "true" if the working tree has uncommitted changes, else "false"
 
 When git_dirty is "true", the full `git diff HEAD` output is also uploaded as
-an artifact at artifacts/git/git_patch.diff so the exact state can be restored
-with `git apply git_patch.diff` on top of the recorded commit.
+an artifact at artifacts/git/git_patch.html — a self-contained HTML page that
+the MLflow UI can preview inline with line-level colouring.
 
 All functions degrade gracefully — if git is not installed or the training
 directory is not inside a git repo, they return empty dicts / None without
