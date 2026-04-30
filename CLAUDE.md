@@ -159,6 +159,75 @@ Concrete rules when authoring or editing a file:
 
 Audit hint: `grep -nE "^# (-{4,}|={4,})" path/to/file.py` should return nothing. ASCII rule lines mean someone bypassed this convention.
 
+## Commit message style
+
+All merged commits in this repo follow a single, consistent style — derived from the existing history (`git log`), not from a generic "Conventional Commits" template. When generating a commit message for code you authored, match the patterns below exactly. Don't invent a new shape per commit.
+
+### Subject line
+
+```
+<type>(<scope>): <verb> <description>
+<type>: <verb> <description>           # scope optional when the change is repo-wide
+```
+
+Hard rules:
+
+1. **Always start the description with an imperative verb** — this is the most important rule and the one that drifts most easily. Audit your draft: the first word after the colon must be a verb in imperative mood. Past tense (`added`, `fixed`), gerunds (`adding`, `fixing`), and noun-first phrases (`new feature for X`, `support for Y`) are forbidden.
+   - Verbs already used in this repo's history (use one of these or a close synonym): `add`, `fix`, `repair`, `remove`, `drop`, `rename`, `move`, `split`, `clean up`, `restructure`, `clarify`, `codify`, `standardize`, `persist`, `generalize`, `support`, `harden`, `consolidate`, `translate`, `pin`, `unify`, `skip`, `treat`, `apply`.
+2. **`<type>`** — one of `feat`, `fix`, `refactor`, `docs`, `chore`, `style`, `deps`. The combo form `docs+fix` is acceptable (rare) when a single commit genuinely spans both. Don't invent new types.
+3. **`<scope>`** — lowercase, matches a folder or module name in the repo: `logger`, `scheduled_sync`, `post_upload`, `chart_settings`, `validate_sync`, `setup`, `tags`, `sync`, `validation`, `CLAUDE.md`. Omit the scope only for repo-wide changes (e.g. `chore: add ruff formatting config and apply to all Python files`, `docs: ...` touching many tracks).
+4. **Description** — lowercase first letter (after the colon), no trailing period, ≲ 72 chars including the type/scope prefix. State *what* the commit does, not why.
+5. **Do NOT include `(#NN)` in the local commit subject**. GitHub appends the PR number automatically on squash-merge — adding it manually duplicates it.
+
+Good (from this repo's history):
+
+```
+fix(validate_sync): skip dry-run and fix cron output when experiment missing
+feat(logger): split params into agent_params and env_params
+refactor(tags): clean up required tags to experiment/researcher/task/hardware
+docs(scheduled_sync): add Stopping sync section to 12_SCHEDULED_SYNC.md
+chore: add ruff formatting config and apply to all Python files
+deps: split client (mlflow-skinny) and server (mlflow) installs
+```
+
+Bad (don't do this):
+
+```
+Added a new logger feature                     # past tense, no type, capitalized
+feat: new params for logger.                   # noun-first, trailing period
+feat(logger): Splits params into two groups.   # 3rd-person singular, capitalized, period
+fix: bug fix for sync                          # noun-first ("bug fix"), vague
+update logger                                  # no type, vague verb "update"
+```
+
+### Body
+
+Optional for trivial one-liners; required for any commit that touches more than one logical area or needs context to be reviewable. When present:
+
+1. **Blank line** between subject and body.
+2. **Wrap at ~72 columns**. Prose paragraphs and bullet lines both wrap; URLs and code blocks may exceed.
+3. **Lead with the *why*** — one short paragraph stating the problem or motivation, before listing the *what*. See `fix(validate_sync): treat missing experiment as WARN, not FAIL` for the canonical shape (one paragraph of motivation, then one paragraph describing the fix).
+4. **Lists for multiple changes**:
+   - Use `-` bullets for parallel small changes (`docs: fix TOC order ...`).
+   - Use `1.` `2.` `3.` numbered items when the changes are sequenced or you reference them by number elsewhere (`fix(validate_sync): skip dry-run ...`).
+5. **Per-file groupings** for larger commits: file path on its own line ending with `:`, then an indented bullet list of changes for that file. See `refactor(tags): clean up required tags ...` for the canonical layout (`post_upload/config.py:` then `  - ...`).
+6. **Unicode dividers** for the largest commits (typically `feat`/`refactor` touching many files, or `docs:` track-wide restructures). Match the source-code divider style:
+
+   ```
+   ── 1. Anchor text mismatches ──────────────────────────────────────────
+   ```
+
+   Use `─` (U+2500) — never `-` or `=`. Pad the trailing run so the line ends near column 72. Numbered sections (`── 1. ...`, `── 2. ...`) when there are multiple, plain titles (`── Section ──...`) otherwise. See `fix: repair broken TOC anchor links in all guide docs` and `docs: unify style of operator (20/21) and opt-in (30/31) docs` for canonical examples.
+7. **Em dash `—` (U+2014)**, not ` - `, when joining a label to its explanation in body prose. Same rule as for source-code comments.
+8. **Backticks** around paths (`post_upload/upload_tb.py`), identifiers (`MlflowClient`, `_BASE_REQUIRED`), CLI flags (`--dry_run`), and shell commands.
+
+### Audit checklist before committing
+
+- [ ] First word after `<type>(<scope>):` is an imperative verb (not a noun, not past tense).
+- [ ] Description is lowercase, ≲ 72 chars, no trailing period.
+- [ ] No `(#NN)` PR-number suffix in the subject.
+- [ ] Body (if any) leads with *why*, wraps at ~72, uses `─` dividers (not `-`/`=`) for big commits, and uses em dash `—` for label/explanation joins.
+
 ## Things to be careful about
 
 - See the dedicated **Comment & docstring style** section above before editing or creating any source file — the unicode banner / divider conventions are mandatory in this repo.
