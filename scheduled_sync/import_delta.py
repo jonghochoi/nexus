@@ -32,6 +32,7 @@ import sys
 import tarfile
 import tempfile
 
+import mlflow
 from mlflow.entities import Metric, Param
 from mlflow.tracking import MlflowClient
 
@@ -109,6 +110,7 @@ def main():
             print("[INFO] Empty delta — nothing to import.", flush=True)
             sys.exit(0)
 
+        mlflow.set_tracking_uri(args.tracking_uri)
         client = MlflowClient(tracking_uri=args.tracking_uri)
 
         experiment = client.get_experiment_by_name(experiment_name)
