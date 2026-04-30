@@ -18,6 +18,7 @@
 - [📌 Step 5 — Multi-user GPU servers](#-step-5--multi-user-gpu-servers)
 - [📁 State file & incremental sync](#-state-file--incremental-sync)
 - [✅ Verification checklist](#-verification-checklist)
+- [⏹️ Stopping sync](#-stopping-sync)
 - [🛠️ Troubleshooting](#-troubleshooting)
 - [🗺️ Next steps](#-next-steps)
 
@@ -204,6 +205,54 @@ After `validate_sync.sh` passes, run through this checklist before declaring the
 - [ ] Each imported run on the central server carries `nexus.lastSyncTime` and `nexus.syncedFromHost` tags
 
 > ⚠️ **Multi-user invariant** — without per-user `researcher`, every cron exports every other user's runs and the central server logs duplicate metric points at identical steps. Canonical: [`00_PRINCIPLES.md#multi-user-researcher`](00_PRINCIPLES.md#-multi-user-researcher).
+
+---
+
+## ⏹️ Stopping sync
+
+### Remove the cron entry (required)
+
+```bash
+crontab -e
+```
+
+Delete or comment out the `sync_mlflow_to_server.sh` line, then save:
+
+```cron
+# */5 * * * * bash $HOME/nexus/scheduled_sync/sync_mlflow_to_server.sh >> ...
+```
+
+Confirm it is gone:
+
+```bash
+crontab -l   # the sync line must not appear
+```
+
+### Kill any in-flight sync process (if needed)
+
+If a cron tick fired just before you removed the entry, a sync may still be running:
+
+```bash
+# Check
+pgrep -a -f "sync_mlflow_to_server"
+pgrep -a -f "export_delta"
+
+# Terminate if found
+pkill -f "sync_mlflow_to_server"
+pkill -f "export_delta"
+```
+
+This is only needed when you must stop immediately (e.g. the central server is being taken down). A mid-flight sync that is killed cleanly causes no data loss — the state file is only updated after a successful export, so the next manual run will re-export any points that were in progress.
+
+### Stop local MLflow (optional)
+
+Only needed if training is also stopping. The local MLflow server is required by the training process (`make_logger`) and by `export_delta.py`, but not by anything else.
+
+```bash
+lsof -ti :5100 | xargs kill
+```
+
+> 💡 The cron entry is the only thing that drives periodic sync. Once it is removed, no further data is transferred to the central server regardless of whether the local MLflow or any other process is still running.
 
 ---
 
