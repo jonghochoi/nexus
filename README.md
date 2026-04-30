@@ -133,7 +133,7 @@ logger = make_logger(
 logger.add_scalar("train/loss", 0.5, step=100)    # SummaryWriter-compatible
 ```
 
-Local-MLflow on `127.0.0.1:5100` is started by `bash scheduled_sync/start_local_mlflow.sh`. A cron job (registered via [`12_SCHEDULED_SYNC`](docs/12_SCHEDULED_SYNC.md)) ships only the new metric points to the central server every 5 minutes.
+Local-MLflow on `127.0.0.1:5100` is started by `bash scheduled_sync/start_local_mlflow.sh`. A cron job (registered via [`12_SCHEDULED_SYNC`](docs/12_SCHEDULED_SYNC.md)) packages new metric points and artifact files (checkpoints, configs, git diffs, eval reports — anything logged via `MLflowLogger`) into a tar.gz delta and ships it to the central server every 5 minutes, so the full run — metrics **and** artifacts — is browsable in the central MLflow UI.
 
 **Pipeline B — upload after training ends:**
 
