@@ -18,18 +18,23 @@
 set -e
 
 PORT=5100
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MLRUNS_DIR="${SCRIPT_DIR}/mlruns_training"
+# Runtime data lives under ~/.nexus/ — outside the source tree — so it
+# survives a `git clean` / repo re-clone and never shows up in `git status`.
+# Matches the convention used by venv (~/.nexus/venv), per-user configs
+# (sync_config.json, post_config.json), sync state (sync_state/), and
+# upload history (history.json).
+NEXUS_HOME="${HOME}/.nexus"
+MLRUNS_DIR="${NEXUS_HOME}/mlruns_training"
 DB_FILE="${MLRUNS_DIR}/mlflow.db"
 ARTIFACTS_DIR="${MLRUNS_DIR}/artifacts"
-LOG_FILE="${SCRIPT_DIR}/mlflow_training.log"
-PID_FILE="${SCRIPT_DIR}/.mlflow_local.pid"
+LOG_FILE="${NEXUS_HOME}/mlflow_training.log"
+PID_FILE="${NEXUS_HOME}/.mlflow_training.pid"
 
 # Activate venv — prefer the shared ~/.nexus/venv, fall back to a repo-local
 # ./venv for legacy installs.
-if [ -f "${HOME}/.nexus/venv/bin/activate" ]; then
+if [ -f "${NEXUS_HOME}/venv/bin/activate" ]; then
     # shellcheck disable=SC1091
-    source "${HOME}/.nexus/venv/bin/activate"
+    source "${NEXUS_HOME}/venv/bin/activate"
 elif [ -f "venv/bin/activate" ]; then
     # shellcheck disable=SC1091
     source venv/bin/activate
@@ -41,7 +46,7 @@ if lsof -Pi :$PORT -sTCP:LISTEN -t >/dev/null 2>&1; then
     exit 0
 fi
 
-mkdir -p "$MLRUNS_DIR" "$ARTIFACTS_DIR"
+mkdir -p "$NEXUS_HOME" "$MLRUNS_DIR" "$ARTIFACTS_DIR"
 
 echo "[INFO] Starting local MLflow server on 127.0.0.1:$PORT ..."
 

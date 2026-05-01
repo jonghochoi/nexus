@@ -10,7 +10,7 @@ NEXUS is a centralized RL experiment hub for an air-gapped GPU-server / internet
 
 Venv setup and activation are covered in `README.md` → "Quick Start" (`bash setup.sh [--alias|--reinstall]`, `source ~/.nexus/activate.sh`). Two things matter for code changes:
 
-- The venv is at `~/.nexus/venv` — **outside** the source tree — so overwriting the repo does not wipe installed packages. `~/.nexus/` also holds the user's `post_config.json` (Pipeline B), `sync_config.json` (Pipeline A), `sync_state/{exp}.json`, and `history.json`.
+- The venv is at `~/.nexus/venv` — **outside** the source tree — so overwriting the repo does not wipe installed packages. `~/.nexus/` also holds the user's `post_config.json` (Pipeline B), `sync_config.json` (Pipeline A), `sync_state/{exp}.json`, `history.json`, and the local MLflow server's runtime data (`mlruns_training/`, `mlflow_training.log`, `.mlflow_training.pid` — written by `scheduled_sync/start_local_mlflow.sh`).
 - There is no package install (no `setup.py`/`pyproject.toml`); scripts are run directly and `nexus/logger/` is imported via `sys.path.insert(0, ".")` from the repo root (which puts the `nexus` package on `sys.path`).
 
 Smoke / end-to-end tests (require an MLflow server reachable at `--tracking_uri`):
