@@ -21,6 +21,7 @@
 - [Step 6 — Register systemd service (auto-start)](#step-6--register-systemd-service-auto-start)
 - [Step 7 — Verify team member access](#step-7--verify-team-member-access)
 - [Step 8 — Configure GPU server → MLflow server connection](#step-8--configure-gpu-server--mlflow-server-connection)
+- [Step 9 — Enable daily backups](#step-9--enable-daily-backups)
 - [Final Configuration Summary](#final-configuration-summary)
 - [Troubleshooting](#troubleshooting)
 - [Next steps](#next-steps)
@@ -58,6 +59,7 @@ Step 5    Firewall / port configuration
 Step 6    Register systemd service
 Step 7    Verify team member access
 Step 8    Verify Blackwell connection
+Step 9    Enable daily backups
 ```
 
 ---
@@ -227,7 +229,37 @@ Setting up python3-venv (3.10.6-1~22.04) ...
 
 ## Step 3 — Install MLflow and configure directories
 
+### ── Create a dedicated system user *(recommended)*
+
+The MLflow service will run as its own non-login system account
+(`nexus-mlflow`) rather than your interactive user. This means an
+accidental `rm -rf /opt/nexus-mlflow/mlruns` from any operator's normal
+SSH shell will fail with `Permission denied` — destroying live experiment
+data requires explicit `sudo`. With 3+ team members able to SSH into the
+server, this is well worth the tiny extra friction.
+
+```bash
+sudo useradd --system --create-home --shell /usr/sbin/nologin nexus-mlflow
+id nexus-mlflow
+# Expected: uid=997(nexus-mlflow) gid=997(nexus-mlflow) groups=997(nexus-mlflow)
+```
+
+> 💡 **Already running with operator-owned files?** See the
+> [Migrating an existing server](#migrating-an-existing-server-to-the-dedicated-account)
+> appendix at the bottom of this guide for a near-zero-downtime switch.
+>
+> 💡 **Skipping this step (single-operator setup)?** Replace every
+> `nexus-mlflow` user/group reference below with `$USER` / your account
+> name. The systemd unit and the directory permissions still work, you
+> just lose the "rm protection" benefit.
+
 ### ── Create working directory
+
+The top-level `/opt/nexus-mlflow/` stays owned by your operator account
+so you can install the venv without `sudo`. Only the **data** subdirs
+(`mlruns/`, `artifacts/`) — the ones we actually want to protect from
+accidental deletion — are owned by `nexus-mlflow`. They're created in
+the *Create data storage directories* subsection below.
 
 ```bash
 sudo mkdir -p /opt/nexus-mlflow
@@ -278,28 +310,48 @@ mlflow, version 2.13.0
 ### ── Create data storage directories
 
 ```bash
-mkdir -p /opt/nexus-mlflow/mlruns       # MLflow sqlite DB (mlflow.db) lives here
-mkdir -p /opt/nexus-mlflow/artifacts    # Checkpoint and config file storage
-mkdir -p /opt/nexus-mlflow/sync_inbox   # Blackwell SCP receive directory
+# Live data — owned by the dedicated nexus-mlflow user, mode 750.
+# An accidental `rm -rf` from a regular operator shell will fail.
+# After Step 4, mlruns/ holds mlflow.db (+ mlflow.db-wal, mlflow.db-shm).
+sudo install -d -o nexus-mlflow -g nexus-mlflow -m 750 /opt/nexus-mlflow/mlruns
+sudo install -d -o nexus-mlflow -g nexus-mlflow -m 750 /opt/nexus-mlflow/artifacts
+
+# SCP inbox — owned by the operator account because Blackwell uploads
+# arrive over SSH as your operator user (see Step 8). import_delta.py
+# also runs as the operator and only talks to MLflow over HTTP, so it
+# does not need direct write access to mlruns/ or artifacts/.
+mkdir -p /opt/nexus-mlflow/sync_inbox
 ```
 
-**Verify directory structure:**
+**Verify directory structure and ownership:**
 
 ```bash
-tree /opt/nexus-mlflow
+ls -la /opt/nexus-mlflow
 ```
 
 **Expected output (before first server start — `mlruns/` is still empty):**
 
 ```
-/opt/nexus-mlflow
-├── artifacts/       ← Where best.pth, last.pth, etc. will be stored
-├── mlruns/          ← Holds mlflow.db (+ mlflow.db-wal, mlflow.db-shm) after Step 4
-├── sync_inbox/      ← Temporary receive folder for SCP transfers from Blackwell
-└── venv/            ← Python virtual environment
+drwxr-xr-x  6 yourname     yourname     4096 Apr 18 10:00 .
+drwxr-x---  2 nexus-mlflow nexus-mlflow 4096 Apr 18 10:00 artifacts
+drwxr-x---  2 nexus-mlflow nexus-mlflow 4096 Apr 18 10:00 mlruns
+drwxr-xr-x  2 yourname     yourname     4096 Apr 18 10:00 sync_inbox
+drwxr-xr-x  6 yourname     yourname     4096 Apr 18 10:00 venv
 ```
 
 > 💡 The `mlruns/` directory used to hold MLflow's file-based store (a tree of YAML/JSON files per run). With the sqlite backend introduced in Step 4, the same metadata lives in a single `mlflow.db` file inside this directory — the directory name is kept for path continuity.
+
+> 💡 **Read access for operators.** The `750` mode lets only the
+> `nexus-mlflow` user write and only members of the `nexus-mlflow`
+> group read. To let a teammate inspect the on-disk MLflow files
+> without `sudo`, add them to the group:
+>
+> ```bash
+> sudo usermod -aG nexus-mlflow <username>
+> # User must re-login for the new group to take effect.
+> ```
+>
+> Without this, reading still works — just via `sudo cat ...`.
 
 > 💡 **Check disk space in advance:**
 >
@@ -547,11 +599,14 @@ To                         Action      From
 
 Register the MLflow server to start automatically even after a PC reboot.
 
-### ── Check current username
+### ── Confirm the service account
+
+The service runs as the dedicated `nexus-mlflow` system user created in
+Step 3, **not** your interactive operator account. Verify it exists:
 
 ```bash
-echo $USER
-# Example: jonghochoi
+id nexus-mlflow
+# Expected: uid=997(nexus-mlflow) gid=997(nexus-mlflow) groups=997(nexus-mlflow)
 ```
 
 ### ── Create service file
@@ -559,7 +614,7 @@ echo $USER
 > ✅ **Pre-flight:** Confirm WAL mode was applied at the end of Step 4 — the systemd unit just runs the same `mlflow server` command and inherits whatever journal mode the DB was last set to. Re-check with `sqlite3 /opt/nexus-mlflow/mlruns/mlflow.db "PRAGMA journal_mode;"` (must print `wal`) before continuing.
 
 ```bash
-sudo tee /etc/systemd/system/nexus-mlflow.service > /dev/null << EOF
+sudo tee /etc/systemd/system/nexus-mlflow.service > /dev/null <<'EOF'
 [Unit]
 Description=NEXUS MLflow Tracking Server
 Documentation=https://github.com/jonghochoi/nexus
@@ -567,7 +622,8 @@ After=network.target
 
 [Service]
 Type=simple
-User=$USER
+User=nexus-mlflow
+Group=nexus-mlflow
 WorkingDirectory=/opt/nexus-mlflow
 Environment=PATH=/opt/nexus-mlflow/venv/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=/opt/nexus-mlflow/venv/bin/mlflow server \\
@@ -581,6 +637,13 @@ RestartSec=10
 StandardOutput=journal
 StandardError=journal
 
+# ── Hardening — narrow the service's view of the filesystem
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/nexus-mlflow/mlruns /opt/nexus-mlflow/artifacts
+
 [Install]
 WantedBy=multi-user.target
 EOF
@@ -592,7 +655,11 @@ EOF
 cat /etc/systemd/system/nexus-mlflow.service
 ```
 
-Confirm that the `User=` line shows your account name correctly.
+Confirm that `User=nexus-mlflow` and `Group=nexus-mlflow` appear, and
+that `ReadWritePaths=` lists exactly the two data directories the server
+must write to. Everything else on disk is read-only or invisible to the
+service — even an exploited MLflow process cannot reach `/etc`, your
+home, or `/opt/nexus-mlflow/venv/`.
 
 ---
 
@@ -842,6 +909,65 @@ For the full sync pipeline setup (config file, pre-flight check, cron registrati
 
 ---
 
+## Step 9 — Enable daily backups
+
+> **Why:** The dedicated `nexus-mlflow` account from Step 3 protects against accidental `rm -rf` from operator shells, but it does **not** protect against:
+>
+> - A user clicking **Permanently delete** on a run in the MLflow UI.
+> - Disk failure on this server.
+> - An OS reinstall that wipes `/opt`.
+>
+> For all of those, you need point-in-time backups. NEXUS ships `scheduled_sync/backup_mlflow.sh` for exactly this — daily snapshots that combine sqlite's online `.backup` API for the metadata DB with `rsync --link-dest` for the artifacts tree.
+
+### ── Pick a backup destination on a separate disk
+
+Strongly prefer a different physical disk than the one holding `/opt/nexus-mlflow`. A second internal HDD or a NAS mount works.
+
+```bash
+sudo apt install -y sqlite3                      # required for the online .backup API
+sudo mkdir -p /backup/nexus-mlflow
+sudo chown nexus-mlflow:nexus-mlflow /backup/nexus-mlflow
+sudo chmod 750 /backup/nexus-mlflow
+```
+
+(If you already followed Step 2.3, `sqlite3` is installed.)
+
+### ── Register the daily cron job
+
+```bash
+sudo tee /etc/cron.d/nexus-mlflow-backup > /dev/null <<'EOF'
+# NEXUS MLflow daily backup at 03:00. Runs as the dedicated nexus-mlflow
+# user so no operator account is required to be logged in.
+0 3 * * *  nexus-mlflow  bash /opt/nexus/scheduled_sync/backup_mlflow.sh \
+    --src /opt/nexus-mlflow \
+    --dst /backup/nexus-mlflow \
+    --keep-daily 14 \
+    >> /var/log/nexus-backup.log 2>&1
+EOF
+sudo chmod 644 /etc/cron.d/nexus-mlflow-backup
+```
+
+### ── Run it once by hand to verify
+
+The MLflow service can stay running — `sqlite3 .backup` does not block live writes.
+
+```bash
+sudo -u nexus-mlflow bash /opt/nexus/scheduled_sync/backup_mlflow.sh \
+    --src /opt/nexus-mlflow \
+    --dst /backup/nexus-mlflow \
+    --keep-daily 14 \
+    --verbose
+
+ls -la /backup/nexus-mlflow/daily/
+cat   /backup/nexus-mlflow/current/MANIFEST.txt
+```
+
+✅ **Step 9 done when:** today's snapshot directory exists under `/backup/nexus-mlflow/daily/`, `current` symlinks to it, and the MANIFEST records a non-zero size for `mlflow.db` plus a passing `integrity_check`.
+
+For the full backup/restore guide — including off-site replication, the disaster-recovery runbook, and the quarterly drill — see **[`22_BACKUP_GUIDE.md`](22_BACKUP_GUIDE.md)**.
+
+---
+
 ## Final Configuration Summary
 
 After setup is complete, the structure will be as follows:
@@ -853,18 +979,26 @@ After setup is complete, the structure will be as follows:
   Service: nexus-mlflow (systemd, auto-starts after reboot)
   Port:    5000 (open to entire internal network)
 
-  Storage locations:
-  /opt/nexus-mlflow/
-  ├── mlruns/
+  Storage locations & ownership:
+  /opt/nexus-mlflow/                      (operator:operator   755)
+  ├── venv/                               (operator:operator   755)
+  ├── mlruns/                             (nexus-mlflow:...    750) ← protected
   │   ├── mlflow.db        ← Experiment metadata (sqlite, WAL mode)
   │   ├── mlflow.db-wal    ← Write-ahead log (present while server is running)
   │   └── mlflow.db-shm    ← Shared-memory index (present while server is running)
-  ├── artifacts/           ← Checkpoints
-  │   └── <run_id>/
-  │       └── checkpoints/
-  │           ├── best.pth
-  │           └── last.pth
-  └── sync_inbox/          ← Blackwell SCP receive folder
+  ├── artifacts/                          (nexus-mlflow:...    750) ← protected
+  │     └── <run_id>/checkpoints/{best,last}.pth
+  └── sync_inbox/                         (operator:operator   755)
+        Blackwell SCP receive folder
+
+  Backup tree:
+  /backup/nexus-mlflow/                   (nexus-mlflow:...    750)
+  ├── daily/2026-04-27/                   ← today's snapshot
+  │   ├── mlruns/mlflow.db                ← consistent sqlite copy
+  │   ├── artifacts/                      ← rsync --link-dest hardlink dedup
+  │   └── MANIFEST.txt
+  ├── ... (up to 14 daily snapshots)
+  └── current → daily/2026-04-27
 
 [Team member access]
   Browser → http://192.168.1.42:5000
@@ -872,6 +1006,11 @@ After setup is complete, the structure will be as follows:
 [Blackwell → NEXUS connection]
   SSH key: ~/.ssh/nexus_key (automatic transfer without password)
   Method:  SCP → mlflow export/import (cron every 5 minutes)
+
+[Daily backup]
+  Cron:    /etc/cron.d/nexus-mlflow-backup (03:00, runs as nexus-mlflow)
+  Script:  /opt/nexus/scheduled_sync/backup_mlflow.sh
+  Restore: /opt/nexus/scheduled_sync/restore_mlflow.sh (see 22_BACKUP_GUIDE.md)
 ```
 
 ---
@@ -890,6 +1029,10 @@ After setup is complete, the structure will be as follows:
 | Service fails with `unable to open database file` or `sqlite3.OperationalError: no such table: experiments` | The sqlite URI in the unit / CLI is malformed (e.g. `sqlite:///opt/...` with three slashes — relative path) or the alembic schema was never initialized | Re-check the URI uses **four** slashes for absolute paths (`sqlite:////opt/nexus-mlflow/mlruns/mlflow.db`). Run `ls /opt/nexus-mlflow/mlruns/mlflow.db` — if the file is in the wrong place (e.g. `~` or repo root), delete the stray DB and restart from Step 4. |
 | `OperationalError: database is locked` in `mlflow-logs` or in cron `import_delta` output | sqlite write contention; usually means WAL was never enabled, or sustained multi-writer load | First verify WAL: `sqlite3 /opt/nexus-mlflow/mlruns/mlflow.db "PRAGMA journal_mode;"` (must print `wal`). If it says `delete`, stop the service and re-apply the WAL activation step at the end of Step 4. If WAL is on and contention is still chronic, the central server has outgrown sqlite — plan a Postgres migration. |
 | `mlflow.db-wal` file growing into the gigabytes | Long-running readers (e.g. an open UI tab) are preventing checkpoints from advancing | Restart the service (`mlflow-restart`). On clean shutdown sqlite checkpoints WAL into the main DB and shrinks `*-wal` back to ~zero. If it keeps growing during normal operation, run `sqlite3 mlflow.db "PRAGMA wal_checkpoint(TRUNCATE);"` while the service is briefly stopped. |
+| `journalctl -u nexus-mlflow` shows `Permission denied` on `mlruns/` after enabling the dedicated account | One of the data directories is still owned by your old operator account, not `nexus-mlflow`. | `sudo chown -R nexus-mlflow:nexus-mlflow /opt/nexus-mlflow/{mlruns,artifacts}` then `sudo systemctl restart nexus-mlflow`. |
+| Cannot edit a file under `mlruns/` directly with `vim` | Files are owned by `nexus-mlflow` (mode 750) — by design. | Either `sudo -u nexus-mlflow vim <path>`, or add yourself to the group: `sudo usermod -aG nexus-mlflow $USER` (re-login required) — then you get read-only access. Writes still need `sudo`. |
+| `cron` shows `bash: ...backup_mlflow.sh: Permission denied` | Backup script is not executable, or the cron's working dir is wrong. | `sudo chmod +x /opt/nexus/scheduled_sync/backup_mlflow.sh` |
+| Backup runs but `current` symlink is missing | Previous backup crashed mid-finalize. | `cd /backup/nexus-mlflow && ln -sfn daily/$(ls daily/ \| sort \| tail -1) current` |
 
 ---
 
@@ -899,4 +1042,63 @@ After the central server is up and team members can reach the MLflow UI:
 
 - **Bring up GPU nodes (offline)** → [`21_AIRGAPPED_GPU_SERVER_SETUP.md`](21_AIRGAPPED_GPU_SERVER_SETUP.md)
 - **Wire scheduled cron sync from each GPU node** → [`12_SCHEDULED_SYNC.md`](12_SCHEDULED_SYNC.md)
+- **Set up daily backups of the central tree** → [`22_BACKUP_GUIDE.md`](22_BACKUP_GUIDE.md)
 - **Persist team-wide MLflow chart/column layout** → [`31_CHART_SETTINGS_GUIDE.md`](31_CHART_SETTINGS_GUIDE.md)
+
+---
+
+## Migrating an Existing Server to the Dedicated Account
+
+If you originally followed an earlier version of this guide where the
+service ran as your operator account (`User=$USER`), use this procedure
+to switch to the dedicated `nexus-mlflow` account with near-zero
+downtime. The whole switch is a few `chown`s and a service restart —
+no data is moved or rewritten.
+
+> ⏱️ **Downtime:** roughly the time it takes to `chown -R` the
+> `mlruns/` and `artifacts/` trees. On a 10 GB tree this is typically
+> under 10 seconds; on a 200 GB tree, under 1 minute. Plan accordingly.
+
+```bash
+# 1. Create the dedicated account (skip if it already exists)
+sudo useradd --system --create-home --shell /usr/sbin/nologin nexus-mlflow
+
+# 2. Take a fresh backup BEFORE any chown — your safety net
+sudo -u $USER bash /opt/nexus/scheduled_sync/backup_mlflow.sh \
+    --src /opt/nexus-mlflow \
+    --dst /backup/nexus-mlflow-pre-migration \
+    --keep-daily 1
+
+# 3. Stop the live service
+sudo systemctl stop nexus-mlflow
+
+# 4. Re-own the data directories. Leave venv/ and sync_inbox/ alone.
+sudo chown -R nexus-mlflow:nexus-mlflow /opt/nexus-mlflow/mlruns
+sudo chown -R nexus-mlflow:nexus-mlflow /opt/nexus-mlflow/artifacts
+sudo chmod 750 /opt/nexus-mlflow/mlruns /opt/nexus-mlflow/artifacts
+
+# 5. Update the systemd unit (replace its contents with the file from
+#    Step 6.2 above — User=nexus-mlflow + the hardening directives)
+sudo $EDITOR /etc/systemd/system/nexus-mlflow.service
+sudo systemctl daemon-reload
+
+# 6. Start and verify
+sudo systemctl start nexus-mlflow
+sudo systemctl status nexus-mlflow
+curl -fs http://127.0.0.1:5000/health && echo OK
+
+# 7. Smoke test from a browser — confirm experiments and runs are visible
+```
+
+**Rollback (if anything looks wrong in step 7):**
+
+```bash
+sudo systemctl stop nexus-mlflow
+sudo chown -R $USER:$USER /opt/nexus-mlflow/mlruns /opt/nexus-mlflow/artifacts
+# Restore the old systemd unit (User=$USER) from your editor's backup or git
+sudo systemctl daemon-reload
+sudo systemctl start nexus-mlflow
+```
+
+The pre-migration backup from step 2 stays intact and can be used by
+`restore_mlflow.sh` as a last resort.
