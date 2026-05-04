@@ -268,7 +268,7 @@ python post_upload/upload_tb.py --history
 lsof -ti :5100 | xargs -r kill
 
 # 픽스처 삭제
-rm -rf /tmp/nexus_manual ./mlruns_training ./mlflow_training.log .mlflow_local.pid
+rm -rf /tmp/nexus_manual ~/.nexus/mlruns_training ~/.nexus/mlflow_training.log ~/.nexus/.mlflow_training.pid
 
 # 테스트로 쌓인 history 도 지우고 싶다면:
 #   rm ~/.nexus/history.json

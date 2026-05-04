@@ -447,7 +447,7 @@ lsof -ti :5100 | xargs kill
 bash scheduled_sync/start_local_mlflow.sh
 ```
 
-> **Why `kill $(cat .mlflow_local.pid)` doesn't work:** MLflow uses gunicorn internally to spawn multiple worker processes. The PID file only stores the master PID, so killing only the master leaves workers as orphan processes. Terminating by port kills both master and all workers at once.
+> **Why `kill $(cat ~/.nexus/.mlflow_training.pid)` doesn't work:** MLflow uses gunicorn internally to spawn multiple worker processes. The PID file only stores the master PID, so killing only the master leaves workers as orphan processes. Terminating by port kills both master and all workers at once.
 
 ### ⚠️ `MLflow server connection failed` in `smoke_test.py`
 

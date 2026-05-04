@@ -164,7 +164,7 @@ The full flag reference, interactive mode, upload history, `sim_run_id` auto-det
 │       └── 📡  → 127.0.0.1:5100    local MLflow server
 │
 ├── 🗄️  Local MLflow Server         (start_local_mlflow.sh — always on)
-│   └── 💾  all run data stored in mlruns/
+│   └── 💾  all run data stored in ~/.nexus/mlruns_training/
 │
 └── 🔄  sync_mlflow_to_server.sh    (cron, every 5 min)
     └── ⬆️  :5100 ──SCP──► central :5000
