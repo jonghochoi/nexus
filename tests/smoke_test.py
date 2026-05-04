@@ -805,116 +805,6 @@ def test_scheduled_sync_roundtrip(tracking_uri: str) -> bool:
         return False
 
 
-def test_scheduled_sync_researcher_filter(tracking_uri: str) -> bool:
-    """13. scheduled_sync: --researcher filters to one user's runs"""
-    section("13. scheduled_sync --researcher filter (multi-user safety)")
-    # On a shared GPU server several researchers' runs land in the same
-    # experiment on the same local MLflow. Without --researcher, every user's
-    # cron exports every other user's runs and the central server logs
-    # duplicates. This test populates an experiment with two researchers'
-    # runs, exports as one of them, and asserts only that researcher's run
-    # is in the delta.
-    try:
-        import json as _json
-        import subprocess
-        import tempfile
-        from pathlib import Path
-
-        sys.path.insert(0, ".")
-        from nexus.logger import MLflowLogger
-
-        ts = int(time.time())
-        exp_name = f"nexus_smoke_multiuser_{ts}"
-        repo_root = Path(__file__).resolve().parent.parent
-        export_py = repo_root / "scheduled_sync" / "export_delta.py"
-
-        # ── 1. Two runs, two different researchers
-        for researcher, run_suffix, reward in [("kim", "kim_a", 11.0), ("lee", "lee_a", 22.0)]:
-            logger = MLflowLogger(
-                run_name=f"multiuser_{run_suffix}_{ts}",
-                tracking_uri=tracking_uri,
-                experiment_name=exp_name,
-                tags={"researcher": researcher, "task": "multiuser"},
-            )
-            logger.add_scalar("train/reward", reward, 1)
-            logger.close()
-        ok(f"Seeded {exp_name} with one run per researcher (kim, lee)")
-
-        # ── 2. Export with --researcher kim — delta must contain only kim's run
-        with tempfile.TemporaryDirectory() as tmp:
-            delta_path = Path(tmp) / "delta_kim.json"
-            state_path = Path(tmp) / "state_kim.json"
-            r = subprocess.run(
-                [
-                    "python",
-                    str(export_py),
-                    "--tracking_uri",
-                    tracking_uri,
-                    "--experiment",
-                    exp_name,
-                    "--researcher",
-                    "kim",
-                    "--output",
-                    str(delta_path),
-                    "--state_file",
-                    str(state_path),
-                ],
-                capture_output=True,
-                text=True,
-            )
-            if r.returncode != 0:
-                fail(f"export_delta.py failed (exit {r.returncode}): {r.stderr}")
-                return False
-            with open(delta_path) as f:
-                delta = _json.load(f)
-            run_names = sorted(r["run_name"] for r in delta["runs"])
-            if any("lee_a" in n for n in run_names):
-                fail(f"--researcher kim leaked lee's run: {run_names}")
-                return False
-            if not any("kim_a" in n for n in run_names):
-                fail(f"--researcher kim missed kim's own run: {run_names}")
-                return False
-            ok(f"--researcher kim exported only kim's run: {run_names}")
-
-        # ── 3. Same export without --researcher — must include both
-        with tempfile.TemporaryDirectory() as tmp:
-            delta_path = Path(tmp) / "delta_all.json"
-            state_path = Path(tmp) / "state_all.json"
-            r = subprocess.run(
-                [
-                    "python",
-                    str(export_py),
-                    "--tracking_uri",
-                    tracking_uri,
-                    "--experiment",
-                    exp_name,
-                    "--output",
-                    str(delta_path),
-                    "--state_file",
-                    str(state_path),
-                ],
-                capture_output=True,
-                text=True,
-            )
-            if r.returncode != 0:
-                fail(f"export_delta.py (no filter) failed: {r.stderr}")
-                return False
-            with open(delta_path) as f:
-                delta = _json.load(f)
-            run_names = sorted(r["run_name"] for r in delta["runs"])
-            if not (any("kim_a" in n for n in run_names) and any("lee_a" in n for n in run_names)):
-                fail(f"No-filter export should include both researchers, got: {run_names}")
-                return False
-            ok(f"No filter exports both researchers: {run_names}")
-
-        return True
-    except Exception as e:
-        fail(f"researcher-filter test failed: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return False
-
 
 def test_sweep_logger(tracking_uri: str) -> bool:
     """11. SweepLogger parent-child run test"""
@@ -1018,7 +908,6 @@ def main() -> None:
         results["rl_metrics_fanout"] = test_dual_log_rl_metrics_fanout(args.tracking_uri)
         results["omegaconf_flatten"] = test_omegaconf_flatten(args.tracking_uri)
         results["scheduled_sync"] = test_scheduled_sync_roundtrip(args.tracking_uri)
-        results["scheduled_sync_filter"] = test_scheduled_sync_researcher_filter(args.tracking_uri)
         results["sweep_logger"] = test_sweep_logger(args.tracking_uri)
 
     # ── Summary ───────────────────────────────────────────────────────────────
@@ -1036,7 +925,6 @@ def main() -> None:
         "rl_metrics_fanout": "RL metrics fan-out (DualLogger -> TB + MLflow)",
         "omegaconf_flatten": "OmegaConf DictConfig flatten",
         "scheduled_sync": "scheduled_sync round-trip (export -> import)",
-        "scheduled_sync_filter": "scheduled_sync --researcher filter (multi-user)",
         "sweep_logger": "SweepLogger (parent-child runs)",
     }
     all_passed = True

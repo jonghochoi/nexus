@@ -47,8 +47,12 @@ trainer.write_stats()
   │  → tfevents (disk) │  → local MLflow :5100  │
   └─────────────────────────────────────────────┘
                            │
-                  sync_mlflow_to_server.sh
+                  sync_mlflow_all.sh
                   (every N minutes via cron)
+                  discovers all experiments,
+                  calls per-experiment:
+                           │
+                  sync_mlflow_to_server.sh
                            │
                   ┌────────┴────────┐
                   │ export_delta.py │  (query local MLflow, serialize new
@@ -175,7 +179,8 @@ nexus/
 │
 ├── scheduled_sync/                 # Pipeline A — sync while training runs (air-gapped SCP)
 │   ├── start_local_mlflow.sh       # [GPU Server] start local MLflow server
-│   ├── sync_mlflow_to_server.sh    # [GPU Server] delta export → SCP → import
+│   ├── sync_mlflow_all.sh          # [GPU Server] cron entry point — discovers all experiments, loops
+│   ├── sync_mlflow_to_server.sh    # [GPU Server] per-experiment delta export → SCP → import
 │   ├── validate_sync.sh            # [GPU Server] pre-flight checker before registering cron
 │   ├── export_delta.py             # [GPU Server] serialize new metrics + artifacts into tar.gz bundle
 │   ├── import_delta.py             # [MLflow server] unpack bundle, log metrics + upload artifacts
@@ -221,7 +226,8 @@ The next section maps each runtime component (factory, loggers, sync scripts) to
 | `MLflowLogger` | `nexus/logger/mlflow_logger.py` | 📊 Buffers + flushes to local MLflow via `log_batch()` |
 | `TBLogger` | `nexus/logger/tb_logger.py` | 📈 Thin `SummaryWriter` wrapper |
 | `start_local_mlflow.sh` | `scheduled_sync/` | 🚀 Starts local MLflow on GPU Server (loopback) |
-| `sync_mlflow_to_server.sh` | `scheduled_sync/` | 🔄 Orchestrates delta export → SCP → import |
+| `sync_mlflow_all.sh` | `scheduled_sync/` | 🗂️ Cron entry point — discovers all experiments, calls per-experiment sync |
+| `sync_mlflow_to_server.sh` | `scheduled_sync/` | 🔄 Per-experiment: delta export → SCP → import |
 | `validate_sync.sh` | `scheduled_sync/` | 🔍 Pre-flight checker: SSH, inbox, experiment, dry-run |
 | `export_delta.py` | `scheduled_sync/` | 📦 Serializes new metrics + artifacts into tar.gz bundle |
 | `import_delta.py` | `scheduled_sync/` | ⬆️ Unpacks bundle, logs metrics + uploads artifacts to central MLflow |
