@@ -805,7 +805,6 @@ def test_scheduled_sync_roundtrip(tracking_uri: str) -> bool:
         return False
 
 
-
 def test_sweep_logger(tracking_uri: str) -> bool:
     """11. SweepLogger parent-child run test"""
     section("11. SweepLogger (Parent-Child Runs)")
@@ -813,37 +812,46 @@ def test_sweep_logger(tracking_uri: str) -> bool:
         sys.path.insert(0, ".")
         from nexus.logger.sweep_logger import SweepLogger
         from nexus.logger import MLflowLogger
+        from mlflow.tracking import MlflowClient
 
+        client = MlflowClient(tracking_uri=tracking_uri)
+
+        # ── 11a. Context manager — happy path ────────────────────────────────
         sweep_name = f"smoke_sweep_{int(time.time())}"
-        sweep = SweepLogger(
+        with SweepLogger(
             sweep_name=sweep_name,
             tracking_uri=tracking_uri,
             experiment_name="nexus_smoke_test",
             sweep_params={"lr_range": "[1e-4, 1e-3]", "n_trials": "3"},
-        )
-        parent_id = sweep.parent_run_id
-        ok(f"Parent run created: {parent_id[:8]}...")
+        ) as sweep:
+            parent_id = sweep.parent_run_id
+            ok(f"Parent run created: {parent_id[:8]}...")
 
-        for i, lr in enumerate([1e-4, 1e-3], start=1):
-            child = MLflowLogger(
-                run_name=f"{sweep_name}_trial_{i}",
-                tracking_uri=tracking_uri,
-                experiment_name="nexus_smoke_test",
-                params={"lr": lr},
-                parent_run_id=parent_id,
-            )
-            child.add_scalar("train/reward", float(i * 10), 1)
-            child.close()
-        ok("Child runs created with parent_run_id tag")
+            for i, lr in enumerate([1e-4, 1e-3], start=1):
+                child = MLflowLogger(
+                    run_name=f"{sweep_name}_trial_{i}",
+                    tracking_uri=tracking_uri,
+                    experiment_name="nexus_smoke_test",
+                    params={"lr": lr},
+                    parent_run_id=parent_id,
+                )
+                child.add_scalar("train/reward", float(i * 10), 1)
+                child.close()
+            ok("Child runs created with parent_run_id tag")
 
-        import mlflow as _mlflow
-        from mlflow.tracking import MlflowClient
+            sweep.log_summary(best_params={"lr": 1e-4}, best_metrics={"reward": 20.0})
 
-        _mlflow.set_tracking_uri(tracking_uri)
-        client = MlflowClient(tracking_uri=tracking_uri)
-        exp = _mlflow.get_experiment_by_name("nexus_smoke_test")
+        # Verify parent run is FINISHED
+        finished_run = client.get_run(parent_id)
+        if finished_run.info.status != "FINISHED":
+            fail(f"Expected FINISHED after clean exit, got {finished_run.info.status!r}")
+            return False
+        ok("Parent run marked FINISHED after clean context manager exit")
+
+        # Verify parentRunId tag on child run
+        exp_obj = client.get_experiment_by_name("nexus_smoke_test")
         child_runs = client.search_runs(
-            experiment_ids=[exp.experiment_id],
+            experiment_ids=[exp_obj.experiment_id],
             filter_string=f"tags.mlflow.runName = '{sweep_name}_trial_1'",
         )
         child_tags = child_runs[0].data.tags
@@ -852,9 +860,27 @@ def test_sweep_logger(tracking_uri: str) -> bool:
             return False
         ok("mlflow.parentRunId tag verified on child run")
 
-        sweep.log_summary(best_params={"lr": 1e-4}, best_metrics={"reward": 20.0})
-        sweep.close()
-        ok("Sweep summary logged and finalized")
+        # ── 11b. Context manager — exception marks run FAILED ────────────────
+        failed_name = f"smoke_sweep_fail_{int(time.time())}"
+        failed_id = None
+        try:
+            with SweepLogger(
+                sweep_name=failed_name,
+                tracking_uri=tracking_uri,
+                experiment_name="nexus_smoke_test",
+            ) as sweep_fail:
+                failed_id = sweep_fail.parent_run_id
+                raise RuntimeError("simulated sweep crash")
+        except RuntimeError:
+            pass  # expected
+
+        if failed_id is not None:
+            failed_run = client.get_run(failed_id)
+            if failed_run.info.status != "FAILED":
+                fail(f"Expected FAILED after exception, got {failed_run.info.status!r}")
+                return False
+            ok("Parent run marked FAILED after exception in context manager")
+
         return True
     except Exception as e:
         fail(f"SweepLogger test failed: {e}")
