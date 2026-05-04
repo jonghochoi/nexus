@@ -11,7 +11,7 @@ NEXUS is a centralized RL experiment hub for an air-gapped GPU-server / internet
 Venv setup and activation are covered in `README.md` → "Quick Start" (`bash setup.sh [--alias|--reinstall]`, `source ~/.nexus/activate.sh`). Two things matter for code changes:
 
 - The venv is at `~/.nexus/venv` — **outside** the source tree — so overwriting the repo does not wipe installed packages. `~/.nexus/` also holds the user's `post_config.json` (Pipeline B), `sync_state/{exp}.json`, `history.json`, and the local MLflow server's runtime data (`mlruns_training/`, `mlflow_training.log`, `.mlflow_training.pid` — written by `scheduled_sync/start_local_mlflow.sh`).
-- There is no package install (no `setup.py`/`pyproject.toml`); scripts are run directly and `nexus/logger/` is imported via `sys.path.insert(0, ".")` from the repo root (which puts the `nexus` package on `sys.path`).
+- There is no mandatory `pip install` step — scripts are run directly and `nexus/logger/` is imported via `sys.path.insert(0, ".")` from the repo root (which puts the `nexus` package on `sys.path`). `pyproject.toml` exists for ruff config and the `nexus-logger` package definition, but is not required for day-to-day development.
 
 Smoke / end-to-end tests (require an MLflow server reachable at `--tracking_uri`):
 
@@ -39,39 +39,27 @@ The system has **two independent pipelines** for getting data into central MLflo
 
 ### Pipeline A — `nexus/logger/` + `scheduled_sync/` (live training)
 
-Used when training code is modified to call `make_logger()`. Flow:
+Used when training code is modified to call `make_logger()`. Full data-flow is in `docs/10_ARCHITECTURE.md`; the operator walkthrough is in `docs/12_SCHEDULED_SYNC.md`. Key facts that affect code changes:
 
-1. The trainer calls `make_logger(mode="dual"|"mlflow"|"tensorboard", ...)` once at `__init__`. The returned object is `SummaryWriter`-compatible (`add_scalar`, `add_histogram`, `add_image`, `close`), so the rest of the trainer is unchanged.
-2. `MLflowLogger` writes to a **local** MLflow server on `127.0.0.1:5100` (started by `scheduled_sync/start_local_mlflow.sh`). It buffers `add_scalar` calls per-step in memory and flushes the whole step's metrics with a single `client.log_batch()` when `global_step` advances. The `_BATCH_SIZE = 1000` constant matches MLflow's hard per-call limit.
-3. Run identity is `run_name`, not `run_id` — `_get_or_create_run` searches for an existing run by `tags.mlflow.runName` and resumes it if found, so a crash + restart of the trainer reattaches to the same MLflow run instead of creating a duplicate.
-4. `git_utils.get_git_info()` is called automatically (suppress with `track_git=False`) and stamps `git_commit` / `git_dirty` tags. If dirty, the full `git diff HEAD` is rendered to a self-contained HTML page and uploaded as `artifacts/git/git_patch.html` (previewable inline in the MLflow UI).
-5. The operator registers **one** cron using `sync_mlflow_all.sh`. That wrapper auto-discovers all experiments from local MLflow each tick and calls `sync_mlflow_to_server.sh` per experiment. A single state file per experiment (`~/.nexus/sync_state/{experiment}.json`) tracks every run_id independently — no researcher filter needed, and team members need zero cron knowledge. Exactly one cron must exist per GPU server; a second cron from any user creates a competing state file and causes duplicate metric points. See `docs/12_SCHEDULED_SYNC.md`.
-
-   The shell wrapper (`sync_mlflow_to_server.sh`) resolves values (`experiment`, `remote`, `remote_nexus_dir`, optional `ssh_key`/`ssh_port`/`local_uri`/`remote_uri`/`state_file`) in order: CLI flag → `--config <path>` JSON → `/etc/nexus/sync_config.json` → built-in default. It chains:
-   - `export_delta.py` on the GPU server → reads `~/.nexus/sync_state/{experiment}.json` to find each run's last-synced step per tag, queries the local MLflow, writes only **new** points to a delta bundle. Exit codes: `0` = data to transfer, `1` = configuration error (e.g. unknown experiment), `2` = no new data (wrapper skips SCP).
-   - `scp` of the delta bundle to the central server's inbox. The local filename is `delta_${USER}_<TS>_<PID>.tar.gz`.
-   - `ssh` invocation of `import_delta.py` on the central server, which `get_or_create`s the run by `run_name` and `log_batch`es the new metrics. Params + tags are sent only on first appearance of a run; the run is then stamped with `nexus.lastSyncTime` (UTC ISO) and `nexus.syncedFromHost` (origin GPU server hostname) so the central UI can flag stale GPU servers.
-
-The state file at `~/.nexus/sync_state/{experiment}.json` is the source of truth for "what has been synced." Deleting it forces a full re-sync on the next run. (The default location used to be `/tmp/nexus_delta_{experiment}.json`, but `/tmp` is wiped on reboot on most distros and silently triggered a full re-sync every cycle.)
-
-`scheduled_sync/validate_sync.sh` is a pre-flight checker for cron registration: it loads the same config resolution chain, checks for existing sync crons in the crontab (step 0/7), verifies SSH reachability, remote inbox writability, presence of `import_delta.py` on the server, remote MLflow `/health`, local MLflow experiment count, and finally runs a `--dry-run`. Exits 0 only if every step passes; prints a paste-ready cron line on success but never edits crontab itself.
+- **Run identity is `run_name`, not `run_id`** — `_get_or_create_run` resumes an existing run on crash+restart; never creates a duplicate.
+- **`_BATCH_SIZE = 1000`** matches MLflow's hard per-`log_batch()` limit — do not exceed.
+- **Git patch**: if the working tree is dirty, `git diff HEAD` is rendered as a self-contained HTML page and uploaded to `artifacts/git/git_patch.html`. Suppress with `track_git=False`.
+- **Config resolution** in `sync_mlflow_to_server.sh`: CLI flag → `--config` JSON → `/etc/nexus/sync_config.json` → built-in default.
+- **Exactly one cron per GPU server** — a second cron creates a competing state file and duplicates metric points.
+- **State file** at `~/.nexus/sync_state/{experiment}.json` is the sync source of truth. Deleting it triggers a full re-sync. (Old default `/tmp/...` was wiped on reboot — that location is no longer used.)
+- **`validate_sync.sh`** is a pre-flight checker — exits 0 only when all checks pass; prints a paste-ready cron line but never edits crontab itself.
 
 ### Pipeline B — `post_upload/` (one-shot, no trainer changes)
 
-Used to back-fill completed tfevents that were written by an unmodified `SummaryWriter`, and to attach post-hoc evaluation artifacts (mp4 rollouts, reports) to an existing run.
+Back-fills completed tfevents and attaches post-hoc eval artifacts. Full walkthrough in `docs/13_POST_UPLOAD.md`. Key behaviors that affect code changes:
 
-- `upload_tb.py` parses tfevents with `tbparse`, builds `Metric` entities directly from numpy arrays (do not use `iterrows` — the file comments call out that vectorized zip is ~50x faster), and `log_batch`es in chunks of 1000.
-- `verify_tb.py` re-fetches the uploaded run and compares tag list / point counts / per-step values against the TB source within `--tolerance`.
-- `upload_eval.py` resolves an existing run by `run_name` (via `tags.mlflow.runName` search) and `log_artifacts`es a directory under `eval/<eval_id>/` — never `checkpoints/`, to keep the `best.pth`/`last.pth` policy intact. It also synthesizes an `index.html` viewer next to the mp4 so the MLflow UI can preview the rollout inline (MLflow 2.13's artifact viewer does not natively render mp4, but it does render HTML, and a sibling `<video>` tag works).
-
-Important behaviors (apply primarily to `upload_tb.py`):
-
-- **Multi-run protection**: if `tb_dir.rglob("events.out.tfevents.*")` finds tfevents in more than one parent directory, the script aborts with an error rather than silently merging multiple runs into one MLflow run (which would cause step collisions). Always upload one run dir at a time.
-- **Required tags** are decided by `config.required_tags(experiment)`: always `(experiment,)`. Missing tags drop the CLI into interactive prompts on a TTY; `--force` skips validation; `--dry_run` skips upload entirely.
-- **Tag precedence**: 7-level chain (builtin → config → `--repeat-last` → `run_meta.json` → `--tags` → `--git_commit` → `-i`) is documented in `docs/13_POST_UPLOAD.md` §2 — keep that table as the single source of truth if you change the order.
-- **Auto-verify**: after upload, `run_verify(run_id, tb_dir, tracking_uri)` is invoked unconditionally unless `--no_verify` is set. If verification fails, the script still records the upload in history but exits `2` (so CI can branch on it).
-- **History**: every upload is prepended to `~/.nexus/history.json` (capped at `HISTORY_LIMIT=20`). Records carry a `script` field (`"upload_tb"` / `"upload_eval"`) so the two pipelines coexist; legacy records without `script` are treated as `"upload_tb"`. `--repeat-last` and `verify_tb.py --from-last` filter by `script="upload_tb"` so they never resurrect an eval record.
-- The post_upload scripts inject `sys.path.insert(0, str(Path(__file__).resolve().parent))` so they import sibling modules (`config`, `history`, `verify_tb`) whether invoked from the repo root or from `post_upload/`.
+- **Multi-run protection** — aborts if tfevents span more than one parent directory (would cause step collisions). Always upload one run dir at a time.
+- **Vectorized metric building** — build `Metric` entities via vectorized zip over numpy arrays, not `iterrows` (~50x faster); the file comments call this out.
+- **Tag precedence** (7-level chain) — single source of truth is `docs/13_POST_UPLOAD.md` §2; keep that table authoritative if you change the order.
+- **Auto-verify** — `run_verify()` runs unconditionally after upload unless `--no_verify`; exits `2` on failure (so CI can branch on it) but still records the upload in history.
+- **Eval artifacts** go under `eval/<eval_id>/` — never `checkpoints/`, to preserve `best.pth`/`last.pth` policy.
+- **History** (`~/.nexus/history.json`, capped at `HISTORY_LIMIT=20`) carries a `script` field (`"upload_tb"` / `"upload_eval"`); `--repeat-last` and `--from-last` filter by `script="upload_tb"` so they never resurrect an eval record.
+- **`sys.path.insert`** in each script — injects the parent dir so sibling modules (`config`, `history`, `verify_tb`) import correctly from any working directory.
 
 ### Cross-cutting conventions
 
@@ -98,18 +86,60 @@ All intra-package imports use the relative form (`from .git_utils import ...`, `
 
 ### `chart_settings/` (separate concern)
 
-`apply_chart_settings.py` persists MLflow column / chart configuration as **experiment tags** (`nexus.chart_settings`, `nexus.chart_settings_version`) so they outlast browser sessions and are shared across the team. The browser-side restoration is a generated JS bookmarklet (printed by `python chart_settings/apply_chart_settings.py bookmarklet`) that fetches the tag and writes the MLflow 2.x localStorage keys. CLI subcommands: `apply`, `show`, `bookmarklet`.
+`apply_chart_settings.py` persists MLflow column / chart configuration as **experiment tags** (`nexus.chart_settings`, `nexus.chart_settings_version`) so they outlast browser sessions and are shared across the team. The browser-side restoration is a generated JS bookmarklet (printed by `python chart_settings/apply_chart_settings.py bookmarklet`) that fetches the tag and writes the MLflow 2.x localStorage keys. CLI subcommands: `apply`, `show`, `bookmarklet`. User-facing guide: `docs/31_CHART_SETTINGS_GUIDE.md`.
+
+### `brand.py` (CLI output utilities)
+
+Shared ANSI styling module imported by CLI scripts across the repo. Exports `SIGIL` (`[NXS]` in bold cyan), `BANNER`, `FLOW`, `VERSION_STRING`, `print_banner()`, `print_flow()`, `rule()`, and `log()`. Import directly from the repo root: `from brand import print_banner, SIGIL, log`. Has no imports from `nexus.*` and no MLflow dependency — safe to import in any context.
 
 ## When adding new features
 
-Several concepts are reflected in multiple places. Change one without auditing the others and the docs will silently rot:
+Several concepts are reflected in multiple places. Change one without auditing the others and the docs will silently rot. Use these checklists when making each category of change.
 
-- **New required tag** — add to `post_upload/config.py::required_tags()` (code-side enforcement), the "Recommended Tags" table in `README.md`, and the canonical anchor table in `docs/00_PRINCIPLES.md` → `#required-tags`.
-- **New logger mode or core method** — decide whether to re-export from `nexus/logger/__init__.py`, update the `make_logger()` factory in `nexus/logger/dual_logger.py`, extend the "Logger Modes" table in `README.md`, and add a case to `tests/smoke_test.py`. Advanced (opt-in) features are documented in `docs/30_ADVANCED_FEATURES.md`; only the core four (`make_logger`, `DualLogger`, `MLflowLogger`, `TBLogger`) belong in `README.md`.
-- **New Pipeline B CLI flag** — `post_upload/upload_tb.py::parse_args()` (or `upload_eval.py::parse_args()` for eval-side flags), plus the flag table in `README.md` "Pipeline B" section and the deeper notes in `docs/13_POST_UPLOAD.md`.
-- **New Pipeline A sync option** — add the CLI flag in `scheduled_sync/sync_mlflow_to_server.sh` (argument-parsing case), the matching JSON key in the `KEY_MAP` of the same script's `--config` parser, the example file `scheduled_sync/sync_config.example.json`, the validator's required-key list in `scheduled_sync/validate_sync.sh` if the new key is required, and the operator walkthrough in `docs/12_SCHEDULED_SYNC.md` (both the Step 1 required-keys table and the Verification checklist if the new key is required). Keep CLI-name ↔ JSON-key mapping consistent (`--remote_nexus_dir` ↔ `"remote_nexus_dir"`).
-- **Changing the default URIs (`5100`, `5000`)** — defaults are hardcoded across `nexus/logger/`, `scheduled_sync/*`, `post_upload/`, `chart_settings/apply_chart_settings.py`, and the README diagrams. Grep for `5100` and `5000` and change them in concert.
-- **New team-wide chart or column** — edit `chart_settings/chart_settings.json`, then run `python chart_settings/apply_chart_settings.py apply` against the central server. The bookmarklet picks up the new payload automatically; no JS edit needed.
+**New required tag**
+- [ ] `post_upload/config.py::required_tags()` — code-side enforcement
+- [ ] `docs/00_PRINCIPLES.md` → `#required-tags` — canonical anchor table
+- [ ] `README.md` → "Recommended Tags" table
+
+**New core logger method** (re-exported from `nexus/logger/__init__.py`)
+- [ ] `nexus/logger/__init__.py` — add to re-exports
+- [ ] `nexus/logger/dual_logger.py` — add forwarding in `DualLogger`
+- [ ] `nexus/logger/tb_logger.py` — decide whether `TBLogger` needs a stub (required if you want `mode="tensorboard"` to stay viable; see package layout note above)
+- [ ] `README.md` → "Logger Modes" table
+- [ ] `tests/smoke_test.py` — add a core test case
+
+**New opt-in / advanced logger feature** (not re-exported from `__init__`)
+- [ ] `docs/30_ADVANCED_FEATURES.md` — document the new feature
+- [ ] `tests/smoke_test.py` — add a case under `--advanced`
+
+**New Pipeline B CLI flag**
+- [ ] `post_upload/upload_tb.py::parse_args()` (or `upload_eval.py::parse_args()` for eval-side flags)
+- [ ] `README.md` → "Pipeline B" flag table
+- [ ] `docs/13_POST_UPLOAD.md` — deeper notes
+
+**New Pipeline B script** (new file added to `post_upload/`)
+- [ ] `docs/13_POST_UPLOAD.md` — document the new script
+- [ ] `README.md` → "Pipeline B" section
+
+**New Pipeline A sync option**
+- [ ] `scheduled_sync/sync_mlflow_to_server.sh` — CLI flag (argument-parsing case) + matching JSON key in `KEY_MAP`
+- [ ] `scheduled_sync/sync_config.example.json` — add the new key
+- [ ] `scheduled_sync/validate_sync.sh` — add to required-key list if the new key is required
+- [ ] `docs/12_SCHEDULED_SYNC.md` — Step 1 required-keys table + Verification checklist if required
+- [ ] Keep CLI-name ↔ JSON-key mapping consistent (`--remote_nexus_dir` ↔ `"remote_nexus_dir"`)
+
+**New chart setting or column**
+- [ ] `chart_settings/chart_settings.json` — add the new entry
+- [ ] Run `python chart_settings/apply_chart_settings.py apply` against the central server
+- [ ] `docs/31_CHART_SETTINGS_GUIDE.md` — update if the new setting changes user workflow
+
+**Changing default URIs (`5100`, `5000`)**
+- [ ] Grep for `5100` and `5000` across `nexus/logger/`, `scheduled_sync/*`, `post_upload/`, `chart_settings/apply_chart_settings.py`, and `README.md` diagrams — change in concert
+
+**Adding a new doc file under `docs/`**
+- [ ] `README.md` → "Further Reading" table — add the new entry with its numeric prefix
+- [ ] CLAUDE.md → "Where to read more" — update if the doc is relevant to code changes
+- [ ] If the doc applies to Korean users, consider adding a corresponding entry in `docs/ko/`
 
 ## Docs Markdown style (`docs/`)
 
@@ -287,4 +317,4 @@ Optional for trivial one-liners; required for any commit that touches more than 
 
 ## Where to read more
 
-The canonical entry point is `docs/00_PRINCIPLES.md` (team-agreed rules + engineering invariants, single source of truth). `README.md` → "Further Reading" lists every doc with its numeric prefix; the docs are ordered into tracks: `00` = principles, `10–13` = engineer/user (architecture, Pipeline A logger setup, Pipeline A scheduled sync, Pipeline B post-upload), `20–21` = operator infrastructure (central MLflow server install, air-gapped GPU node bring-up — both include their own local-PC + post-install verification steps), `30–31` = opt-in features. Korean onboarding lives at `docs/ko/` (`01_INTRO.md`, `02_EXPERIMENT_STANDARD.md`). `docs/10_ARCHITECTURE.md` is the single best starting point if you need the full data-flow and run-structure picture before touching code.
+`docs/00_PRINCIPLES.md` is the canonical entry point (team-agreed rules + engineering invariants). `docs/10_ARCHITECTURE.md` is the best starting point for data-flow and run-structure before touching code. All docs are indexed in `README.md` → "Further Reading": tracks `10–13` (engineer/user), `20–21` (operator infrastructure), `30–31` (opt-in features — `30_ADVANCED_FEATURES.md`, `31_CHART_SETTINGS_GUIDE.md`). Korean onboarding: `docs/ko/`.
