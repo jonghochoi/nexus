@@ -169,7 +169,6 @@ nexus/
 │       ├── git_utils.py            # Git commit/dirty-state capture (auto-called at run start)
 │       ├── sweep_logger.py         # [Advanced] HP sweep parent run
 │       ├── model_registry.py       # [Advanced] Model Registry operations
-│       ├── rl_metrics.py           # [Advanced] RL diagnostic metric helpers
 │       └── system_metrics.py       # [Advanced] Background CPU/GPU logging
 │
 ├── post_upload/                    # Pipeline B — upload after training
