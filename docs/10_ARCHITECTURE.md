@@ -51,14 +51,14 @@ PPO.write_stats()
                   (every N minutes via cron)
                            │
                   ┌────────┴────────┐
-                  │ export_delta.py │  (query local MLflow,
-                  │                 │   serialize only new steps per tag)
+                  │ export_delta.py │  (query local MLflow, serialize new
+                  │                 │   metric steps + new/changed artifacts)
                   └────────┬────────┘
-                           │ SCP delta.json
+                           │ SCP delta bundle (tar.gz)
                            ▼
                   ┌─────────────────┐
                   │ import_delta.py │  (get_or_create run,
-                  │                 │   log_batch new metrics)
+                  │                 │   log_batch new metrics + upload artifacts)
                   └────────┬────────┘
                            │
                            ▼
@@ -68,7 +68,7 @@ PPO.write_stats()
 
 > ✅ **Used when:** training code uses `make_logger()` and the run is actively training (or long-running).
 >
-> 🔁 **Incremental:** per-run, per-tag last-synced step is tracked in `~/.nexus/sync_state/{experiment}.json`.
+> 🔁 **Incremental:** per-run, per-tag last-synced step is tracked in `~/.nexus/sync_state/{experiment}[__{researcher}].json`.
 
 ---
 
@@ -176,8 +176,10 @@ nexus/
 ├── scheduled_sync/                 # Pipeline A — sync while training runs (air-gapped SCP)
 │   ├── start_local_mlflow.sh       # [GPU Server] start local MLflow server
 │   ├── sync_mlflow_to_server.sh    # [GPU Server] delta export → SCP → import
-│   ├── export_delta.py             # [GPU Server] serialize new metrics only
-│   └── import_delta.py             # [MLflow server] import delta JSON
+│   ├── validate_sync.sh            # [GPU Server] pre-flight checker before registering cron
+│   ├── export_delta.py             # [GPU Server] serialize new metrics + artifacts into tar.gz bundle
+│   ├── import_delta.py             # [MLflow server] unpack bundle, log metrics + upload artifacts
+│   └── sync_config.example.json   # annotated config template for sync_mlflow_to_server.sh
 │
 ├── chart_settings/                 # Persist MLflow UI column/chart settings
 │   ├── chart_settings.json         # Team-standard column and chart configuration
@@ -220,8 +222,9 @@ The next section maps each runtime component (factory, loggers, sync scripts) to
 | `TBLogger` | `nexus/logger/tb_logger.py` | 📈 Thin `SummaryWriter` wrapper |
 | `start_local_mlflow.sh` | `scheduled_sync/` | 🚀 Starts local MLflow on GPU Server (loopback) |
 | `sync_mlflow_to_server.sh` | `scheduled_sync/` | 🔄 Orchestrates delta export → SCP → import |
-| `export_delta.py` | `scheduled_sync/` | 📦 Serializes only new metric points per run/tag |
-| `import_delta.py` | `scheduled_sync/` | ⬆️ Reads delta JSON, logs new metrics to central MLflow |
+| `validate_sync.sh` | `scheduled_sync/` | 🔍 Pre-flight checker: SSH, inbox, experiment, dry-run |
+| `export_delta.py` | `scheduled_sync/` | 📦 Serializes new metrics + artifacts into tar.gz bundle |
+| `import_delta.py` | `scheduled_sync/` | ⬆️ Unpacks bundle, logs metrics + uploads artifacts to central MLflow |
 | `upload_tb.py` | `post_upload/` | 📤 Manual full upload after training |
 | `verify_tb.py` | `post_upload/` | ✅ Validates upload against TB source |
 | `upload_eval.py` | `post_upload/` | 🎬 Attaches eval artifacts (mp4/report) to an existing run |
