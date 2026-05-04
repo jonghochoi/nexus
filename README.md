@@ -147,21 +147,19 @@ The default pulls **`mlflow-skinny`** — `MlflowClient` and the tracking / enti
 
 ---
 
-## Recommended Tags *(reproducibility)*
+## Recommended Tags
 
-> Canonical sources: [`docs/00_PRINCIPLES.md#required-tags`](docs/00_PRINCIPLES.md#-required-tags), [`docs/ko/02_EXPERIMENT_STANDARD.md` § 3-1](docs/ko/02_EXPERIMENT_STANDARD.md#3-tags-규칙), and [`post_upload/config.py::required_tags()`](post_upload/config.py).
+> Canonical sources: [`docs/00_PRINCIPLES.md#required-tags`](docs/00_PRINCIPLES.md#-required-tags) and [`post_upload/config.py::required_tags()`](post_upload/config.py).
 
 | Tag | Example | Required |
 |---|---|:---:|
 | `experiment` | `robot_hand_rl` | ✅ *(auto from `--experiment`)* |
-| `researcher` | `kim` | ✅ |
-| `task` | `in_hand_reorientation` | ✅ |
-| `hardware` | `robot_22dof` | ✅ |
-| `sim_run_id` | `<upstream_run_id>` | ✅ *(real-robot eval only)* |
+| `researcher` | `kim` | optional |
+| `task` | `in_hand_reorientation` | optional |
+| `hardware` | `robot_22dof` | optional |
+| `sim_run_id` | `<upstream_run_id>` | optional *(Sim-to-Real tracing)* |
 | `git_commit` | `54696cb326bb...` | auto *(Pipeline A)* |
 | `git_dirty` | `false` / `true` | auto *(Pipeline A)* |
-
-> 💡 `sim_run_id` links a real-robot evaluation run back to the exact sim policy deployed — critical for Sim-to-Real failure tracing.
 
 > 💡 `git_commit` and `git_dirty` are set automatically by `MLflowLogger` (Pipeline A). For Pipeline B post-uploads, pass `--git_commit <hash>` manually. When `git_dirty=true`, the full diff is saved as `artifacts/git/git_patch.html` (previewable inline in the MLflow UI). See [`docs/30_ADVANCED_FEATURES.md`](docs/30_ADVANCED_FEATURES.md#5-git-commit-tracking) for details.
 

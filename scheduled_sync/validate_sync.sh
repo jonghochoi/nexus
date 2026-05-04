@@ -7,31 +7,29 @@
 # that would otherwise silently fail every 5 minutes for days.
 #
 # Steps (each must pass before the next runs):
+#   0. Crontab conflict check — warns if a sync cron is already registered.
 #   1. Resolve config (same precedence as sync_mlflow_to_server.sh):
-#        CLI flag > --config <path> > ~/.nexus/sync_config.json (per-user) >
-#        /etc/nexus/sync_config.json (system) > exit 1
-#      Required keys present: experiment, remote, remote_nexus_dir.
+#        CLI flag > --config <path> > /etc/nexus/sync_config.json > exit 1
+#      Required keys present: remote, remote_nexus_dir.
 #   2. SSH reachability — non-interactive `ssh true` with 5s timeout.
 #   3. Remote inbox writable — `mkdir -p` + write+read a marker file.
 #   4. Remote import_delta.py exists at <remote_nexus_dir>/scheduled_sync/.
 #   5. Remote MLflow `/health` reachable from the central server.
-#   6. Local MLflow `/health` and the configured experiment exists.
-#   7. End-to-end dry-run via `sync_mlflow_to_server.sh --dry-run`.
+#   6. Local MLflow `/health` and experiment count check.
+#   7. End-to-end dry-run via `sync_mlflow_all.sh --dry-run`.
 #
 # On full success prints a paste-ready cron line. NEVER edits the user's
 # crontab — that is a hard-to-reverse action and is left to the operator.
 #
 # Usage:
-#   bash validate_sync.sh                          # uses ~/.nexus/sync_config.json (+ /etc fallback)
+#   bash validate_sync.sh                          # uses /etc/nexus/sync_config.json
 #   bash validate_sync.sh --config /path/to.json   # explicit config file
-#   bash validate_sync.sh --experiment foo --remote ... --remote_nexus_dir ...
+#   bash validate_sync.sh --remote ... --remote_nexus_dir ...
 # ============================================================
 
 set -euo pipefail
 
 # ── Empty placeholders (filled from CLI / config / defaults below)
-EXPERIMENT=""
-RESEARCHER=""
 REMOTE=""
 LOCAL_MLFLOW_URI=""
 REMOTE_MLFLOW_URI=""
@@ -45,8 +43,6 @@ CONFIG_FILE=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --config)           CONFIG_FILE="$2";       shift 2 ;;
-        --experiment)       EXPERIMENT="$2";        shift 2 ;;
-        --researcher)       RESEARCHER="$2";        shift 2 ;;
         --remote)           REMOTE="$2";            shift 2 ;;
         --local_uri)        LOCAL_MLFLOW_URI="$2";  shift 2 ;;
         --remote_uri)       REMOTE_MLFLOW_URI="$2"; shift 2 ;;
@@ -60,16 +56,14 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Same multi-source resolution as sync_mlflow_to_server.sh: explicit --config
-# disables auto-discovery; otherwise system → user, with later overriding earlier.
-USER_CONFIG="${HOME}/.nexus/sync_config.json"
+# Same config resolution as sync_mlflow_to_server.sh: explicit --config
+# disables auto-discovery; otherwise /etc/nexus/sync_config.json is used.
 SYSTEM_CONFIG="/etc/nexus/sync_config.json"
 CONFIG_SOURCES=()
 if [[ -n "$CONFIG_FILE" ]]; then
     CONFIG_SOURCES=("$CONFIG_FILE")
 else
     [[ -f "$SYSTEM_CONFIG" ]] && CONFIG_SOURCES+=("$SYSTEM_CONFIG")
-    [[ -f "$USER_CONFIG"   ]] && CONFIG_SOURCES+=("$USER_CONFIG")
 fi
 
 parse_config_file() {
@@ -79,8 +73,6 @@ parse_config_file() {
     out=$(python - "$file" <<'PYEOF'
 import json, shlex, sys
 KEY_MAP = {
-    "experiment":       "EXPERIMENT",
-    "researcher":       "RESEARCHER",
     "remote":           "REMOTE",
     "local_uri":        "LOCAL_MLFLOW_URI",
     "remote_uri":       "REMOTE_MLFLOW_URI",
@@ -118,8 +110,6 @@ for src in "${CONFIG_SOURCES[@]}"; do
     parse_config_file "$src"
 done
 
-EXPERIMENT="${EXPERIMENT:-${CFG_EXPERIMENT:-}}"
-RESEARCHER="${RESEARCHER:-${CFG_RESEARCHER:-}}"
 REMOTE="${REMOTE:-${CFG_REMOTE:-}}"
 LOCAL_MLFLOW_URI="${LOCAL_MLFLOW_URI:-${CFG_LOCAL_MLFLOW_URI:-}}"
 REMOTE_MLFLOW_URI="${REMOTE_MLFLOW_URI:-${CFG_REMOTE_MLFLOW_URI:-}}"
@@ -133,10 +123,10 @@ REMOTE_MLFLOW_URI="${REMOTE_MLFLOW_URI:-http://127.0.0.1:5000}"
 SSH_PORT="${SSH_PORT:-22}"
 REMOTE_PYTHON="${REMOTE_PYTHON:-python3}"
 
-if [[ -z "$EXPERIMENT" || -z "$REMOTE" || -z "$REMOTE_NEXUS_DIR" ]]; then
-    echo "[ERROR] Missing required fields. Need: experiment, remote, remote_nexus_dir."
-    echo "        Provide via --experiment / --remote / --remote_nexus_dir or in"
-    echo "        ~/.nexus/sync_config.json (see scheduled_sync/sync_config.example.json)."
+if [[ -z "$REMOTE" || -z "$REMOTE_NEXUS_DIR" ]]; then
+    echo "[ERROR] Missing required fields. Need: remote, remote_nexus_dir."
+    echo "        Provide via CLI or in /etc/nexus/sync_config.json"
+    echo "        (see scheduled_sync/sync_config.example.json)."
     exit 1
 fi
 
@@ -151,8 +141,6 @@ ok()      { echo "  [OK]    $*"; }
 fail()    { echo "  [FAIL]  $*"; exit 2; }
 
 echo "validate_sync.sh — pre-flight check"
-echo "  experiment       : $EXPERIMENT"
-[[ -n "$RESEARCHER" ]] && echo "  researcher       : $RESEARCHER"
 echo "  remote           : $REMOTE"
 echo "  remote_nexus_dir : $REMOTE_NEXUS_DIR"
 echo "  remote_python    : $REMOTE_PYTHON"
@@ -164,15 +152,43 @@ if [[ -n "$CONFIG_FILE" ]]; then
     echo "  config source    : $CONFIG_FILE"
 else
     [[ ${#CONFIG_SOURCES[@]} -gt 0 ]] && \
-        echo "  config sources   : ${CONFIG_SOURCES[*]}"
+        echo "  config source    : ${CONFIG_SOURCES[*]}"
 fi
-if [[ -z "$RESEARCHER" ]]; then
-    echo ""
-    echo "  [WARN] --researcher is not set. On a shared GPU server this means"
-    echo "         every cron will export every other user's runs and the"
-    echo "         central server will collect duplicate metric points at"
-    echo "         identical steps. Set researcher in ~/.nexus/sync_config.json"
-    echo "         (or pass --researcher) unless you know you're the only user."
+
+# ── 0. Crontab conflict check ─────────────────────────────────────────────────
+step "0/7  Crontab conflict check"
+CRON_CONFLICT=0
+CURRENT_CRON=$(crontab -l 2>/dev/null || true)
+if echo "$CURRENT_CRON" | grep -qE "sync_mlflow_to_server|sync_mlflow_all"; then
+    echo "  [WARN] A sync cron is already in your crontab:"
+    echo "$CURRENT_CRON" | grep -E "sync_mlflow_to_server|sync_mlflow_all" | sed 's/^/         /'
+    echo "         Do NOT add the suggested cron line again — that would create"
+    echo "         two competing sync jobs and produce duplicate metric points."
+    CRON_CONFLICT=1
+else
+    ok "No existing sync cron for current user"
+fi
+
+# Scan other users' crontabs if accessible (requires root / readable spool dir).
+SPOOL_DIR="/var/spool/cron/crontabs"
+if [[ -r "$SPOOL_DIR" ]]; then
+    OTHER_CONFLICT=0
+    for cron_file in "$SPOOL_DIR"/*; do
+        [[ -f "$cron_file" ]] || continue
+        other_user=$(basename "$cron_file")
+        [[ "$other_user" == "$(id -un)" ]] && continue
+        if grep -qE "sync_mlflow_to_server|sync_mlflow_all" "$cron_file" 2>/dev/null; then
+            echo "  [WARN] User '$other_user' also has a sync cron registered."
+            echo "         Only ONE cron must exist on this server."
+            echo "         Ask '$other_user' to run: crontab -e (then remove the entry)"
+            CRON_CONFLICT=1
+            OTHER_CONFLICT=1
+        fi
+    done
+    [[ $OTHER_CONFLICT -eq 0 ]] && ok "No conflicting sync crons found for other users"
+else
+    echo "  [INFO] Cannot read $SPOOL_DIR (no root access) — verify manually:"
+    echo "         Ask each team member: crontab -l | grep -E 'sync_mlflow'"
 fi
 
 # ── 1. SSH reachability
@@ -217,7 +233,7 @@ if ssh $SSH_OPTS "$REMOTE_HOST" "'$REMOTE_PYTHON' -c 'import mlflow'" 2>/dev/nul
     ok "$REMOTE_PYTHON can import mlflow"
 else
     fail "'$REMOTE_PYTHON' cannot import mlflow on $REMOTE_HOST.
-        Set remote_python in ~/.nexus/sync_config.json to the venv path,
+        Set remote_python in /etc/nexus/sync_config.json to the venv path,
         e.g. \"remote_python\": \"/opt/nexus-mlflow/venv/bin/python3\""
 fi
 
@@ -230,73 +246,42 @@ else
     fail "Central MLflow at $REMOTE_MLFLOW_URI is not reachable from $REMOTE_HOST."
 fi
 
-# ── 6. Local MLflow /health and experiment exists (+ researcher coverage)
-step "6/7  Local MLflow + experiment '$EXPERIMENT'"
+# ── 6. Local MLflow /health and experiment count check
+step "6/7  Local MLflow + experiments"
 if ! curl -sS -m 5 "${LOCAL_MLFLOW_URI%/}/health" >/dev/null 2>&1; then
     fail "Local MLflow at $LOCAL_MLFLOW_URI not reachable. Run start_local_mlflow.sh first."
 fi
 ok "Local MLflow is reachable"
-EXP_OK=$(python - "$LOCAL_MLFLOW_URI" "$EXPERIMENT" "$RESEARCHER" <<'PYEOF'
+
+EXP_EXISTS=1
+EXP_COUNT=$(python3 - "$LOCAL_MLFLOW_URI" <<'PYEOF'
 import sys
 from mlflow.tracking import MlflowClient
-uri, name = sys.argv[1], sys.argv[2]
-researcher = sys.argv[3] if len(sys.argv) > 3 else ""
-client = MlflowClient(tracking_uri=uri)
-exp = client.get_experiment_by_name(name)
-if exp is None:
-    avail = sorted(e.name for e in client.search_experiments())
-    print(f"NO_EXP|{avail}")
-elif researcher:
-    runs = client.search_runs(
-        experiment_ids=[exp.experiment_id],
-        filter_string=f"tags.researcher = '{researcher}'",
-        max_results=1,
-    )
-    if runs:
-        print("YES")
-    else:
-        print("NO_RUNS_FOR_RESEARCHER")
-else:
-    print("YES")
+client = MlflowClient(tracking_uri=sys.argv[1])
+print(sum(1 for e in client.search_experiments() if e.name != "Default"))
 PYEOF
 )
-EXP_EXISTS=1
-case "$EXP_OK" in
-    YES)
-        if [[ -n "$RESEARCHER" ]]; then
-            ok "Experiment '$EXPERIMENT' exists and has runs tagged researcher=$RESEARCHER"
-        else
-            ok "Experiment '$EXPERIMENT' exists on local MLflow"
-        fi ;;
-    NO_RUNS_FOR_RESEARCHER)
-        # Not fatal — operator may be validating before any training has run.
-        echo "  [WARN]  Experiment '$EXPERIMENT' exists, but no runs are tagged"
-        echo "          researcher=$RESEARCHER yet. The first sync after you"
-        echo "          start training will pick them up." ;;
-    NO_EXP*)
-        # Not fatal — operator may be registering cron before the first training run.
-        echo "  [WARN]  Experiment '$EXPERIMENT' not found on local MLflow yet."
-        echo "          It will be created automatically when training starts."
-        EXP_EXISTS=0 ;;
-    *)
-        fail "Unexpected response checking experiment: $EXP_OK" ;;
-esac
+if [[ "$EXP_COUNT" -gt 0 ]]; then
+    ok "Local MLflow has $EXP_COUNT experiment(s) — all will be synced by sync_mlflow_all.sh"
+else
+    echo "  [WARN]  No experiments found yet on local MLflow."
+    echo "          sync_mlflow_all.sh will auto-discover them when training starts."
+    EXP_EXISTS=0
+fi
 
 # ── 7. End-to-end dry run
 step "7/7  Dry-run sync (export only — no SCP, no remote import)"
 if [[ $EXP_EXISTS -eq 0 ]]; then
-    echo "  [SKIP]  Experiment not found — skipping dry-run (nothing to export yet)."
+    echo "  [SKIP]  No experiments found — skipping dry-run (nothing to export yet)."
 else
     DRY_ARGS=()
     [[ -n "$CONFIG_FILE" ]] && DRY_ARGS+=("--config" "$CONFIG_FILE")
     DRY_ARGS+=("--dry-run")
-    # Pass through any per-key overrides so the dry-run sees the same values we validated.
-    [[ -n "$EXPERIMENT"        ]] && DRY_ARGS+=("--experiment" "$EXPERIMENT")
-    [[ -n "$RESEARCHER"        ]] && DRY_ARGS+=("--researcher" "$RESEARCHER")
-    [[ -n "$REMOTE"            ]] && DRY_ARGS+=("--remote" "$REMOTE")
-    [[ -n "$REMOTE_NEXUS_DIR"  ]] && DRY_ARGS+=("--remote_nexus_dir" "$REMOTE_NEXUS_DIR")
-    [[ -n "$REMOTE_PYTHON"     ]] && DRY_ARGS+=("--remote_python"    "$REMOTE_PYTHON")
-    if bash "${SCRIPT_DIR}/sync_mlflow_to_server.sh" "${DRY_ARGS[@]}"; then
+    [[ -n "$REMOTE"           ]] && DRY_ARGS+=("--remote" "$REMOTE")
+    [[ -n "$REMOTE_NEXUS_DIR" ]] && DRY_ARGS+=("--remote_nexus_dir" "$REMOTE_NEXUS_DIR")
+    [[ -n "$REMOTE_PYTHON"    ]] && DRY_ARGS+=("--remote_python"    "$REMOTE_PYTHON")
+    [[ -n "$LOCAL_MLFLOW_URI" ]] && DRY_ARGS+=("--local_uri" "$LOCAL_MLFLOW_URI")
+    if bash "${SCRIPT_DIR}/sync_mlflow_all.sh" "${DRY_ARGS[@]}"; then
         ok "Dry-run completed"
     else
         fail "Dry-run failed — see output above."
@@ -306,15 +291,16 @@ fi
 # ── Success — print a paste-ready cron line (we deliberately do NOT touch crontab)
 echo ""
 echo "════════════════════════════════════════════════════════════"
-echo "  All checks passed. Suggested cron line (edit interval as needed):"
-echo "════════════════════════════════════════════════════════════"
-if [[ -n "$CONFIG_FILE" && "$CONFIG_FILE" == "$USER_CONFIG" ]]; then
-    echo "*/5 * * * * bash ${SCRIPT_DIR}/sync_mlflow_to_server.sh >> \$HOME/nexus_sync.log 2>&1"
-elif [[ -n "$CONFIG_FILE" ]]; then
-    echo "*/5 * * * * bash ${SCRIPT_DIR}/sync_mlflow_to_server.sh --config $CONFIG_FILE >> \$HOME/nexus_sync.log 2>&1"
+if [[ $CRON_CONFLICT -eq 1 ]]; then
+    echo "  All checks passed."
+    echo "  [WARN] A sync cron already exists — review before adding another."
+    echo "         Reference cron line (do NOT add if already registered):"
 else
-    echo "*/5 * * * * bash ${SCRIPT_DIR}/sync_mlflow_to_server.sh --experiment $EXPERIMENT --remote $REMOTE --remote_nexus_dir $REMOTE_NEXUS_DIR >> \$HOME/nexus_sync.log 2>&1"
+    echo "  All checks passed. Suggested cron line (edit interval as needed):"
 fi
+echo "════════════════════════════════════════════════════════════"
+echo "*/5 * * * * bash ${SCRIPT_DIR}/sync_mlflow_all.sh >> /var/log/nexus_sync.log 2>&1"
 echo ""
-echo "Register with: crontab -e"
+echo "  Register as root or under a dedicated sync service account:"
+echo "    sudo crontab -e"
 exit 0

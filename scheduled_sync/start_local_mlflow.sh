@@ -6,7 +6,7 @@
 # No internet access required — all data is written to local disk.
 #
 # Run this ONCE before starting any training jobs.
-# All PPO instances on all GPUs share this single local server.
+# All training instances on all GPUs share this single local server.
 #
 # Usage:
 #   bash start_local_mlflow.sh
@@ -20,9 +20,8 @@ set -e
 PORT=5100
 # Runtime data lives under ~/.nexus/ — outside the source tree — so it
 # survives a `git clean` / repo re-clone and never shows up in `git status`.
-# Matches the convention used by venv (~/.nexus/venv), per-user configs
-# (sync_config.json, post_config.json), sync state (sync_state/), and
-# upload history (history.json).
+# Matches the convention used by venv (~/.nexus/venv), post_config.json,
+# sync_state/, and history.json.
 NEXUS_HOME="${HOME}/.nexus"
 MLRUNS_DIR="${NEXUS_HOME}/mlruns_training"
 DB_FILE="${MLRUNS_DIR}/mlflow.db"

@@ -49,7 +49,7 @@
 |---|---|
 | 📈 **Metrics (시계열)** | `losses/actor_loss`, `performance/RLTrainFPS`, `info/kl` |
 | ⚙️ **하이퍼파라미터** | `lr`, `gamma`, `e_clip`, reward weights |
-| 🏷️ **재현성 Tags** | `experiment`, `researcher`, `task`, `hardware` |
+| 🏷️ **Run Tags** | `experiment` (필수), `researcher`, `task`, `hardware` (권장) |
 | 💾 **Artifacts** | `best.pth`, `last.pth` |
 | ℹ️ **Run 메타데이터** | 시작 시각, 소요 시간, 사용 GPU, status |
 | 🔗 **Sim-to-Real 연결** | Real 평가 Run의 `sim_run_id` tag |
@@ -184,21 +184,21 @@ final_real           ← 버전이 없음
 
 ## 3. Tags 규칙
 
-### ── 필수 Tags *(학습 시작 시 자동 기록 — `make_logger()` 처리)*
-
-아래 Tags는 `make_logger()` 호출 시 자동으로 기록됩니다.
-**`agent_cfg`에 반드시 포함되어야 합니다.**
+### ── 필수 Tags
 
 | Tag 키 | 설명 | 예시 값 |
 |---|---|---|
 | `experiment` | 실험 그룹 이름 (`--experiment` 에서 자동 주입) | `robot_hand_rl` |
-| `researcher` | 실험 수행자 (환경변수 `$USER` 자동 감지) | `kim` |
+
+### ── 권장 Tags *(명시적으로 기록해두면 검색·비교에 유리)*
+
+| Tag 키 | 설명 | 예시 값 |
+|---|---|---|
+| `researcher` | 실험 수행자 | `kim` |
 | `task` | 태스크 이름 | `in_hand_reorientation` |
 | `hardware` | 사용 하드웨어 식별자 | `robot_22dof` |
 | `method` | 핵심 방법론 | `ppo`, `tactile`, `contact` |
 | `status` | 실험 진행 상태 (자동 갱신) | `running` → `done` / `failed` |
-
-> ⚠️ 위 4개 Tag 중 하나라도 빠지면 재현 및 비교가 불가능합니다.
 
 ### ── 선택 Tags *(필요 시 연구자가 추가)*
 
@@ -416,7 +416,7 @@ self.writer = make_logger(
 | 가설 없이 실험 시작 | 결과를 봐도 해석이 안 됨 |
 | 실패한 실험 Confluence 페이지를 비워두기 | 팀이 같은 실수를 반복하게 됨 |
 | `sim_run_id` 없이 Real 평가 Run 생성 | Sim-to-Real 추적 불가 |
-| 필수 Tags 누락 | 재현 불가능한 실험이 됨 |
+| 필수 Tags 누락 | Run 분류 및 검색이 불가능해짐 |
 
 ---
 
@@ -427,11 +427,8 @@ self.writer = make_logger(
 - [ ] Confluence 실험 페이지 작성 완료 (가설 포함)
 - [ ] Experiment 이름 결정 (기존 목록에서 선택 또는 팀 합의)
 - [ ] Run 이름 규칙 확인 (`<연구자>_<방법론>_<핵심변수>_<버전>`)
-- [ ] `agent_cfg`에 필수 Tags 항목 포함 확인
-  - [ ] `researcher`
-  - [ ] `task`
-  - [ ] `hardware`
-  - [ ] `method`
+- [ ] `experiment` Tag 확인 (`--experiment` 인자로 자동 주입됨)
+- [ ] 권장 Tags 설정 여부 확인 (`researcher`, `task`, `hardware`, `method`)
 - [ ] 로컬 MLflow 서버 실행 확인 (`bash start_local_mlflow.sh`)
 
 ### ── 실험 완료 후

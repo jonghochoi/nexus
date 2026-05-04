@@ -6,7 +6,7 @@ DualLogger: writes to TensorBoard AND MLflow simultaneously.
 This is the recommended logger for the transition period.
 Once the team is comfortable with MLflow, switch to MLflowLogger alone.
 
-Usage in PPO.__init__():
+Usage in your trainer's __init__():
 
     from nexus.logger import make_logger
 
@@ -21,7 +21,7 @@ Usage in PPO.__init__():
         tags={...},
     )
 
-No changes needed anywhere else in PPO.
+No changes needed anywhere else in the trainer.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ class DualLogger:
     TensorBoard  → local tfevents files (existing workflow preserved)
     MLflow       → local MLflow server  (new centralized workflow)
 
-    Both are written in the same training loop with zero extra code in PPO.
+    Both are written in the same training loop with zero extra code in the trainer.
     """
 
     def __init__(

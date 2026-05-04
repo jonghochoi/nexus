@@ -43,4 +43,4 @@
 3. **실패한 Run은 절대 삭제하지 않습니다** — `fail_reason` 태그 + Confluence "실패 분석" 작성.
 4. **실험 시작 전에 가설을 먼저** — 사후합리화 방지.
 
-> ⚠️ 공유 GPU 서버에서 작업하는 경우, 본인의 `researcher` 값을 `~/.nexus/sync_config.json`에 반드시 설정하세요. 누락하면 다른 팀원의 Run까지 export되어 중앙 서버에 중복 metric이 쌓입니다. 상세: [`../12_SCHEDULED_SYNC.md` Step 5](../12_SCHEDULED_SYNC.md#step-5--multi-user-gpu-servers).
+> ⚠️ 공유 GPU 서버에서 작업하는 경우, sync cron을 직접 등록하지 마세요. 운영자가 등록한 단일 cron이 모든 팀원의 run을 자동으로 sync합니다. 상세: [`../12_SCHEDULED_SYNC.md`](../12_SCHEDULED_SYNC.md#team-member-checklist).
