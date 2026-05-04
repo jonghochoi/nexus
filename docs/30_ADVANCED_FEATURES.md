@@ -39,39 +39,97 @@ from nexus.logger.system_metrics import SystemMetricsLogger
 
 Groups multiple training runs under a single parent run in the MLflow UI tree. Useful when running a grid search or Optuna sweep.
 
+Both `tracking_uri` and `experiment_name` are required — there are no defaults, so the sweep is always placed exactly where you intend.
+
+### ── Basic usage — context manager (recommended)
+
 ```python
 from nexus.logger.sweep_logger import SweepLogger
 from nexus.logger import make_logger
 
-sweep = SweepLogger(
+with SweepLogger(
     sweep_name="ppo_lr_sweep",
     tracking_uri="http://127.0.0.1:5100",
     experiment_name="robot_hand_rl",
-    sweep_params={"lr_range": "[1e-4, 1e-3]", "n_trials": "5"},
-)
+    sweep_params={"lr_range": "[1e-4, 1e-3]", "n_trials": "3"},
+) as sweep:
+    for lr in [1e-4, 3e-4, 1e-3]:
+        logger = make_logger(
+            mode="mlflow",
+            run_name=f"ppo_lr_{lr}",
+            tracking_uri="http://127.0.0.1:5100",
+            experiment_name="robot_hand_rl",
+            params={"lr": lr},
+            parent_run_id=sweep.parent_run_id,   # ← links child to parent
+        )
+        run_training(logger)
+        logger.close()
 
-for lr in [1e-4, 3e-4, 1e-3]:
-    logger = make_logger(
-        mode="mlflow",
-        run_name=f"ppo_lr_{lr}",
-        tracking_uri="http://127.0.0.1:5100",
-        experiment_name="robot_hand_rl",
-        params={"lr": lr},
-        parent_run_id=sweep.parent_run_id,   # ← links child to parent
+    sweep.log_summary(
+        best_params={"lr": 3e-4},
+        best_metrics={"reward": 95.2},
     )
-    run_training(logger)
-    logger.close()
-
-sweep.log_summary(
-    best_params={"lr": 3e-4},
-    best_metrics={"reward": 95.2},
-)
-sweep.close()
 ```
+
+The context manager marks the parent run **FINISHED** on clean exit and **FAILED** automatically if an exception escapes the block — no orphaned `RUNNING` runs in the MLflow UI.
 
 **What you see in the MLflow UI:** a collapsible parent run `ppo_lr_sweep` with child runs nested underneath, each showing its own metric curves.
 
 **Works without Hydra.** `SweepLogger` is pure MLflow — no Hydra dependency. Use it with a plain Python `for` loop, Optuna callbacks, or any other sweep tool.
+
+### ── Optuna integration
+
+Pass `sweep.parent_run_id` inside the Optuna objective to nest every trial under the sweep run. Call `sweep.log_summary()` after `study.optimize()` to record the winner on the parent run.
+
+```python
+import optuna
+from nexus.logger.sweep_logger import SweepLogger
+from nexus.logger import make_logger
+
+with SweepLogger(
+    sweep_name="optuna_ppo_lr",
+    tracking_uri="http://127.0.0.1:5100",
+    experiment_name="robot_hand_rl",
+    sweep_params={"n_trials": "20", "sampler": "TPE"},
+) as sweep:
+
+    def objective(trial):
+        lr = trial.suggest_float("lr", 1e-4, 1e-3, log=True)
+        entropy = trial.suggest_float("entropy_coef", 0.0, 0.05)
+        logger = make_logger(
+            mode="mlflow",
+            run_name=f"trial_{trial.number}",
+            tracking_uri="http://127.0.0.1:5100",
+            experiment_name="robot_hand_rl",
+            params={"lr": lr, "entropy_coef": entropy},
+            parent_run_id=sweep.parent_run_id,
+        )
+        reward = run_training(logger, lr=lr, entropy_coef=entropy)
+        logger.close()
+        return reward
+
+    study = optuna.create_study(direction="maximize")
+    study.optimize(objective, n_trials=20)
+    sweep.log_summary(
+        best_params=study.best_params,
+        best_metrics={"reward": study.best_value},
+    )
+```
+
+Optuna is not a dependency of `nexus-logger` — install it separately (`pip install optuna`) only on machines that run sweeps.
+
+### ── Manual lifecycle (alternative)
+
+If you need to manage the lifecycle outside a `with` block, wrap in `try/finally` to avoid orphaned runs:
+
+```python
+sweep = SweepLogger(sweep_name=..., tracking_uri=..., experiment_name=...)
+try:
+    ...
+    sweep.log_summary(...)
+finally:
+    sweep.close()          # accepts status="FINISHED" | "FAILED" | "KILLED"
+```
 
 ---
 
