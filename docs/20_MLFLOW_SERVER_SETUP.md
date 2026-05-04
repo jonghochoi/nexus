@@ -49,15 +49,15 @@ python tests/smoke_test.py
 ## 📋 Overview of Steps
 
 ```
-Step 0  Verify install on local PC first  (recommended)
-Step 1  Understand network topology
-Step 2  Basic server PC setup
-Step 3  Install MLflow and configure directories
-Step 4  Functional test
-Step 5  Firewall / port configuration
-Step 6  Register systemd service
-Step 7  Verify team member access
-Step 8  Verify Blackwell connection
+Step 0    Verify install on local PC first  (recommended)
+Step 1    Understand network topology
+Step 2    Basic server PC setup
+Step 3    Install MLflow and configure directories
+Step 4    Functional test (sqlite backend, then enable WAL)
+Step 5    Firewall / port configuration
+Step 6    Register systemd service
+Step 7    Verify team member access
+Step 8    Verify Blackwell connection
 ```
 
 ---
@@ -208,7 +208,7 @@ pip 22.0.2 from /usr/lib/python3/dist-packages/pip (python 3.10)
 ### 2.3 Install required packages
 
 ```bash
-sudo apt install -y python3-pip python3-venv git curl net-tools
+sudo apt install -y python3-pip python3-venv git curl net-tools sqlite3
 ```
 
 **Expected output:**
@@ -217,9 +217,11 @@ sudo apt install -y python3-pip python3-venv git curl net-tools
 Reading package lists... Done
 Building dependency tree... Done
 The following NEW packages will be installed:
-  python3-venv net-tools ...
+  python3-venv net-tools sqlite3 ...
 Setting up python3-venv (3.10.6-1~22.04) ...
 ```
+
+> 💡 **Why `sqlite3`?** The MLflow tracking metadata is stored in a single sqlite DB file (Step 4). The Python `sqlite3` module ships with the standard library, but the `sqlite3` CLI is needed once after first server start to enable WAL mode (covered at the end of Step 4).
 
 ---
 
@@ -276,7 +278,7 @@ mlflow, version 2.13.0
 ### 3.3 Create data storage directories
 
 ```bash
-mkdir -p /opt/nexus-mlflow/mlruns       # Experiment metadata DB
+mkdir -p /opt/nexus-mlflow/mlruns       # MLflow sqlite DB (mlflow.db) lives here
 mkdir -p /opt/nexus-mlflow/artifacts    # Checkpoint and config file storage
 mkdir -p /opt/nexus-mlflow/sync_inbox   # Blackwell SCP receive directory
 ```
@@ -287,15 +289,17 @@ mkdir -p /opt/nexus-mlflow/sync_inbox   # Blackwell SCP receive directory
 tree /opt/nexus-mlflow
 ```
 
-**Expected output:**
+**Expected output (before first server start — `mlruns/` is still empty):**
 
 ```
 /opt/nexus-mlflow
 ├── artifacts/       ← Where best.pth, last.pth, etc. will be stored
-├── mlruns/          ← MLflow experiment DB (metrics, params, tags)
+├── mlruns/          ← Holds mlflow.db (+ mlflow.db-wal, mlflow.db-shm) after Step 4
 ├── sync_inbox/      ← Temporary receive folder for SCP transfers from Blackwell
 └── venv/            ← Python virtual environment
 ```
+
+> 💡 The `mlruns/` directory used to hold MLflow's file-based store (a tree of YAML/JSON files per run). With the sqlite backend introduced in Step 4, the same metadata lives in a single `mlflow.db` file inside this directory — the directory name is kept for path continuity.
 
 > 💡 **Check disk space in advance:**
 >
@@ -318,10 +322,18 @@ source venv/bin/activate
 mlflow server \
     --host 0.0.0.0 \
     --port 5000 \
-    --backend-store-uri /opt/nexus-mlflow/mlruns \
+    --backend-store-uri sqlite:////opt/nexus-mlflow/mlruns/mlflow.db \
     --artifacts-destination /opt/nexus-mlflow/artifacts \
     --serve-artifacts
 ```
+
+> 🔑 **Why `sqlite:///` for the backend store?**
+>
+> Earlier versions of this guide used `--backend-store-uri /opt/nexus-mlflow/mlruns` (file-based store). MLflow's file store keeps each experiment as a tree of YAML/JSON files; on a central server that aggregates many GPU nodes, search/list latency in the UI grows roughly linearly with the run count and concurrent `import_delta.py` writers contend on filesystem locks. The sqlite backend keeps the same metadata in a single `mlflow.db` file using MLflow's standard alembic schema, and is the official MLflow recommendation for any tracking server beyond local development. The local GPU-server MLflow (`scheduled_sync/start_local_mlflow.sh`) already uses this pattern — Step 4 mirrors it for the central server.
+>
+> ⚠️ **The URI uses *four* slashes**, not three. SQLAlchemy's sqlite URI is `sqlite://<authority>/<path>` with empty authority — i.e. `sqlite:///` + `<path>`. For an absolute path (`/opt/...`) the path itself starts with `/`, so the literal you write is `sqlite:////opt/...` (three from the scheme + one from the path). Three slashes total would make MLflow treat the path as relative and create the DB in the current working directory.
+>
+> 🗄️ **Migration from file store** — there is no first-class file→sqlite migration in MLflow. If you are upgrading an existing server, accept that history starts fresh. The empty `mlruns/` directory created in Step 3.3 is fine; alembic will populate `mlflow.db` on the first server start.
 
 > 🔑 **Why `--serve-artifacts` (proxied artifact storage)?**
 >
@@ -344,7 +356,70 @@ mlflow server \
 >
 > At this point, accessing `http://localhost:5000` in a browser **on the same PC** should display the MLflow UI.
 
-Press `Ctrl + C` to stop when done.
+**Verify the DB file was created:**
+
+```bash
+ls -la /opt/nexus-mlflow/mlruns/
+# Expected: mlflow.db (a few hundred KB after alembic finishes)
+```
+
+Press `Ctrl + C` to stop when done, then continue with the WAL activation below.
+
+---
+
+### Enable sqlite WAL mode *(one-time, required)*
+
+After the server has created `mlflow.db`, switch sqlite to **Write-Ahead Logging (WAL)** mode. This setting is stored inside the DB header itself — once set, it persists across server restarts and reboots, so this is a strict one-time operation.
+
+> ⚠️ Run this with the server **stopped** (Ctrl+C from the manual run above). Setting `journal_mode` while another process holds the DB open is the one operation sqlite refuses to do online.
+
+```bash
+sqlite3 /opt/nexus-mlflow/mlruns/mlflow.db "PRAGMA journal_mode=WAL;"
+```
+
+**Expected output:**
+
+```
+wal
+```
+
+If it prints `delete` (the default rollback-journal mode) instead of `wal`, the server is probably still running — stop it and retry. WAL activation is a single-writer operation and cannot run while MLflow holds the DB open.
+
+**Verify it stuck:**
+
+```bash
+sqlite3 /opt/nexus-mlflow/mlruns/mlflow.db "PRAGMA journal_mode;"
+# Expected: wal
+```
+
+> 🔑 **Why WAL?**
+>
+> Default rollback-journal mode locks the entire DB file during writes — while cron `import_delta.py` from a GPU node is calling `log_batch`, the MLflow UI's run-search query has to wait. WAL writes deltas to a sibling `mlflow.db-wal` file and only checkpoints back to the main DB periodically, so readers (UI search, run list, metric plots) and the writer (`import_delta`) proceed concurrently without blocking each other.
+>
+> WAL does **not** allow multiple writers — those still serialize. For NEXUS's workload (each GPU node's cron runs every few minutes, write bursts are short) this is fine. If `OperationalError: database is locked` ever shows up in `mlflow-logs` under sustained multi-writer pressure, that is the signal to migrate the central server to Postgres.
+
+After this step, restart the manual server once to confirm it still boots against the WAL-enabled DB:
+
+```bash
+mlflow server \
+    --host 0.0.0.0 \
+    --port 5000 \
+    --backend-store-uri sqlite:////opt/nexus-mlflow/mlruns/mlflow.db \
+    --artifacts-destination /opt/nexus-mlflow/artifacts \
+    --serve-artifacts
+# Verify Listening at: http://0.0.0.0:5000, then Ctrl+C.
+```
+
+You should now see two extra files appear next to `mlflow.db` while the server is running:
+
+```bash
+ls -la /opt/nexus-mlflow/mlruns/
+# mlflow.db        ← main DB
+# mlflow.db-wal    ← write-ahead log (grows during writes, shrinks on checkpoint)
+# mlflow.db-shm    ← shared-memory index (small, recreated each open)
+```
+
+These two sidecar files are normal and expected for a WAL-mode sqlite DB. **Do not delete them while the server is running** — you will corrupt the DB. They are safe to ignore for backups (the main `mlflow.db` is the source of truth after a clean shutdown) but easiest is `sqlite3 mlflow.db ".backup '/path/to/backup.db'"` which handles them correctly online.
 
 ---
 
@@ -481,6 +556,8 @@ echo $USER
 
 ### 6.2 Create service file
 
+> ✅ **Pre-flight:** Confirm WAL mode was applied at the end of Step 4 — the systemd unit just runs the same `mlflow server` command and inherits whatever journal mode the DB was last set to. Re-check with `sqlite3 /opt/nexus-mlflow/mlruns/mlflow.db "PRAGMA journal_mode;"` (must print `wal`) before continuing.
+
 ```bash
 sudo tee /etc/systemd/system/nexus-mlflow.service > /dev/null << EOF
 [Unit]
@@ -496,7 +573,7 @@ Environment=PATH=/opt/nexus-mlflow/venv/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=/opt/nexus-mlflow/venv/bin/mlflow server \\
     --host 0.0.0.0 \\
     --port 5000 \\
-    --backend-store-uri /opt/nexus-mlflow/mlruns \\
+    --backend-store-uri sqlite:////opt/nexus-mlflow/mlruns/mlflow.db \\
     --artifacts-destination /opt/nexus-mlflow/artifacts \\
     --serve-artifacts
 Restart=always
@@ -778,13 +855,16 @@ After setup is complete, the structure will be as follows:
 
   Storage locations:
   /opt/nexus-mlflow/
-  ├── mlruns/          ← Experiment metadata (metrics, params, tags)
-  ├── artifacts/       ← Checkpoints
+  ├── mlruns/
+  │   ├── mlflow.db        ← Experiment metadata (sqlite, WAL mode)
+  │   ├── mlflow.db-wal    ← Write-ahead log (present while server is running)
+  │   └── mlflow.db-shm    ← Shared-memory index (present while server is running)
+  ├── artifacts/           ← Checkpoints
   │   └── <run_id>/
   │       └── checkpoints/
   │           ├── best.pth
   │           └── last.pth
-  └── sync_inbox/      ← Blackwell SCP receive folder
+  └── sync_inbox/          ← Blackwell SCP receive folder
 
 [Team member access]
   Browser → http://192.168.1.42:5000
@@ -807,6 +887,9 @@ After setup is complete, the structure will be as follows:
 | Disk full | Artifact accumulation | Check with `df -h` and delete old run artifacts |
 | Server not starting after reboot | Not enabled | `sudo systemctl enable nexus-mlflow` |
 | `upload_tb.py --upload_artifacts` → `PermissionError: /opt/nexus-mlflow/artifacts/...` | Server was started with `--default-artifact-root <local-path>`, which forces the remote client to write directly to that path. | Restart the server with `--artifacts-destination /opt/nexus-mlflow/artifacts --serve-artifacts` (see Step 4 / 6.2). Clients will then upload artifacts over HTTP through the server. |
+| Service fails with `unable to open database file` or `sqlite3.OperationalError: no such table: experiments` | The sqlite URI in the unit / CLI is malformed (e.g. `sqlite:///opt/...` with three slashes — relative path) or the alembic schema was never initialized | Re-check the URI uses **four** slashes for absolute paths (`sqlite:////opt/nexus-mlflow/mlruns/mlflow.db`). Run `ls /opt/nexus-mlflow/mlruns/mlflow.db` — if the file is in the wrong place (e.g. `~` or repo root), delete the stray DB and restart from Step 4. |
+| `OperationalError: database is locked` in `mlflow-logs` or in cron `import_delta` output | sqlite write contention; usually means WAL was never enabled, or sustained multi-writer load | First verify WAL: `sqlite3 /opt/nexus-mlflow/mlruns/mlflow.db "PRAGMA journal_mode;"` (must print `wal`). If it says `delete`, stop the service and re-apply the WAL activation step at the end of Step 4. If WAL is on and contention is still chronic, the central server has outgrown sqlite — plan a Postgres migration. |
+| `mlflow.db-wal` file growing into the gigabytes | Long-running readers (e.g. an open UI tab) are preventing checkpoints from advancing | Restart the service (`mlflow-restart`). On clean shutdown sqlite checkpoints WAL into the main DB and shrinks `*-wal` back to ~zero. If it keeps growing during normal operation, run `sqlite3 mlflow.db "PRAGMA wal_checkpoint(TRUNCATE);"` while the service is briefly stopped. |
 
 ---
 
