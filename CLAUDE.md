@@ -18,7 +18,7 @@ Smoke / end-to-end tests (require an MLflow server reachable at `--tracking_uri`
 ```bash
 bash scheduled_sync/start_local_mlflow.sh        # starts local MLflow on 127.0.0.1:5100
 python tests/smoke_test.py                       # core: imports, MLflowLogger, DualLogger, factory
-python tests/smoke_test.py --advanced            # also: rl_metrics, log_rl_metrics, SweepLogger
+python tests/smoke_test.py --advanced            # also: OmegaConf flatten, SweepLogger, scheduled_sync
 python tests/smoke_test.py --tracking_uri http://<host>:5000   # against a different server
 ```
 
@@ -77,12 +77,11 @@ Back-fills completed tfevents and attaches post-hoc eval artifacts. Full walkthr
 from nexus.logger.sweep_logger   import SweepLogger          # parent run for HP sweeps; pass parent_run_id to children
 from nexus.logger.model_registry import ModelRegistry        # MLflow Model Registry helpers (sim_run_id linkage)
 from nexus.logger.system_metrics import SystemMetricsLogger  # background thread, 30s default, optional psutil/nvidia-ml-py
-from nexus.logger                import rl_metrics           # pure-numpy explained_variance, approx_kl, clip_fraction, grad_norm
 ```
 
 All intra-package imports use the relative form (`from .git_utils import ...`, `from .mlflow_logger import ...`). Do not introduce bare top-level imports between sibling modules — they break when the package is installed via `pip install nexus-logger` because the repo root is not on `sys.path` in that case.
 
-`TBLogger` is **not** interface-equivalent to `MLflowLogger` / `DualLogger` — it implements only the `SummaryWriter` core (`add_scalar`, `add_histogram`, `add_image`, `log_artifact` no-op, `close`). It has **no** `log_checkpoint`, `log_rl_metrics`, `register_checkpoint`, or `promote_model`. So a trainer written against the full logger API will `AttributeError` when `make_logger(mode="tensorboard")` is selected as a rollback path. (`docs/11_LOGGER_SETUP.md` currently says these are "silently ignored" — that's true for `log_artifact` only.) When adding a new method to `MLflowLogger`, decide whether `DualLogger` should forward it (almost always yes) and whether `TBLogger` should stub it (depends on whether you want `mode="tensorboard"` to stay viable).
+`TBLogger` is **not** interface-equivalent to `MLflowLogger` / `DualLogger` — it implements only the `SummaryWriter` core (`add_scalar`, `add_histogram`, `add_image`, `log_artifact` no-op, `close`). It has **no** `log_checkpoint`, `register_checkpoint`, or `promote_model`. So a trainer written against the full logger API will `AttributeError` when `make_logger(mode="tensorboard")` is selected as a rollback path. (`docs/11_LOGGER_SETUP.md` currently says these are "silently ignored" — that's true for `log_artifact` only.) When adding a new method to `MLflowLogger`, decide whether `DualLogger` should forward it (almost always yes) and whether `TBLogger` should stub it (depends on whether you want `mode="tensorboard"` to stay viable).
 
 ### `chart_settings/` (separate concern)
 
@@ -234,7 +233,7 @@ Concrete rules when authoring or editing a file:
 4. **Use em dash `—`, not ` - `**, when joining a label to its explanation in docstrings or in "why" comments. Same for prose punctuation inside comments. Hyphen-minus `-` stays for compound words and CLI flags only.
 5. **Short "why" comments stay ASCII** (e.g. `# MLflow hard limit per log_batch() call`, `# ~50x faster than iterrows`). Don't rewrite them with unicode.
 6. **Shell scripts** follow the same divider style — see `scheduled_sync/sync_mlflow_to_server.sh` for `# ── Step N: ...` markers.
-7. When introducing a new file, copy the header of the closest sibling (e.g. a new `nexus/logger/foo.py` should mirror `nexus/logger/rl_metrics.py`'s opening) rather than inventing a new layout.
+7. When introducing a new file, copy the header of the closest sibling (e.g. a new `nexus/logger/foo.py` should mirror `nexus/logger/system_metrics.py`'s opening) rather than inventing a new layout.
 
 Audit hint: `grep -nE "^# (-{4,}|={4,})" path/to/file.py` should return nothing. ASCII rule lines mean someone bypassed this convention.
 

@@ -89,9 +89,8 @@ def check_imports() -> bool:
         from nexus.logger.sweep_logger import SweepLogger  # noqa: F401
         from nexus.logger.model_registry import ModelRegistry  # noqa: F401
         from nexus.logger.system_metrics import SystemMetricsLogger  # noqa: F401
-        from nexus.logger import rl_metrics  # noqa: F401
 
-        ok("nexus.logger advanced — SweepLogger, ModelRegistry, SystemMetricsLogger, rl_metrics")
+        ok("nexus.logger advanced — SweepLogger, ModelRegistry, SystemMetricsLogger")
     except ImportError as e:
         fail(f"nexus.logger advanced — {e}")
         all_ok = False
@@ -363,240 +362,9 @@ def test_dual_logger(tracking_uri: str) -> bool:
 # ── Advanced tests ───────────────────────────────────────────────────────────
 
 
-def test_rl_metrics_helpers() -> bool:
-    """6. rl_metrics helper function accuracy test"""
-    section("6. RL Metrics Helper Functions")
-    try:
-        import numpy as np
-
-        sys.path.insert(0, ".")
-        from nexus.logger import rl_metrics
-
-        returns = np.array([1.0, 2.0, 3.0, 4.0])
-        values = np.array([1.0, 2.0, 3.0, 4.0])
-        ev = rl_metrics.explained_variance(values, returns)
-        assert abs(ev - 1.0) < 1e-6, f"expected 1.0, got {ev}"
-        ok(f"explained_variance (perfect predictions) = {ev:.4f}")
-
-        values_bad = np.zeros(4)
-        ev_bad = rl_metrics.explained_variance(values_bad, returns)
-        assert ev_bad < 1.0, "imperfect predictions should give EV < 1"
-        ok(f"explained_variance (zero predictions) = {ev_bad:.4f}")
-
-        log_probs = np.array([-1.0, -2.0, -0.5])
-        kl = rl_metrics.approx_kl(log_probs, log_probs)
-        assert abs(kl) < 1e-6, f"same distribution should give KL≈0, got {kl}"
-        ok(f"approx_kl (same dist) = {kl:.6f}")
-
-        ratios_in = np.array([1.0, 1.1, 0.95])
-        ratios_out = np.array([1.5, 0.5, 1.3])
-        cf_in = rl_metrics.clip_fraction(ratios_in)
-        cf_out = rl_metrics.clip_fraction(ratios_out)
-        assert abs(cf_in) < 1e-6, f"expected 0.0, got {cf_in}"
-        assert abs(cf_out - 1.0) < 1e-6, f"expected 1.0, got {cf_out}"
-        ok(f"clip_fraction: in-bound={cf_in:.2f}, all-clipped={cf_out:.2f}")
-
-        return True
-    except Exception as e:
-        fail(f"rl_metrics helper test failed: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return False
-
-
-def test_rl_metrics_logging(tracking_uri: str) -> bool:
-    """7. log_rl_metrics() MLflow logging test"""
-    section("7. RL Metrics Logging (log_rl_metrics)")
-    try:
-        sys.path.insert(0, ".")
-        from nexus.logger import MLflowLogger
-
-        run_name = f"rl_metrics_test_{int(time.time())}"
-        logger = MLflowLogger(
-            run_name=run_name, tracking_uri=tracking_uri, experiment_name="nexus_smoke_test"
-        )
-
-        for step in range(1, 4):
-            logger.log_rl_metrics(
-                step,
-                explained_variance=0.8 + step * 0.05,
-                approx_kl=0.02,
-                clip_fraction=0.1,
-                grad_norm=1.5,
-                entropy=0.5,
-                success_rate=step * 0.3,
-            )
-        logger.close()
-
-        import mlflow as _mlflow
-        from mlflow.tracking import MlflowClient
-
-        _mlflow.set_tracking_uri(tracking_uri)
-        client = MlflowClient(tracking_uri=tracking_uri)
-        exp = _mlflow.get_experiment_by_name("nexus_smoke_test")
-        runs = client.search_runs(
-            experiment_ids=[exp.experiment_id], filter_string=f"tags.mlflow.runName = '{run_name}'"
-        )
-        metrics = runs[0].data.metrics
-        expected = {
-            "rl/explained_variance",
-            "rl/approx_kl",
-            "rl/clip_fraction",
-            "rl/grad_norm",
-            "rl/entropy",
-            "rl/success_rate",
-        }
-        missing = expected - set(metrics.keys())
-        if missing:
-            fail(f"Missing RL metrics: {missing}")
-            return False
-        ok(f"All RL metrics recorded: {sorted(metrics.keys())}")
-        return True
-    except Exception as e:
-        fail(f"log_rl_metrics test failed: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return False
-
-
-def test_tb_log_rl_metrics() -> bool:
-    """8. log_rl_metrics() TensorBoard logging test"""
-    section("8. RL Metrics Logging (TensorBoard)")
-    try:
-        import tempfile
-
-        sys.path.insert(0, ".")
-        from nexus.logger import TBLogger
-        from tbparse import SummaryReader
-
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            logger = TBLogger(log_dir=tmp_dir)
-            for step in range(1, 4):
-                logger.log_rl_metrics(
-                    step,
-                    explained_variance=0.8 + step * 0.05,
-                    approx_kl=0.02,
-                    clip_fraction=0.1,
-                    grad_norm=1.5,
-                    entropy=0.5,
-                    success_rate=step * 0.3,
-                )
-            # log_checkpoint is a no-op on TB; should not raise even for missing path
-            logger.log_checkpoint("/tmp/nexus_smoke_nonexistent.pth", kind="last")
-            logger.close()
-
-            df = SummaryReader(tmp_dir, pivot=False).scalars
-            df.columns = [c.lower() for c in df.columns]
-            if "tag" not in df.columns:
-                df = df.rename(columns={"tags": "tag"})
-            tags = set(df["tag"].unique())
-            expected = {
-                "rl/explained_variance",
-                "rl/approx_kl",
-                "rl/clip_fraction",
-                "rl/grad_norm",
-                "rl/entropy",
-                "rl/success_rate",
-            }
-            missing = expected - tags
-            if missing:
-                fail(f"Missing TB rl/* tags: {missing}")
-                return False
-            ok(f"All rl/* scalars present in tfevents: {sorted(expected)}")
-            ok("log_checkpoint() no-op completed without error")
-        return True
-    except Exception as e:
-        fail(f"TB log_rl_metrics test failed: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return False
-
-
-def test_dual_log_rl_metrics_fanout(tracking_uri: str) -> bool:
-    """9. DualLogger.log_rl_metrics() fan-out test (TB + MLflow)"""
-    section("9. RL Metrics Fan-Out (DualLogger -> TB + MLflow)")
-    try:
-        import tempfile
-
-        sys.path.insert(0, ".")
-        from nexus.logger import make_logger
-        from tbparse import SummaryReader
-
-        run_name = f"dual_rl_metrics_{int(time.time())}"
-        expected = {
-            "rl/explained_variance",
-            "rl/approx_kl",
-            "rl/clip_fraction",
-            "rl/grad_norm",
-            "rl/entropy",
-            "rl/success_rate",
-        }
-
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            logger = make_logger(
-                mode="dual",
-                tb_dir=tmp_dir,
-                run_name=run_name,
-                tracking_uri=tracking_uri,
-                experiment_name="nexus_smoke_test",
-                tags={"researcher": "smoke_test"},
-            )
-            for step in range(1, 4):
-                logger.log_rl_metrics(
-                    step,
-                    explained_variance=0.9,
-                    approx_kl=0.01,
-                    clip_fraction=0.05,
-                    grad_norm=2.0,
-                    entropy=0.4,
-                    success_rate=step * 0.25,
-                )
-            logger.close()
-
-            df = SummaryReader(tmp_dir, pivot=False).scalars
-            df.columns = [c.lower() for c in df.columns]
-            if "tag" not in df.columns:
-                df = df.rename(columns={"tags": "tag"})
-            tb_tags = set(df["tag"].unique())
-            missing_tb = expected - tb_tags
-            if missing_tb:
-                fail(f"DualLogger did not forward to TB: missing {missing_tb}")
-                return False
-            ok("All rl/* metrics present on TB side (tfevents)")
-
-        import mlflow as _mlflow
-        from mlflow.tracking import MlflowClient
-
-        _mlflow.set_tracking_uri(tracking_uri)
-        client = MlflowClient(tracking_uri=tracking_uri)
-        exp = _mlflow.get_experiment_by_name("nexus_smoke_test")
-        runs = client.search_runs(
-            experiment_ids=[exp.experiment_id], filter_string=f"tags.mlflow.runName = '{run_name}'"
-        )
-        if not runs:
-            fail("DualLogger MLflow run not found")
-            return False
-        mlflow_keys = set(runs[0].data.metrics.keys())
-        missing_mlflow = expected - mlflow_keys
-        if missing_mlflow:
-            fail(f"DualLogger did not forward to MLflow: missing {missing_mlflow}")
-            return False
-        ok("All rl/* metrics present on MLflow side")
-        return True
-    except Exception as e:
-        fail(f"DualLogger fan-out test failed: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return False
-
-
 def test_omegaconf_flatten(tracking_uri: str) -> bool:
-    """10. _flatten() handles OmegaConf DictConfig"""
-    section("10. OmegaConf DictConfig Flatten")
+    """6. _flatten() handles OmegaConf DictConfig"""
+    section("6. OmegaConf DictConfig Flatten")
     try:
         try:
             from omegaconf import OmegaConf
@@ -653,8 +421,8 @@ def test_omegaconf_flatten(tracking_uri: str) -> bool:
 
 
 def test_scheduled_sync_roundtrip(tracking_uri: str) -> bool:
-    """12. scheduled_sync: export_delta -> import_delta round-trip"""
-    section("12. scheduled_sync round-trip (export_delta -> import_delta)")
+    """8. scheduled_sync: export_delta -> import_delta round-trip"""
+    section("8. scheduled_sync round-trip (export_delta -> import_delta)")
     # Validates the same code that runs under cron, end-to-end against a single
     # MLflow server: log a run in a "source" experiment, export a delta JSON,
     # rewrite the experiment name in-place to a "destination" experiment, import
@@ -807,8 +575,8 @@ def test_scheduled_sync_roundtrip(tracking_uri: str) -> bool:
 
 
 def test_sweep_logger(tracking_uri: str) -> bool:
-    """11. SweepLogger parent-child run test"""
-    section("11. SweepLogger (Parent-Child Runs)")
+    """7. SweepLogger parent-child run test"""
+    section("7. SweepLogger (Parent-Child Runs)")
     try:
         sys.path.insert(0, ".")
         from nexus.logger.sweep_logger import SweepLogger
@@ -902,10 +670,6 @@ def main() -> None:
     results["dual_logger"] = test_dual_logger(args.tracking_uri)
 
     if args.advanced:
-        results["rl_metrics_helpers"] = test_rl_metrics_helpers()
-        results["rl_metrics_logging"] = test_rl_metrics_logging(args.tracking_uri)
-        results["rl_metrics_tb"] = test_tb_log_rl_metrics()
-        results["rl_metrics_fanout"] = test_dual_log_rl_metrics_fanout(args.tracking_uri)
         results["omegaconf_flatten"] = test_omegaconf_flatten(args.tracking_uri)
         results["scheduled_sync"] = test_scheduled_sync_roundtrip(args.tracking_uri)
         results["sweep_logger"] = test_sweep_logger(args.tracking_uri)
@@ -919,10 +683,6 @@ def main() -> None:
         "split_params": "agent_params / env_params split (prefixed params + artifacts)",
         "make_logger": "make_logger factory",
         "dual_logger": "DualLogger (Dual)",
-        "rl_metrics_helpers": "RL metrics helpers (numpy)",
-        "rl_metrics_logging": "RL metrics logging (MLflow)",
-        "rl_metrics_tb": "RL metrics logging (TensorBoard)",
-        "rl_metrics_fanout": "RL metrics fan-out (DualLogger -> TB + MLflow)",
         "omegaconf_flatten": "OmegaConf DictConfig flatten",
         "scheduled_sync": "scheduled_sync round-trip (export -> import)",
         "sweep_logger": "SweepLogger (parent-child runs)",

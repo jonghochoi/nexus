@@ -10,12 +10,11 @@
 
 - [Import pattern](#import-pattern)
 - [1. SweepLogger — hyperparameter sweep management](#1-sweeplogger--hyperparameter-sweep-management)
-- [2. RL diagnostic metrics](#2-rl-diagnostic-metrics)
-- [3. Model Registry](#3-model-registry)
-- [4. SystemMetricsLogger — background resource logging](#4-systemmetricslogger--background-resource-logging)
-- [5. Git commit tracking](#5-git-commit-tracking)
-- [6. Chart settings — persistent column layout](#6-chart-settings--persistent-column-layout)
-- [7. Smoke test — advanced mode](#7-smoke-test--advanced-mode)
+- [2. Model Registry](#2-model-registry)
+- [3. SystemMetricsLogger — background resource logging](#3-systemmetricslogger--background-resource-logging)
+- [4. Git commit tracking](#4-git-commit-tracking)
+- [5. Chart settings — persistent column layout](#5-chart-settings--persistent-column-layout)
+- [6. Smoke test — advanced mode](#6-smoke-test--advanced-mode)
 - [Next steps](#next-steps)
 
 ---
@@ -32,7 +31,6 @@ from nexus.logger import make_logger, MLflowLogger, DualLogger
 from nexus.logger.sweep_logger   import SweepLogger
 from nexus.logger.model_registry import ModelRegistry
 from nexus.logger.system_metrics import SystemMetricsLogger
-from nexus.logger                import rl_metrics          # module, not a class
 ```
 
 ---
@@ -77,52 +75,7 @@ sweep.close()
 
 ---
 
-## 2. RL diagnostic metrics
-
-### ── `log_rl_metrics()` — per-step logging
-
-`MLflowLogger` and `DualLogger` both expose `log_rl_metrics()`. It logs standard PPO/RL diagnostics under the `rl/` key namespace.
-
-```python
-logger.log_rl_metrics(
-    step,
-    explained_variance=ev,     # float | None — skip by passing None
-    approx_kl=kl,
-    clip_fraction=cf,
-    grad_norm=gn,
-    entropy=ent,
-    success_rate=sr,
-)
-```
-
-Keys logged to MLflow: `rl/explained_variance`, `rl/approx_kl`, `rl/clip_fraction`, `rl/grad_norm`, `rl/entropy`, `rl/success_rate`. Any keyword left as `None` is silently skipped.
-
-### ── `rl_metrics` module — pure NumPy helpers
-
-Compute the values before logging them:
-
-```python
-from nexus.logger import rl_metrics
-import numpy as np
-
-ev = rl_metrics.explained_variance(value_preds, returns)
-kl = rl_metrics.approx_kl(old_log_probs, new_log_probs)
-cf = rl_metrics.clip_fraction(prob_ratios, clip_eps=0.2)
-gn = rl_metrics.grad_norm(model.parameters())   # torch or numpy
-```
-
-No MLflow dependency — safe to import anywhere in a training codebase.
-
-| Function | Input | Returns |
-|---|---|---|
-| `explained_variance(values, returns)` | 1-D numpy arrays | `float` (NaN if var≈0) |
-| `approx_kl(log_probs_old, log_probs_new)` | 1-D numpy arrays | `float` |
-| `clip_fraction(ratios, clip_eps=0.2)` | 1-D numpy array | `float` in [0, 1] |
-| `grad_norm(parameters)` | torch param iterator or list of numpy arrays | `float` |
-
----
-
-## 3. Model Registry
+## 2. Model Registry
 
 ### ── Registering a checkpoint
 
@@ -176,7 +129,7 @@ registry.set_sim_to_real_link(
 
 ---
 
-## 4. SystemMetricsLogger — background resource logging
+## 3. SystemMetricsLogger — background resource logging
 
 Spawns a daemon thread that periodically logs CPU, RAM, and GPU metrics to MLflow without blocking training.
 
@@ -215,7 +168,7 @@ pip install psutil nvidia-ml-py
 
 ---
 
-## 5. Git commit tracking
+## 4. Git commit tracking
 
 `MLflowLogger` automatically captures the git state of the training code at run start. No extra code is needed — it is on by default.
 
@@ -251,7 +204,7 @@ logger = make_logger(mode="mlflow", ..., track_git=False)
 
 ---
 
-## 6. Chart settings — persistent column layout
+## 5. Chart settings — persistent column layout
 
 MLflow stores the runs-table column visibility (which tags, params, and metrics are shown) in the **browser's localStorage**. This means the layout resets whenever you open a fresh browser or switch machines.
 
@@ -275,16 +228,16 @@ The bookmarklet fetches the stored settings from the MLflow API and writes them 
 
 ---
 
-## 7. Smoke test — advanced mode
+## 6. Smoke test — advanced mode
 
 The smoke test (`tests/smoke_test.py`) runs only core tests by default. Pass `--advanced` to also validate the features described in this document.
 
 ```bash
 python tests/smoke_test.py --advanced
 # Tests 1–5: core (always run)
-# Test 6: rl_metrics helper accuracy
-# Test 7: log_rl_metrics MLflow logging
-# Test 8: SweepLogger parent-child runs
+# Test 6: OmegaConf DictConfig flatten
+# Test 7: SweepLogger parent-child runs
+# Test 8: scheduled_sync round-trip
 ```
 
 ---
