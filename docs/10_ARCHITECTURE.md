@@ -2,7 +2,7 @@
 
 ---
 
-## 🤔 Why MLflow?
+## Why MLflow?
 
 RL training is hard to reproduce — even small differences in hyperparameters, environment configs, or reward functions can dramatically change results. After training ends, you need to be able to answer "what configuration did this run use?" to enable cross-experiment comparison and reproduction.
 
@@ -20,7 +20,7 @@ NEXUS uses `DualLogger` to run both tools simultaneously. TensorBoard handles re
 
 ---
 
-## ⚠️ Infrastructure Constraints
+## Infrastructure Constraints
 
 ```
 [GPU Server]                        [MLflow Server]
@@ -33,9 +33,9 @@ NEXUS uses `DualLogger` to run both tools simultaneously. TensorBoard handles re
 
 ---
 
-## 🔀 Two Logging Pipelines
+## Two Logging Pipelines
 
-### 🅰️ Pipeline A — Direct MLflow Logging *(recommended, scheduled sync)*
+### ── Pipeline A — Direct MLflow Logging *(recommended, scheduled sync)*
 
 ```
 PPO.write_stats()
@@ -72,7 +72,7 @@ PPO.write_stats()
 
 ---
 
-### 🅱️ Pipeline B — TensorBoard Post-Upload *(one-shot, no code changes)*
+### ── Pipeline B — TensorBoard Post-Upload *(one-shot, no code changes)*
 
 ```
 PPO.write_stats()
@@ -95,7 +95,7 @@ PPO.write_stats()
 
 ---
 
-## 🔄 Complete Data Flow
+## Complete Data Flow
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -151,7 +151,7 @@ PPO.write_stats()
 
 ---
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```
 nexus/
@@ -210,7 +210,7 @@ The next section maps each runtime component (factory, loggers, sync scripts) to
 
 ---
 
-## 🧩 Component Map
+## Component Map
 
 | Component | Location | Purpose |
 |---|---|---|
@@ -228,7 +228,7 @@ The next section maps each runtime component (factory, loggers, sync scripts) to
 
 ---
 
-## 🔄 MLflow Run Lifecycle *(Pipeline A)*
+## MLflow Run Lifecycle *(Pipeline A)*
 
 ```
 Training starts
@@ -262,7 +262,7 @@ writer.close() called
 
 ---
 
-## 🗃️ MLflow Run Internal Structure
+## MLflow Run Internal Structure
 
 One training run stored in MLflow:
 
@@ -301,7 +301,7 @@ Run: "ShadowHand_PPO_seed42_20240315_143022"
 
 ---
 
-## 💾 Checkpoint Management Policy
+## Checkpoint Management Policy
 
 ```
 Epoch 1   → last.pth saved  (score=0.12)
@@ -320,7 +320,7 @@ By keeping only two checkpoints instead of stacking every epoch, storage waste i
 
 ---
 
-## 🗂️ MLflow Experiment Structure
+## MLflow Experiment Structure
 
 ```
 MLflow Central Server
@@ -344,7 +344,7 @@ MLflow Central Server
 
 ---
 
-## 🔍 Experiment Comparison Workflow
+## Experiment Comparison Workflow
 
 ```
 MLflow UI (Central Server :5000)
@@ -363,7 +363,7 @@ MLflow UI (Central Server :5000)
 
 ---
 
-## 🗺️ Recommended Migration Path
+## Recommended Migration Path
 
 | Phase | Mode | Description | Goal |
 |:---:|:---:|---|---|

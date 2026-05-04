@@ -6,26 +6,26 @@
 
 ---
 
-## 📑 Table of Contents
+## Table of Contents
 
-- [⚡ TL;DR](#-tldr)
-- [📋 Prerequisites](#-prerequisites)
-- [🚦 Recommended order](#-recommended-order)
-- [📌 Step 1 — Sync config file(s)](#-step-1--sync-config-files)
-- [📌 Step 2 — Pre-flight check (`validate_sync.sh`)](#-step-2--pre-flight-check-validate_syncsh)
-- [📌 Step 3 — Run once manually](#-step-3--run-once-manually)
-- [📌 Step 4 — Register cron](#-step-4--register-cron)
-- [📌 Step 5 — Multi-user GPU servers](#-step-5--multi-user-gpu-servers)
-- [📁 State file & incremental sync](#-state-file--incremental-sync)
-- [✅ Verification checklist](#-verification-checklist)
-- [📊 Monitoring & log inspection](#-monitoring--log-inspection)
-- [⏹️ Stopping sync](#-stopping-sync)
-- [🛠️ Troubleshooting](#-troubleshooting)
-- [🗺️ Next steps](#-next-steps)
+- [TL;DR](#tldr)
+- [Prerequisites](#prerequisites)
+- [Recommended order](#recommended-order)
+- [Step 1 — Sync config file(s)](#step-1--sync-config-files)
+- [Step 2 — Pre-flight check (`validate_sync.sh`)](#step-2--pre-flight-check-validate_syncsh)
+- [Step 3 — Run once manually](#step-3--run-once-manually)
+- [Step 4 — Register cron](#step-4--register-cron)
+- [Step 5 — Multi-user GPU servers](#step-5--multi-user-gpu-servers)
+- [State file & incremental sync](#state-file--incremental-sync)
+- [Verification checklist](#verification-checklist)
+- [Monitoring & log inspection](#monitoring--log-inspection)
+- [Stopping sync](#stopping-sync)
+- [Troubleshooting](#troubleshooting)
+- [Next steps](#next-steps)
 
 ---
 
-## ⚡ TL;DR
+## TL;DR
 
 ```bash
 # One-time setup (per user, on the GPU server)
@@ -43,11 +43,11 @@ crontab -e
 ```
 
 > [!IMPORTANT]
-> On a **multi-user GPU server**, every user must set their own `researcher` in `~/.nexus/sync_config.json` — otherwise crons cross-contaminate and the central server logs duplicate metric points. Detail: [§ Step 5](#-step-5--multi-user-gpu-servers), canonical: [`00_PRINCIPLES.md#multi-user-researcher`](00_PRINCIPLES.md#-multi-user-researcher).
+> On a **multi-user GPU server**, every user must set their own `researcher` in `~/.nexus/sync_config.json` — otherwise crons cross-contaminate and the central server logs duplicate metric points. Detail: [§ Step 5](#step-5--multi-user-gpu-servers), canonical: [`00_PRINCIPLES.md#multi-user-researcher`](00_PRINCIPLES.md#-multi-user-researcher).
 
 ---
 
-## 📋 Prerequisites
+## Prerequisites
 
 | Requirement | Where to set up |
 |---|---|
@@ -58,7 +58,7 @@ crontab -e
 
 ---
 
-## 🚦 Recommended order
+## Recommended order
 
 > [!IMPORTANT]
 > After writing the config file, proceed in this sequence:
@@ -72,7 +72,7 @@ crontab -e
 
 ---
 
-## 📌 Step 1 — Sync config file(s)
+## Step 1 — Sync config file(s)
 
 The fixed values live in a config file so the cron line is a single bash invocation. Two locations are auto-discovered:
 
@@ -102,11 +102,11 @@ $EDITOR ~/.nexus/sync_config.json
 
 > 💡 **`remote_python`** — Non-interactive SSH does not source `~/.bashrc`, so the MLflow server's venv is never activated and `python3` resolves to the system interpreter (which has no `mlflow`). Set this to the full path of the venv Python on the MLflow server: `"/opt/nexus-mlflow/venv/bin/python3"`.
 
-> ⚠️ **Multi-user GPU servers** — when several researchers share one GPU server (and one local MLflow), each user **MUST** set their own `researcher` in `~/.nexus/sync_config.json`. Without it, every user's cron exports every other user's runs and the central server logs duplicate metric points at identical steps. The validator flags this with a `[WARN]`. Detail: [Step 5](#-step-5--multi-user-gpu-servers) and [`00_PRINCIPLES.md#multi-user-researcher`](00_PRINCIPLES.md#-multi-user-researcher).
+> ⚠️ **Multi-user GPU servers** — when several researchers share one GPU server (and one local MLflow), each user **MUST** set their own `researcher` in `~/.nexus/sync_config.json`. Without it, every user's cron exports every other user's runs and the central server logs duplicate metric points at identical steps. The validator flags this with a `[WARN]`. Detail: [Step 5](#step-5--multi-user-gpu-servers) and [`00_PRINCIPLES.md#multi-user-researcher`](00_PRINCIPLES.md#-multi-user-researcher).
 
 ---
 
-## 📌 Step 2 — Pre-flight check (`validate_sync.sh`)
+## Step 2 — Pre-flight check (`validate_sync.sh`)
 
 `validate_sync.sh` runs the same config resolution as `sync_mlflow_to_server.sh`, then verifies SSH, remote inbox writability, presence of `import_delta.py` on the central server, central MLflow `/health`, local MLflow + experiment existence, and finally executes a `--dry-run`. A clean run prints a paste-ready cron line — it never edits your crontab.
 
@@ -120,7 +120,7 @@ Every failure prints what to fix; the script exits 2 on the first failed step ra
 
 ---
 
-## 📌 Step 3 — Run once manually
+## Step 3 — Run once manually
 
 ```bash
 bash scheduled_sync/sync_mlflow_to_server.sh
@@ -138,7 +138,7 @@ On success, the run will appear in the NEXUS server's MLflow UI — both the met
 
 ---
 
-## 📌 Step 4 — Register cron
+## Step 4 — Register cron
 
 ```bash
 crontab -e
@@ -158,7 +158,7 @@ Need a per-key override (e.g. running an alternate experiment from one cron line
 
 ---
 
-## 📌 Step 5 — Multi-user GPU servers
+## Step 5 — Multi-user GPU servers
 
 When kim, lee, and park all train on the same GPU server, each user runs their own cron:
 
@@ -179,7 +179,7 @@ When kim, lee, and park all train on the same GPU server, each user runs their o
 
 ---
 
-## 📁 State file & incremental sync
+## State file & incremental sync
 
 The local state file (`~/.nexus/sync_state/{experiment}[__{researcher}].json`) records two things per run — the last synced step for each metric tag, and the per-run `__artifacts__` skip set listing artifact paths already shipped. This is the **source of truth** for "what has been synced." On every cron tick, `export_delta.py` reads this file, queries local MLflow for new metric points and new/changed artifact files, packages everything into a tar.gz bundle (`delta.json` + `artifacts/<run_id>/...`), and only ships the delta.
 
@@ -193,7 +193,7 @@ The local state file (`~/.nexus/sync_state/{experiment}[__{researcher}].json`) r
 
 ---
 
-## ✅ Verification checklist
+## Verification checklist
 
 After `validate_sync.sh` passes, run through this checklist before declaring the sync ready for production:
 
@@ -210,13 +210,13 @@ After `validate_sync.sh` passes, run through this checklist before declaring the
 
 ---
 
-## 📊 Monitoring & log inspection
+## Monitoring & log inspection
 
 After cron is registered, sync runs unattended. The three places to check whether it's still healthy are: the **wrapper log** on the GPU server, the **state file** on the GPU server, and the **`nexus.*` tags** on the central MLflow UI. None of them require restarting anything.
 
 ### ── Where the log lives
 
-`~/nexus_sync.log` is just the stdout/stderr of `sync_mlflow_to_server.sh`, redirected by the cron line you registered in [§ Step 4](#-step-4--register-cron). Cron itself does not rotate this file — it grows by ~1–2 lines per "no new data" tick and ~10 lines per real upload, so on a typical 5-minute cadence it stays under a few MB per month. Rotate it manually if it ever bothers you (`mv ~/nexus_sync.log ~/nexus_sync.log.old`); the next cron tick will re-create it.
+`~/nexus_sync.log` is just the stdout/stderr of `sync_mlflow_to_server.sh`, redirected by the cron line you registered in [§ Step 4](#step-4--register-cron). Cron itself does not rotate this file — it grows by ~1–2 lines per "no new data" tick and ~10 lines per real upload, so on a typical 5-minute cadence it stays under a few MB per month. Rotate it manually if it ever bothers you (`mv ~/nexus_sync.log ~/nexus_sync.log.old`); the next cron tick will re-create it.
 
 ### ── Healthy output — the two normal shapes
 
@@ -281,7 +281,7 @@ The wrapper's exit code is what cron sees, and what shows up in `MAILTO=` cron m
 | `4` | SCP failed after 3 retries with 5s/10s backoff | Network between GPU server and central server; firewall; key-based auth |
 | `5` | Remote `import_delta.py` failed | `remote_python` (most common — venv interpreter not on `PATH`); `remote_nexus_dir`; central MLflow at `remote_uri` |
 
-> 💡 Exit `2` from `export_delta.py` ("no new data") is **swallowed by the wrapper and re-mapped to `0`** — cron and any monitoring layered on top see only `0`. The raw `2` is documented in [§ State file & incremental sync](#-state-file--incremental-sync) for the case where you invoke `export_delta.py` directly.
+> 💡 Exit `2` from `export_delta.py` ("no new data") is **swallowed by the wrapper and re-mapped to `0`** — cron and any monitoring layered on top see only `0`. The raw `2` is documented in [§ State file & incremental sync](#state-file--incremental-sync) for the case where you invoke `export_delta.py` directly.
 
 ### ── State file inspection
 
@@ -308,7 +308,7 @@ What to look at:
 - **Per-run, per-tag steps** — the highest step already shipped for each metric of each run. If these are advancing on every tick, sync is keeping pace with training.
 - **Run count** — should match what you see in your local MLflow's experiment (modulo runs filtered out by your `researcher` tag).
 
-> 💡 If the state file's recorded steps are ahead of what's actually on the central server (e.g. central was wiped and restored from an older backup), delete the state file — the next tick re-exports every run from step 0. See also [§ Troubleshooting](#-troubleshooting) → "Sync claims success but central UI shows no new data".
+> 💡 If the state file's recorded steps are ahead of what's actually on the central server (e.g. central was wiped and restored from an older backup), delete the state file — the next tick re-exports every run from step 0. See also [§ Troubleshooting](#troubleshooting) → "Sync claims success but central UI shows no new data".
 
 ### ── Central-side check — finding stale GPU servers
 
@@ -341,9 +341,9 @@ A run that is supposed to be training but hasn't had its `nexus.lastSyncTime` up
 
 ---
 
-## ⏹ Stopping sync
+## Stopping sync
 
-### Remove the cron entry (required)
+### ── Remove the cron entry (required)
 
 ```bash
 crontab -e
@@ -361,7 +361,7 @@ Confirm it is gone:
 crontab -l   # the sync line must not appear
 ```
 
-### Kill any in-flight sync process (if needed)
+### ── Kill any in-flight sync process (if needed)
 
 If a cron tick fired just before you removed the entry, a sync may still be running:
 
@@ -377,7 +377,7 @@ pkill -f "export_delta"
 
 This is only needed when you must stop immediately (e.g. the central server is being taken down). A mid-flight sync that is killed cleanly causes no data loss — the state file is only updated after a successful export, so the next manual run will re-export any points that were in progress.
 
-### Stop local MLflow (optional)
+### ── Stop local MLflow (optional)
 
 Only needed if training is also stopping. The local MLflow server is required by the training process (`make_logger`) and by `export_delta.py`, but not by anything else.
 
@@ -389,9 +389,9 @@ lsof -ti :5100 | xargs kill
 
 ---
 
-## 🛠 Troubleshooting
+## Troubleshooting
 
-### ⚠️ `python3: command not found` on the central server
+### ── `python3: command not found` on the central server
 
 Non-interactive SSH does not source `~/.bashrc`. The MLflow server's venv `python3` is not on `PATH`. Set `remote_python` to the full path:
 
@@ -401,22 +401,22 @@ Non-interactive SSH does not source `~/.bashrc`. The MLflow server's venv `pytho
 }
 ```
 
-### ⚠️ `Permission denied (publickey)` on cron run, but works manually
+### ── `Permission denied (publickey)` on cron run, but works manually
 
 Cron runs without your interactive shell's environment. The SSH agent isn't loaded, so password-protected keys won't decrypt. Either:
 
 - Use a dedicated, passphrase-less key for sync (most common — its only privilege is `import_delta.py`)
 - Or pre-load `ssh-agent` from cron with `eval $(ssh-agent)` + `ssh-add`
 
-### ⚠️ Central server logs duplicate metric points at the same step
+### ── Central server logs duplicate metric points at the same step
 
 Two GPU server users are running cron without setting their `researcher` tag, so each cron exports the other's runs. Fix: set `researcher` in `~/.nexus/sync_config.json` for every user. Confirm with `bash scheduled_sync/validate_sync.sh` — it warns if `researcher` is unset.
 
-### ⚠️ Sync claims success but central UI shows no new data
+### ── Sync claims success but central UI shows no new data
 
 Check the state file: `cat ~/.nexus/sync_state/{experiment}__{researcher}.json`. If the recorded steps are ahead of what's actually on the central server (e.g. central was wiped), delete the state file and let the next cron tick re-sync from scratch.
 
-### ⚠️ Wrapper exits 5 with `UnicodeDecodeError: 0x8b` after upgrading
+### ── Wrapper exits 5 with `UnicodeDecodeError: 0x8b` after upgrading
 
 The `0x8b` byte is the gzip magic header — a pre-artifact-sync `import_delta.py` is trying to `json.load()` the new tar.gz delta bundle. The GPU server has the new `export_delta.py` (writes `.tar.gz`) but the central server is still on the old `import_delta.py` (only reads plain JSON). Every cron tick fails this way, so **runs disappear from central until central is upgraded**.
 
@@ -426,13 +426,13 @@ ssh <central-host> "cd <remote_nexus_dir> && git pull"
 
 `validate_sync.sh` now guards this check at step 3, so re-running it after an upgrade catches a half-upgraded fleet before you re-register cron.
 
-### ⚠️ How do I add a new sync option to the wrapper?
+### ── How do I add a new sync option to the wrapper?
 
 See `CLAUDE.md` → "When adding new features" → "New Pipeline A sync option". You need to update: the CLI flag in `sync_mlflow_to_server.sh`, the JSON `KEY_MAP`, `sync_config.example.json`, the validator's required-key list (if required), and this guide.
 
 ---
 
-## 🗺 Next steps
+## Next steps
 
 - **Architecture detail (export → SCP → import flow)** → [`10_ARCHITECTURE.md`](10_ARCHITECTURE.md)
 - **Pipeline B alternative** (one-shot, no cron) → [`13_POST_UPLOAD.md`](13_POST_UPLOAD.md)

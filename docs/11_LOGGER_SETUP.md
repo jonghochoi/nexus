@@ -6,7 +6,7 @@ How to replace `tensorboardX.SummaryWriter` with the unified logger in any train
 
 ---
 
-## 📋 What Changes
+## What Changes
 
 | Location | Change | Lines modified |
 |---|---|:---:|
@@ -84,7 +84,7 @@ def train(self) -> None:
 
 ---
 
-## 🎛️ Switching Modes
+## Switching Modes
 
 Change **only** the `mode` argument. Everything else stays the same.
 
@@ -98,7 +98,7 @@ In `"tensorboard"` mode, `log_checkpoint()` and `log_artifact()` are silently ig
 
 ---
 
-## ⚙️ Prerequisite: Local MLflow Server on GPU Server
+## Prerequisite — Local MLflow Server on GPU Server
 
 > Before starting training with `mode="dual"` or `"mlflow"`, the local MLflow server must be running.
 
@@ -111,7 +111,7 @@ This starts a local MLflow server on `127.0.0.1:5100`. All GPU processes on the 
 
 ---
 
-## 💡 What Gets Stored Where
+## What Gets Stored Where
 
 | Data | When | MLflow path |
 |---|---|---|
@@ -125,7 +125,7 @@ This starts a local MLflow server on `127.0.0.1:5100`. All GPU processes on the 
 
 ---
 
-## 📄 Full Diff *(copy-paste ready)*
+## Full Diff *(copy-paste ready)*
 
 ```diff
 -from tensorboardX import SummaryWriter

@@ -6,7 +6,7 @@
 
 ---
 
-## 📋 Stable Anchors *(do not rename — external docs link here)*
+## Stable Anchors *(do not rename — external docs link here)*
 
 | Anchor | Title |
 |---|---|
@@ -23,67 +23,67 @@
 
 ---
 
-## 🤝 Team Agreements
+## Team Agreements
 
 These are rules every team member must follow. Detailed walkthroughs (Korean) live in [`ko/02_EXPERIMENT_STANDARD.md`](ko/02_EXPERIMENT_STANDARD.md).
 
-### 🔀 Tool role separation
+### ── Tool role separation
 
 > **MLflow stores numbers. Confluence stores judgment. Never mix the two.**
 
-If you write interpretation in MLflow descriptions, the team won't see it. If you paste numbers into Confluence, they go stale the moment a run is rerun. Detailed rationale and templates: [`ko/02_EXPERIMENT_STANDARD.md` § 0](ko/02_EXPERIMENT_STANDARD.md#-0-도구-역할-분리-원칙).
+If you write interpretation in MLflow descriptions, the team won't see it. If you paste numbers into Confluence, they go stale the moment a run is rerun. Detailed rationale and templates: [`ko/02_EXPERIMENT_STANDARD.md` § 0](ko/02_EXPERIMENT_STANDARD.md#0-도구-역할-분리-원칙).
 
-### 🏷 Required tags
+### ── Required tags
 
 Every run must carry these four tags — without them, the run cannot be reproduced or compared:
 
 `experiment` · `researcher` · `task` · `hardware`
 
-The **single source of truth** is the code: [`post_upload/config.py::required_tags()`](../post_upload/config.py). The team-facing description with examples is in [`ko/02_EXPERIMENT_STANDARD.md` § 3-1](ko/02_EXPERIMENT_STANDARD.md#-3-tags-규칙).
+The **single source of truth** is the code: [`post_upload/config.py::required_tags()`](../post_upload/config.py). The team-facing description with examples is in [`ko/02_EXPERIMENT_STANDARD.md` § 3-1](ko/02_EXPERIMENT_STANDARD.md#3-tags-규칙).
 
-### 🔗 `sim_run_id`
+### ── `sim_run_id`
 
 Every real-robot eval run **must** carry a `sim_run_id` tag pointing at the upstream sim training run. Without it, Sim-to-Real failure tracing is impossible. Enforcement:
 - **Pipeline A** — set the tag in `make_logger(tags={...})`
 - **Pipeline B** — drop a `run_meta.json` next to the tfevents, or pass `--tags sim_run_id=...`. Uploads to `--experiment real_robot_eval` are **blocked** if missing.
 
-Detail: [`ko/02_EXPERIMENT_STANDARD.md` § 8](ko/02_EXPERIMENT_STANDARD.md#-8-sim-to-real-연결-규칙), [`13_POST_UPLOAD.md` § 5](13_POST_UPLOAD.md).
+Detail: [`ko/02_EXPERIMENT_STANDARD.md` § 8](ko/02_EXPERIMENT_STANDARD.md#8-sim-to-real-연결-규칙), [`13_POST_UPLOAD.md` § 5](13_POST_UPLOAD.md).
 
-### ❌ Failed run preservation
+### ── Failed run preservation
 
 > **Never delete a failed run.**
 
-Stamp `fail_reason` on it, write the failure analysis in Confluence, and leave the run in MLflow forever. Same-mistake-twice prevention is one of NEXUS's core values. Detail: [`ko/02_EXPERIMENT_STANDARD.md` § 7](ko/02_EXPERIMENT_STANDARD.md#-7-failed-run-처리-규칙).
+Stamp `fail_reason` on it, write the failure analysis in Confluence, and leave the run in MLflow forever. Same-mistake-twice prevention is one of NEXUS's core values. Detail: [`ko/02_EXPERIMENT_STANDARD.md` § 7](ko/02_EXPERIMENT_STANDARD.md#7-failed-run-처리-규칙).
 
-### 💡 Hypothesis first
+### ── Hypothesis first
 
-Write the experiment's hypothesis in Confluence **before** launching the run. Writing the hypothesis after seeing results is post-hoc rationalization, not science. Detail: [`ko/02_EXPERIMENT_STANDARD.md` § 6](ko/02_EXPERIMENT_STANDARD.md#-6-실험-생명주기).
+Write the experiment's hypothesis in Confluence **before** launching the run. Writing the hypothesis after seeing results is post-hoc rationalization, not science. Detail: [`ko/02_EXPERIMENT_STANDARD.md` § 6](ko/02_EXPERIMENT_STANDARD.md#6-실험-생명주기).
 
 ---
 
-## ⚙️ Engineering Invariants
+## Engineering Invariants
 
 These are technical contracts. Violating them silently breaks the system.
 
-### 👥 Multi-user researcher
+### ── Multi-user researcher
 
 > ⚠️ On shared GPU servers, **each user must set their own `researcher` tag** in `~/.nexus/sync_config.json`.
 
-Without per-user `researcher`, parallel cron jobs export each other's runs and the central server logs duplicate metric points at identical steps. The state file path is namespaced by researcher (`~/.nexus/sync_state/{exp}__{researcher}.json`) precisely to enforce isolation. Detail: [`12_SCHEDULED_SYNC.md` Step 5](12_SCHEDULED_SYNC.md#-step-5--multi-user-gpu-servers) and the verification checklist in the same doc. See also [`scheduled_sync/export_delta.py`](../scheduled_sync/export_delta.py) `--researcher` flag.
+Without per-user `researcher`, parallel cron jobs export each other's runs and the central server logs duplicate metric points at identical steps. The state file path is namespaced by researcher (`~/.nexus/sync_state/{exp}__{researcher}.json`) precisely to enforce isolation. Detail: [`12_SCHEDULED_SYNC.md` Step 5](12_SCHEDULED_SYNC.md#step-5--multi-user-gpu-servers) and the verification checklist in the same doc. See also [`scheduled_sync/export_delta.py`](../scheduled_sync/export_delta.py) `--researcher` flag.
 
-### 💾 Checkpoint policy
+### ── Checkpoint policy
 
 > **Exactly two artifacts per run, ever:** `checkpoints/best.pth`, `checkpoints/last.pth`.
 
 `MLflowLogger.log_checkpoint(path, kind)` enforces `kind ∈ {"best", "last"}` and renames on upload. Both are overwritten in place — intermediate checkpoints (`ep_100_*.pth`) belong on local disk, not in MLflow. Detail: [`10_ARCHITECTURE.md`](10_ARCHITECTURE.md), [`nexus/logger/mlflow_logger.py`](../nexus/logger/mlflow_logger.py).
 
-### 📁 State file
+### ── State file
 
 > The file at `~/.nexus/sync_state/{experiment}[__{researcher}].json` is the **source of truth** for "what has been synced."
 
 Deleting it forces a full re-sync on the next cron tick. It used to live in `/tmp` but `/tmp` is wiped on reboot, which silently triggered full re-syncs every cycle. Do not move it back. Detail: `CLAUDE.md`, [`scheduled_sync/export_delta.py`](../scheduled_sync/export_delta.py).
 
-### 🌐 Default URIs
+### ── Default URIs
 
 | URI | Role |
 |---|---|
@@ -92,7 +92,7 @@ Deleting it forces a full re-sync on the next cron tick. It used to live in `/tm
 
 These appear hardcoded as defaults across `nexus/logger/`, `scheduled_sync/`, `post_upload/`, `chart_settings/`, and the README diagrams. **Change them in concert** — `grep -rn "5100\|5000"` and update every site. Detail: `CLAUDE.md` § "When adding new features".
 
-### 📦 mlflow-skinny contract
+### ── mlflow-skinny contract
 
 > Runtime code may only use APIs that exist in `mlflow-skinny`.
 
@@ -100,7 +100,7 @@ The default install (`pip install nexus-logger`) pulls `mlflow-skinny` to slot i
 
 ---
 
-## 🗺️ Where to go next
+## Where to go next
 
 | Audience | Next read |
 |---|---|

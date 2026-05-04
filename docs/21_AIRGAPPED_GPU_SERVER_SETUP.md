@@ -6,21 +6,21 @@
 
 ---
 
-## 📑 Table of Contents
+## Table of Contents
 
-- [⚡ TL;DR](#-tldr)
-- [📋 Prerequisites](#-prerequisites)
-- [📌 Step 0 — Verify install on local PC first](#-step-0--verify-install-on-local-pc-first-recommended)
-  - [🧭 Method selection criteria](#-method-selection-criteria)
-  - [🅰️ Method A — pip wheel offline transfer](#-method-a--pip-wheel-offline-transfer-no-docker-required-recommended)
-  - [🅱️ Method B — Docker image transfer](#-method-b--docker-image-transfer-when-docker-is-available)
-- [📌 Step 1 — Verify install on the GPU node](#-step-1--verify-install-on-the-gpu-node)
-- [🛠️ Troubleshooting](#-troubleshooting)
-- [🗺️ Next steps](#-next-steps)
+- [TL;DR](#tldr)
+- [Prerequisites](#prerequisites)
+- [Step 0 — Verify install on local PC first](#step-0--verify-install-on-local-pc-first-recommended)
+  - [Method selection criteria](#-method-selection-criteria)
+  - [Method A — pip wheel offline transfer](#-method-a--pip-wheel-offline-transfer-no-docker-required-recommended)
+  - [Method B — Docker image transfer](#-method-b--docker-image-transfer-when-docker-is-available)
+- [Step 1 — Verify install on the GPU node](#step-1--verify-install-on-the-gpu-node)
+- [Troubleshooting](#troubleshooting)
+- [Next steps](#next-steps)
 
 ---
 
-## ⚡ TL;DR
+## TL;DR
 
 ```bash
 # On your internet-connected local PC — pin to the GPU server's Python
@@ -48,7 +48,7 @@ python tests/smoke_test.py
 
 ---
 
-## 📋 Prerequisites
+## Prerequisites
 
 | What | Where |
 |---|---|
@@ -60,18 +60,18 @@ The GPU server needs **outgoing SSH** to your local PC only for the initial tran
 
 ---
 
-## 📌 Step 0 — Verify install on local PC first *(recommended)*
+## Step 0 — Verify install on local PC first *(recommended)*
 
 > **Why:** Confirm that NEXUS itself works on a familiar machine before pinning wheels for an offline target. If the smoke test fails locally, it will fail on the GPU node too — debug it once on your laptop.
 
-### 0.1 Clone the repository
+### ── Clone the repository
 
 ```bash
 git clone https://github.com/jonghochoi/nexus.git
 cd nexus
 ```
 
-### 0.2 Verify Python version
+### ── Verify Python version
 
 ```bash
 python3 --version
@@ -79,7 +79,7 @@ python3 --version
 
 Must be `Python 3.8` or higher. 3.10 or 3.11 is recommended.
 
-### 0.3 Install environment
+### ── Install environment
 
 ```bash
 bash setup.sh
@@ -88,7 +88,7 @@ source ~/.nexus/activate.sh   # or: nexus-activate (if you ran setup.sh --alias)
 
 The venv lives at `~/.nexus/venv` — **outside** the repo — so replacing or re-cloning nexus sources does not wipe it.
 
-### 0.4 Verify installation
+### ── Verify installation
 
 ```bash
 python -c "import mlflow; print('mlflow:', mlflow.__version__)"
@@ -98,7 +98,7 @@ python -c "from nexus.logger import make_logger; print('logger OK')"
 
 If all three lines output without errors, the package install is sound.
 
-### 0.5 Start local MLflow + run smoke test
+### ── Start local MLflow + run smoke test
 
 ```bash
 bash scheduled_sync/start_local_mlflow.sh   # boots :5100
@@ -111,7 +111,7 @@ The smoke test creates real runs under the `nexus_smoke_test` experiment on `htt
 
 ---
 
-### 🧭 Method selection criteria
+### ── Method selection criteria
 
 | Situation | Recommended |
 |---|---|
@@ -122,13 +122,13 @@ The smoke test creates real runs under the `nexus_smoke_test` experiment on `htt
 
 ---
 
-### 🅰 Method A — pip wheel offline transfer *(no Docker required, recommended)*
+### ── Method A — pip wheel offline transfer *(no Docker required, recommended)*
 
 This method works without Docker and transfers only Python packages, so the bundle size is small (~100MB).
 
 > ⚠️ **Wheels must match the GPU server's Python, not your local Python.** The OS / Python version on your local PC and the GPU server almost always differ. The `--python-version` flag below refers to the **target (GPU server) Python**, not your local one. Your local Python only needs to be new enough to run `pip download` (any 3.8+ is fine).
 
-#### A.1 On local machine — Download wheel files
+#### ── On local machine — Download wheel files
 
 **Check the GPU server's Python version and architecture first:**
 
@@ -166,7 +166,7 @@ pip download \
     rich
 ```
 
-#### A.2 On local machine — Transfer nexus code + wheel files to GPU server
+#### ── On local machine — Transfer nexus code + wheel files to GPU server
 
 ```bash
 # Transfer nexus_wheels folder and nexus code.
@@ -178,7 +178,7 @@ scp -r nexus        user@gpu-server:~/
 
 > If SSH uses a non-standard port, add the `-P port_number` option. Example: `scp -P 22222 -r nexus_wheels user@gpu-server:~/`
 
-#### A.3 On GPU server — Offline installation
+#### ── On GPU server — Offline installation
 
 After SSH-ing into the GPU server. `~` below automatically expands to the current login user's home directory, so these commands work regardless of your username.
 
@@ -220,11 +220,11 @@ pip install \
 
 ---
 
-### 🅱 Method B — Docker image transfer *(when Docker is available)*
+### ── Method B — Docker image transfer *(when Docker is available)*
 
 If Docker is installed on the GPU server, this method is the most reliable.
 
-#### B.1 On local machine — Write Dockerfile
+#### ── On local machine — Write Dockerfile
 
 Create the following `Dockerfile` in the `nexus/` folder. The base image's Python version is self-contained inside the container — it does **not** need to match the GPU server's system Python. Pick any 3.10+ tag that your code is tested on (`python:3.10-slim`, `python:3.11-slim`, `python:3.12-slim`, etc.).
 
@@ -248,7 +248,7 @@ COPY . /nexus/
 CMD ["bash"]
 ```
 
-#### B.2 On local machine — Build and save image
+#### ── On local machine — Build and save image
 
 ```bash
 cd nexus/
@@ -265,13 +265,13 @@ ls -lh nexus-env.tar.gz
 
 > Image size is typically 500MB–1GB.
 
-#### B.3 Transfer image to GPU server
+#### ── Transfer image to GPU server
 
 ```bash
 scp nexus-env.tar.gz user@gpu-server:~/
 ```
 
-#### B.4 On GPU server — Load and run image
+#### ── On GPU server — Load and run image
 
 ```bash
 # Load image (from the SSH-logged-in user's home directory)
@@ -289,11 +289,11 @@ Run all subsequent commands inside the container.
 
 ---
 
-## 📌 Step 1 — Verify install on the GPU node
+## Step 1 — Verify install on the GPU node
 
 > **Purpose:** Confirm the offline install actually works before wiring cron sync. Run all commands while SSH-connected to the GPU server.
 
-### 1.1 Verify installation
+### ── Verify installation
 
 ```bash
 cd ~/nexus
@@ -303,7 +303,7 @@ python -c "import mlflow; print('mlflow:', mlflow.__version__)"
 python -c "from nexus.logger import make_logger; print('logger OK')"
 ```
 
-### 1.2 Start local MLflow server (inside GPU server)
+### ── Start local MLflow server (inside GPU server)
 
 ```bash
 bash scheduled_sync/start_local_mlflow.sh
@@ -317,7 +317,7 @@ bash scheduled_sync/start_local_mlflow.sh
 > # Then access http://localhost:5100 in the local browser
 > ```
 
-### 1.3 Run smoke test
+### ── Run smoke test
 
 ```bash
 python tests/smoke_test.py
@@ -325,7 +325,7 @@ python tests/smoke_test.py
 
 All items must show `[PASS]`, same as on the local PC.
 
-### 1.4 Integrated test with actual training code (optional)
+### ── Integrated test with actual training code (optional)
 
 If you have modified the trainer to use `make_logger`, run a short training session (e.g., 100 steps) to verify metrics are recorded. See [`11_LOGGER_SETUP.md`](11_LOGGER_SETUP.md) for the integration diff.
 
@@ -350,7 +350,7 @@ self.writer = make_logger(
 
 After training starts, verify metrics accumulate in real time in the MLflow UI (`http://localhost:5100`) via SSH tunneling.
 
-### ✅ Step 1 checklist
+### ── Step 1 checklist
 
 - [ ] `import mlflow` succeeds on the GPU server
 - [ ] `bash scheduled_sync/start_local_mlflow.sh` runs without errors and the UI is reachable via SSH tunnel
@@ -361,9 +361,9 @@ Once Step 1 passes, proceed to [`12_SCHEDULED_SYNC.md`](12_SCHEDULED_SYNC.md) to
 
 ---
 
-## 🛠 Troubleshooting
+## Troubleshooting
 
-### ⚠️ `externally-managed-environment` error during `pip install`
+### ── `externally-managed-environment` error during `pip install`
 
 This error (PEP 668) is raised by distros that mark the system Python as externally managed — typically Ubuntu 23.04+ / Debian 12+ or any Python 3.11+ system install. Add the `--break-system-packages` flag when bootstrapping `virtualenv`:
 
@@ -373,7 +373,7 @@ pip install --no-index --find-links ~/nexus_wheels --break-system-packages virtu
 
 After creating and activating a virtual environment (e.g. `python3 -m virtualenv venv`, or `python3.X -m virtualenv venv` to pin a specific version), the venv's internal pip is used and this error will not occur again.
 
-### ⚠️ `ModuleNotFoundError: No module named 'pkg_resources'`
+### ── `ModuleNotFoundError: No module named 'pkg_resources'`
 
 Starting from setuptools version 70+, `pkg_resources` has been removed from wheels. Switch to the last stable version that includes `pkg_resources` (69.5.1):
 
@@ -391,7 +391,7 @@ pip install --force-reinstall --no-index --find-links ~/nexus_wheels "setuptools
 python -c "import pkg_resources; print('OK')"
 ```
 
-### ⚠️ Some packages fail with `pip download --only-binary`
+### ── Some packages fail with `pip download --only-binary`
 
 Some packages don't have binary wheels and require source compilation. Separate individual packages instead of using `--only-binary=:all:`:
 
@@ -413,7 +413,7 @@ pip install --no-index --find-links ./nexus_wheels --no-build-isolation \
     tbparse==0.0.8
 ```
 
-### ⚠️ `tbparse` import error (`protobuf` version conflict)
+### ── `tbparse` import error (`protobuf` version conflict)
 
 A `protobuf` version conflict may occur between MLflow and TensorBoard:
 
@@ -421,7 +421,7 @@ A `protobuf` version conflict may occur between MLflow and TensorBoard:
 pip install "protobuf>=3.20,<5.0"
 ```
 
-### ⚠️ SSH connection keeps dropping (long-running sessions)
+### ── SSH connection keeps dropping (long-running sessions)
 
 ```bash
 # Run in background with nohup + log file
@@ -436,7 +436,7 @@ bash scheduled_sync/start_local_mlflow.sh
 # Ctrl+B, D to detach
 ```
 
-### ⚠️ Local MLflow server won't start (`start_local_mlflow.sh`)
+### ── Local MLflow server won't start (`start_local_mlflow.sh`)
 
 ```bash
 # Check existing processes
@@ -449,19 +449,19 @@ bash scheduled_sync/start_local_mlflow.sh
 
 > **Why `kill $(cat ~/.nexus/.mlflow_training.pid)` doesn't work:** MLflow uses gunicorn internally to spawn multiple worker processes. The PID file only stores the master PID, so killing only the master leaves workers as orphan processes. Terminating by port kills both master and all workers at once.
 
-### ⚠️ `MLflow server connection failed` in `smoke_test.py`
+### ── `MLflow server connection failed` in `smoke_test.py`
 
 1. Verify MLflow server is running: `lsof -i :5100`
 2. Verify correct URI is being used: `http://127.0.0.1:5100` (use IP directly instead of localhost)
 3. Verify firewall is not blocking the port: `curl http://127.0.0.1:5100/health`
 
-### ⚠️ Smoke test reports `[FAIL] DualLogger`
+### ── Smoke test reports `[FAIL] DualLogger`
 
 Almost always this means the local MLflow at `:5100` is not running, since dual mode exercises both TB and MLflow paths. Re-run `bash scheduled_sync/start_local_mlflow.sh`, confirm the UI is reachable in a browser, then re-run the smoke test.
 
 ---
 
-## 🗺 Next steps
+## Next steps
 
 After Step 1 passes:
 

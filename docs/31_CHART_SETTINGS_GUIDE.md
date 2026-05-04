@@ -6,19 +6,19 @@
 
 ---
 
-## 📑 Table of Contents
+## Table of Contents
 
-- [🧩 1. How it works](#-1-how-it-works)
-- [🧩 2. Persistence characteristics](#-2-persistence-characteristics)
-- [🧩 3. Setup](#-3-setup)
-- [🧩 4. Verify stored settings](#-4-verify-stored-settings)
-- [🧩 5. Updating settings](#-5-updating-settings)
-- [🧩 6. Reference](#-6-reference)
-- [🗺️ Next steps](#-next-steps)
+- [1. How it works](#1-how-it-works)
+- [2. Persistence characteristics](#2-persistence-characteristics)
+- [3. Setup](#3-setup)
+- [4. Verify stored settings](#4-verify-stored-settings)
+- [5. Updating settings](#5-updating-settings)
+- [6. Reference](#6-reference)
+- [Next steps](#next-steps)
 
 ---
 
-## 🧩 1. How it works
+## 1. How it works
 
 Settings are stored as **MLflow experiment tags** on the server. Because tags live in the MLflow database they survive server restarts and are shared across all team members. When you open a fresh browser, a one-click bookmarklet reads those tags and restores the column layout in localStorage.
 
@@ -33,7 +33,7 @@ chart_settings.json  ──apply──►  MLflow experiment tags  (server, perm
 
 ---
 
-## 🧩 2. Persistence characteristics
+## 2. Persistence characteristics
 
 | Scenario | Result |
 |---|---|
@@ -46,9 +46,9 @@ The bookmarklet is a one-time action per browser. Once run, the settings persist
 
 ---
 
-## 🧩 3. Setup
+## 3. Setup
 
-### 3.1 Edit `chart_settings/chart_settings.json`
+### ── Edit `chart_settings/chart_settings.json`
 
 Define which columns and charts you want for each experiment:
 
@@ -78,7 +78,7 @@ Define which columns and charts you want for each experiment:
 
 `visible_columns` controls which columns appear in the runs table. Add or remove entries freely — they must match the tag keys, param keys, and metric names your runs actually log.
 
-### 3.2 Save settings to the MLflow server
+### ── Save settings to the MLflow server
 
 ```bash
 python chart_settings/apply_chart_settings.py apply
@@ -98,7 +98,7 @@ python chart_settings/apply_chart_settings.py apply --tracking-uri http://nexus-
 
 Run this once after editing `chart_settings.json`. Re-run whenever you update the file.
 
-### 3.3 Restore settings in the browser (bookmarklet)
+### ── Restore settings in the browser (bookmarklet)
 
 Generate the bookmarklet JavaScript:
 
@@ -122,7 +122,7 @@ This works the same way in Chrome, Firefox, Edge, and Safari. The JavaScript its
 
 ---
 
-## 🧩 4. Verify stored settings
+## 4. Verify stored settings
 
 ```bash
 python chart_settings/apply_chart_settings.py show
@@ -143,7 +143,7 @@ MLflow server: http://nexus-server:5000
 
 ---
 
-## 🧩 5. Updating settings
+## 5. Updating settings
 
 1. Edit `chart_settings/chart_settings.json`.
 2. Re-run `apply`.
@@ -151,7 +151,7 @@ MLflow server: http://nexus-server:5000
 
 ---
 
-## 🧩 6. Reference
+## 6. Reference
 
 ```
 chart_settings/
@@ -165,7 +165,7 @@ python chart_settings/apply_chart_settings.py --help
 
 ---
 
-## 🗺 Next steps
+## Next steps
 
 - **Other opt-in features (SweepLogger, RL metrics, Model Registry)** → [`30_ADVANCED_FEATURES.md`](30_ADVANCED_FEATURES.md)
 - **Architecture detail (where experiment tags fit in the data flow)** → [`10_ARCHITECTURE.md`](10_ARCHITECTURE.md)
