@@ -26,7 +26,7 @@
 
 ---
 
-## 📌 Why NEXUS?
+## Why NEXUS?
 
 Dexterous manipulation demands running hundreds of experiments — reward shaping sweeps, tactile feedback ablations, Sim-to-Real transfer evaluations. Each run produces logs that scatter across individual machines, making team-wide comparison painful.
 
@@ -42,7 +42,7 @@ Dexterous manipulation demands running hundreds of experiments — reward shapin
 
 ---
 
-## 🏗️ Infrastructure
+## Infrastructure
 
 ```
 [GPU Server]                               [NEXUS Server]
@@ -62,7 +62,7 @@ Dexterous manipulation demands running hundreds of experiments — reward shapin
 
 ---
 
-## 🎛️ Logger Modes
+## Logger Modes
 
 Use `make_logger()` with the `mode` argument. Only this argument changes — everything else in your trainer stays exactly the same.
 
@@ -74,7 +74,7 @@ Use `make_logger()` with the `mode` argument. Only this argument changes — eve
 
 ---
 
-## ⚡ Quick Start
+## Quick Start
 
 ```bash
 git clone https://github.com/jonghochoi/nexus.git
@@ -90,7 +90,7 @@ nexus-activate                 # works from any directory, any terminal
 
 ---
 
-## 📦 Use as a Python Dependency
+## Use as a Python Dependency
 
 External projects (a trainer repo, an inference service) can pip-install the logger package directly from this git repo — no need to clone or run `setup.sh`. The default install is **client-only** so it slots into environments that pin transitive deps (e.g. Isaac Lab pinning `prettytable`, `starlette`).
 
@@ -107,7 +107,7 @@ The default pulls **`mlflow-skinny`** — `MlflowClient` and the tracking / enti
 
 ---
 
-## 🔀 Two ways to use NEXUS
+## Two ways to use NEXUS
 
 |   | 🅰️ **Pipeline A** — Live logging | 🅱️ **Pipeline B** — Post-upload |
 |---|---|---|
@@ -116,44 +116,9 @@ The default pulls **`mlflow-skinny`** — `MlflowClient` and the tracking / enti
 | **Cadence** | Every step → local MLflow buffer → cron sync (every 5 min) | Manual, once per run dir |
 | **Setup guides** | [`11_LOGGER_SETUP`](docs/11_LOGGER_SETUP.md) (code integration) → [`12_SCHEDULED_SYNC`](docs/12_SCHEDULED_SYNC.md) (cron sync) | [`13_POST_UPLOAD`](docs/13_POST_UPLOAD.md) |
 
-### 30-second preview
-
-**Pipeline A — embed in trainer:**
-
-```python
-from nexus.logger import make_logger
-
-logger = make_logger(
-    mode="dual",                                  # mlflow + tensorboard
-    experiment_name="robot_hand_rl",
-    run_name="ppo_baseline_v1",
-    tracking_uri="http://127.0.0.1:5100",         # local MLflow on this GPU node
-    tags={"researcher": "kim", "task": "in_hand_reorientation", "hardware": "robot_22dof"},
-)
-logger.add_scalar("train/loss", 0.5, step=100)    # SummaryWriter-compatible
-```
-
-Local-MLflow on `127.0.0.1:5100` is started by `bash scheduled_sync/start_local_mlflow.sh`. A cron job (registered via [`12_SCHEDULED_SYNC`](docs/12_SCHEDULED_SYNC.md)) packages new metric points and artifact files (checkpoints, configs, git diffs, eval reports — anything logged via `MLflowLogger`) into a tar.gz delta and ships it to the central server every 5 minutes, so the full run — metrics **and** artifacts — is browsable in the central MLflow UI.
-
-**Pipeline B — upload after training ends:**
-
-```bash
-# One-time: set tracking_uri + your fixed tags in ~/.nexus/post_config.json
-python post_upload/upload_tb.py --tb_dir /path/to/logs/run_001
-# → prompts for missing required tags, uploads, auto-verifies
-```
-
-The full flag reference, interactive mode, upload history, `sim_run_id` auto-detection, and troubleshooting live in [`13_POST_UPLOAD`](docs/13_POST_UPLOAD.md).
-
-> ⚠️ **Multi-user GPU server (Pipeline A)** — each user must set their own `researcher` in `~/.nexus/sync_config.json` so cron jobs don't re-export each other's runs. Canonical: [`docs/00_PRINCIPLES.md#multi-user-researcher`](docs/00_PRINCIPLES.md#-multi-user-researcher).
-
-> 💡 **Long-running training** needs Pipeline A (scheduled, incremental). Pipeline B is a one-shot batch upload — use it for back-filling completed runs that were written by an unmodified `SummaryWriter`.
->
-> 🎬 **Already have eval artifacts** (rollout mp4, scores, reports) for an existing run? `python post_upload/upload_eval.py --run_name <name> --eval_dir <path>` attaches them under `eval/<id>/` and auto-generates an `index.html` so MLflow's UI plays the mp4 inline. See [`13_POST_UPLOAD`](docs/13_POST_UPLOAD.md) §6.3 for the full flag list and recommended `eval_dir` layout.
-
 ---
 
-## 🖥️ What's Running Where
+## What's Running Where
 
 ```
 🖥️  GPU Server  ───────────────────────────────────────────────
@@ -182,7 +147,7 @@ The full flag reference, interactive mode, upload history, `sim_run_id` auto-det
 
 ---
 
-## 🏷️ Recommended Tags *(reproducibility)*
+## Recommended Tags *(reproducibility)*
 
 > Canonical sources: [`docs/00_PRINCIPLES.md#required-tags`](docs/00_PRINCIPLES.md#-required-tags), [`docs/ko/02_EXPERIMENT_STANDARD.md` § 3-1](docs/ko/02_EXPERIMENT_STANDARD.md#3-tags-규칙), and [`post_upload/config.py::required_tags()`](post_upload/config.py).
 
@@ -202,14 +167,13 @@ The full flag reference, interactive mode, upload history, `sim_run_id` auto-det
 
 ---
 
-## 📚 Further Reading
+## Further Reading
 
 > Filename prefix conveys reading order. **Everyone reads `00_PRINCIPLES.md` first.** Korean team members continue in [`docs/ko/`](docs/ko/); engineers and operators pick up the relevant track below.
 
 | # | Document | Description |
 |:---:|---|---|
 | **00** | [`docs/00_PRINCIPLES.md`](docs/00_PRINCIPLES.md) | **Read first.** Team-agreed rules + engineering invariants (single canonical source) |
-| **ko** | [`docs/ko/`](docs/ko/) | 🇰🇷 한글 온보딩 트랙 — `01_INTRO.md` (동기/FAQ), `02_EXPERIMENT_STANDARD.md` (운영 표준) |
 | **10** | [`docs/10_ARCHITECTURE.md`](docs/10_ARCHITECTURE.md) | Full system design and component map |
 | **11** | [`docs/11_LOGGER_SETUP.md`](docs/11_LOGGER_SETUP.md) | Pipeline A — logger integration step-by-step diff |
 | **12** | [`docs/12_SCHEDULED_SYNC.md`](docs/12_SCHEDULED_SYNC.md) | Pipeline A — cron sync wiring (config, validate, multi-user, verification checklist) |
@@ -218,11 +182,12 @@ The full flag reference, interactive mode, upload history, `sim_run_id` auto-det
 | **21** | [`docs/21_AIRGAPPED_GPU_SERVER_SETUP.md`](docs/21_AIRGAPPED_GPU_SERVER_SETUP.md) | Operator — GPU node offline bring-up (Step 0 + Step 1 include local + GPU verification) |
 | **30** | [`docs/30_ADVANCED_FEATURES.md`](docs/30_ADVANCED_FEATURES.md) | Opt-in — SweepLogger, RL metrics, Model Registry, system metrics, git tracking |
 | **31** | [`docs/31_CHART_SETTINGS_GUIDE.md`](docs/31_CHART_SETTINGS_GUIDE.md) | Opt-in — persist MLflow chart/column settings across browser sessions |
+| **ko** | [`docs/ko/`](docs/ko/) | 한글 온보딩 트랙 — `01_INTRO.md` (동기/FAQ), `02_EXPERIMENT_STANDARD.md` (운영 표준) |
 | — | [`brand.py`](brand.py) | ASCII art, sigils, and color constants |
 
 ---
 
-## 📦 Dependencies
+## Dependencies
 
 | Package | Version |
 |---|---|
