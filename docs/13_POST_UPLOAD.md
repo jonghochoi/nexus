@@ -6,23 +6,23 @@
 
 ---
 
-## 📑 Table of Contents
+## Table of Contents
 
-- [⚡ TL;DR](#-tldr)
-- [📌 Step 0 — First-time upload walkthrough](#-step-0--first-time-upload-walkthrough)
-- [📌 Step 1 — `~/.nexus/post_config.json` — team-fixed values](#-step-1--nexuspost_configjson--team-fixed-values)
-- [📌 Step 2 — Required tags & interactive mode](#-step-2--required-tags--interactive-mode)
-- [📌 Step 3 — Automatic verification](#-step-3--automatic-verification)
-- [📌 Step 4 — Upload history — `~/.nexus/history.json`](#-step-4--upload-history--nexushistoryjson)
-- [📌 Step 5 — Real-robot evaluation — `sim_run_id` auto-detection](#-step-5--real-robot-evaluation--sim_run_id-auto-detection)
-- [📌 Step 6 — All CLI flags at a glance](#-step-6--all-cli-flags-at-a-glance)
-- [📌 Step 7 — Workflows](#-step-7--workflows)
-- [🛠️ Troubleshooting](#-troubleshooting)
-- [🗺️ Next steps](#-next-steps)
+- [TL;DR](#tldr)
+- [Step 0 — First-time upload walkthrough](#step-0--first-time-upload-walkthrough)
+- [Step 1 — `~/.nexus/post_config.json` — team-fixed values](#step-1--nexuspost_configjson--team-fixed-values)
+- [Step 2 — Required tags & interactive mode](#step-2--required-tags--interactive-mode)
+- [Step 3 — Automatic verification](#step-3--automatic-verification)
+- [Step 4 — Upload history — `~/.nexus/history.json`](#step-4--upload-history--nexushistoryjson)
+- [Step 5 — Real-robot evaluation — `sim_run_id` auto-detection](#step-5--real-robot-evaluation--sim_run_id-auto-detection)
+- [Step 6 — All CLI flags at a glance](#step-6--all-cli-flags-at-a-glance)
+- [Step 7 — Workflows](#step-7--workflows)
+- [Troubleshooting](#troubleshooting)
+- [Next steps](#next-steps)
 
 ---
 
-## ⚡ TL;DR
+## TL;DR
 
 ```bash
 # One-time setup
@@ -49,11 +49,11 @@ python post_upload/verify_tb.py --from-last
 
 ---
 
-## 📌 Step 0 — First-time upload walkthrough
+## Step 0 — First-time upload walkthrough
 
 > **Purpose:** Step-by-step validation that the post-upload pipeline works end-to-end on your machine. Run through this once when you first set up Pipeline B; afterwards the TL;DR above is enough for routine use.
 
-### 0.1 Locate tfevents files
+### ── Locate tfevents files
 
 First, confirm where the tfevents files to be uploaded are located.
 
@@ -69,7 +69,7 @@ events.out.tfevents.1700000000.hostname.12345.0
 
 > tfevents files typically start with `events.out.tfevents.`. Having multiple files is fine — the script recursively searches the folder.
 
-### 0.2 Dry run — preview parsing without uploading
+### ── Dry run — preview parsing without uploading
 
 Before the actual upload, use `--dry_run` to preview which metrics will be parsed and how many there are.
 
@@ -101,7 +101,7 @@ Total: 3 tags, 2,100 data points
 
 If the table appears, parsing is working correctly. Verify that metric names and data counts match your expectations.
 
-### 0.3 Run the actual upload
+### ── Run the actual upload
 
 After reviewing the dry-run contents, proceed with the actual upload. Make sure `~/.nexus/post_config.json` exists (see [Step 1](#-step-1--nexuspost_configjson--team-fixed-values) below). For local-testing MLflow (`:5100`), set `"tracking_uri": "http://127.0.0.1:5100"` in the config; the built-in default is `:5000` (central server).
 
@@ -133,9 +133,9 @@ Running automatic verification...
 ✓ All checks passed! TB -> MLflow porting is accurate.
 ```
 
-Pass `--no_verify` to skip the automatic check (e.g. in CI where you verify later). The full flag reference lives in [Step 6 — All CLI flags at a glance](#-step-6--all-cli-flags-at-a-glance).
+Pass `--no_verify` to skip the automatic check (e.g. in CI where you verify later). The full flag reference lives in [Step 6 — All CLI flags at a glance](#step-6--all-cli-flags-at-a-glance).
 
-### 0.4 Re-verify a previous upload (optional)
+### ── Re-verify a previous upload (optional)
 
 Automatic verification runs at the end of every upload — no manual step needed. To re-verify a previous upload, or to validate one that was run with `--no_verify`:
 
@@ -160,7 +160,7 @@ If all pass:
 ✓ All checks passed! TB -> MLflow porting is accurate.
 ```
 
-### 0.5 Verify the run in the MLflow UI
+### ── Verify the run in the MLflow UI
 
 Open `http://localhost:5100` (or the central server's URL) in a browser and verify:
 
@@ -171,7 +171,7 @@ Open `http://localhost:5100` (or the central server's URL) in a browser and veri
 
 Select multiple runs and click the **Compare** button to compare curves side by side.
 
-### ✅ First-upload checklist
+### ── First-upload checklist
 
 - [ ] `~/.nexus/post_config.json` populated with tracking_uri, researcher, team-fixed tags
 - [ ] Confirmed tfevents file existence with `ls`
@@ -181,7 +181,7 @@ Select multiple runs and click the **Compare** button to compare curves side by 
 
 ---
 
-## 📌 Step 1 — `~/.nexus/post_config.json` — team-fixed values
+## Step 1 — `~/.nexus/post_config.json` — team-fixed values
 
 The CLI reads defaults from `~/.nexus/post_config.json`. Ship the example file to every team member:
 
@@ -214,7 +214,7 @@ Override the config path with `--config /path/to/other.json` (useful for CI or s
 
 ---
 
-## 📌 Step 2 — Required tags & interactive mode
+## Step 2 — Required tags & interactive mode
 
 > [!IMPORTANT]
 > **Every uploaded run must carry these tags — the CLI blocks the upload otherwise.** Use `--force` to bypass at your own risk; the canonical rationale is in [`00_PRINCIPLES.md#required-tags`](00_PRINCIPLES.md#-required-tags).
@@ -227,7 +227,7 @@ Override the config path with `--config /path/to/other.json` (useful for CI or s
 | `hardware` | `~/.nexus/post_config.json` | Set once per setup |
 | `sim_run_id` | run_meta.json or `--tags` | **Required** when `experiment=real_robot_eval` (see Step 5) |
 
-### 2.1 Interactive prompting
+### ── Interactive prompting
 
 - **Automatic** — if any required tag is missing and `stdin` is a TTY, the CLI enters interactive mode and prompts only for the missing values, showing config values as defaults:
 
@@ -244,7 +244,7 @@ Override the config path with `--config /path/to/other.json` (useful for CI or s
   python post_upload/upload_tb.py --tb_dir /path/to/run_003 --repeat-last -i
   ```
 
-### 2.2 Precedence (low → high)
+### ── Precedence (low → high)
 
 | Priority | Source | Scope |
 |:---:|---|---|
@@ -260,7 +260,7 @@ Override the config path with `--config /path/to/other.json` (useful for CI or s
 
 ---
 
-## 📌 Step 3 — Automatic verification
+## Step 3 — Automatic verification
 
 After every successful upload, `upload_tb.py` runs `verify_tb.py` against the returned `run_id` automatically. You don't need to copy the run_id anywhere.
 
@@ -289,11 +289,11 @@ python post_upload/verify_tb.py \
 
 ---
 
-## 📌 Step 4 — Upload history — `~/.nexus/history.json`
+## Step 4 — Upload history — `~/.nexus/history.json`
 
 Every upload is recorded in `~/.nexus/history.json` (newest first, capped at 20 entries) with its run_id, tags, and verification result.
 
-### 4.1 `--history` — list recent uploads
+### ── `--history` — list recent uploads
 
 ```
 $ python post_upload/upload_tb.py --history
@@ -305,7 +305,7 @@ $ python post_upload/upload_tb.py --history
   2026-04-23T21:12:03   real_robot_eval    real_v3           789xyz...         ✗     seed=7, ..., sim_run_id=abc123
 ```
 
-### 4.2 `--repeat-last` — reuse the last tag set
+### ── `--repeat-last` — reuse the last tag set
 
 Inherit `experiment`, `run_name`, and `tags` from the most recent upload — perfect for seed sweeps where only one value changes:
 
@@ -325,7 +325,7 @@ python post_upload/upload_tb.py --tb_dir ./runs/seed2 --repeat-last -i
 #   task [in_hand_reorientation]: ↵  (accept)
 ```
 
-### 4.3 `--from-last` (verify_tb.py)
+### ── `--from-last` (verify_tb.py)
 
 Re-run verification on the most recent upload without copy/paste:
 
@@ -335,9 +335,9 @@ python post_upload/verify_tb.py --from-last
 
 ---
 
-## 📌 Step 5 — Real-robot evaluation — `sim_run_id` auto-detection
+## Step 5 — Real-robot evaluation — `sim_run_id` auto-detection
 
-Sim-to-Real traceability requires every real-robot eval run to carry a `sim_run_id` tag pointing at the sim training run whose policy was deployed (see [`00_PRINCIPLES.md#sim-run-id`](./00_PRINCIPLES.md#-sim_run_id) and [`ko/02_EXPERIMENT_STANDARD.md`](./ko/02_EXPERIMENT_STANDARD.md#-8-sim-to-real-연결-규칙) § "Sim-to-Real 연결").
+Sim-to-Real traceability requires every real-robot eval run to carry a `sim_run_id` tag pointing at the sim training run whose policy was deployed (see [`00_PRINCIPLES.md#sim-run-id`](./00_PRINCIPLES.md#-sim_run_id) and [`ko/02_EXPERIMENT_STANDARD.md`](./ko/02_EXPERIMENT_STANDARD.md#8-sim-to-real-연결-규칙) § "Sim-to-Real 연결").
 
 > [!IMPORTANT]
 > When `--experiment real_robot_eval`, **`sim_run_id` is mandatory.** The CLI promotes it to a required tag and blocks the upload if missing — there is no `--force` for this check, because a real-robot eval without `sim_run_id` is unreproducible.
@@ -358,7 +358,7 @@ Detected sim_run_id from run_meta.json: abc123def456
 
 `run_meta.json` is treated as ground truth for that tb_dir — it overrides any value carried over by `--repeat-last`, but can still be overridden by explicit `--tags sim_run_id=...`.
 
-### 5.1 Recommended real-eval pipeline integration
+### ── Recommended real-eval pipeline integration
 
 Have your real-robot eval launcher script drop `run_meta.json` at the same moment it starts writing tfevents. Minimal Python:
 
@@ -376,9 +376,9 @@ with open(log_dir / "run_meta.json", "w") as f:
 
 ---
 
-## 📌 Step 6 — All CLI flags at a glance
+## Step 6 — All CLI flags at a glance
 
-### 6.1 `upload_tb.py`
+### ── `upload_tb.py`
 
 | Flag | Purpose |
 |---|---|
@@ -397,7 +397,7 @@ with open(log_dir / "run_meta.json", "w") as f:
 | `--upload_artifacts` | Also attach tfevents files as MLflow artifacts |
 | `--history` | Print recent uploads and exit |
 
-### 6.2 `verify_tb.py`
+### ── `verify_tb.py`
 
 | Flag | Purpose |
 |---|---|
@@ -407,7 +407,7 @@ with open(log_dir / "run_meta.json", "w") as f:
 | `--tolerance F` | Numeric match tolerance (default: `1e-6`) |
 | `--from-last` | Fill run_id/tb_dir/tracking_uri from last history entry |
 
-### 6.3 `upload_eval.py`
+### ── `upload_eval.py`
 
 Attaches post-hoc evaluation artifacts (mp4 rollouts, GIF previews, reports, score JSONs) to an **existing** MLflow run that was created by `upload_tb.py` or by Pipeline A's `MLflowLogger`. The run is resolved by `--run_name` (an MLflow search on `tags.mlflow.runName`), and the directory passed via `--eval_dir` is uploaded under `eval/<eval_id>/` — never under `checkpoints/`, so the team's `best.pth`/`last.pth`-only policy stays intact.
 
@@ -441,11 +441,11 @@ After upload, the MLflow run gains an `eval/<eval_id>/` artifact folder containi
 
 ---
 
-## 📌 Step 7 — Workflows
+## Step 7 — Workflows
 
 Concrete end-to-end walkthroughs of common situations. Each section shows the setup, the exact commands, and what you'd see in the terminal.
 
-### 7.1 Day 1 — a new researcher onboards
+### ── Day 1 — a new researcher onboards
 
 You've just joined the team and cloned the repo. Get set up and do your first upload:
 
@@ -505,7 +505,7 @@ That's it — from here on, just `--tb_dir` + answer two prompts.
 
 ---
 
-### 7.2 Seed sweep — 5 runs of the same PPO config
+### ── Seed sweep — 5 runs of the same PPO config
 
 You trained 5 seeds overnight:
 
@@ -560,7 +560,7 @@ $ python post_upload/upload_tb.py --history
 
 ---
 
-### 7.3 Real-robot evaluation linked to a Production policy
+### ── Real-robot evaluation linked to a Production policy
 
 Your eval script writes `run_meta.json` next to the tfevents:
 
@@ -606,7 +606,7 @@ Interactive tag entry (press Enter to accept default)
 
 ---
 
-### 7.4 MLflow server blipped mid-upload
+### ── MLflow server blipped mid-upload
 
 Upload failed:
 
@@ -638,7 +638,7 @@ python post_upload/verify_tb.py --from-last
 
 ---
 
-### 7.5 "Did I already upload this?"
+### ── "Did I already upload this?"
 
 You come back from lunch and can't remember if you uploaded `ppo_v17_seed3`:
 
@@ -657,7 +657,7 @@ History persists across shells and terminals, so you can check from a different 
 
 ---
 
-### 7.6 CI / non-interactive usage
+### ── CI / non-interactive usage
 
 In CI (no TTY) every required tag must be explicit; there's no interactive fallback. A typical GitHub Actions step:
 
@@ -692,7 +692,7 @@ python post_upload/upload_tb.py \
 
 ---
 
-## 🛠 Troubleshooting
+## Troubleshooting
 
 | Symptom | Cause / Fix |
 |---|---|
@@ -705,7 +705,7 @@ python post_upload/upload_tb.py \
 
 ---
 
-## 🗺 Next steps
+## Next steps
 
 - **Switch to live logging instead of post-hoc** → [`11_LOGGER_SETUP.md`](11_LOGGER_SETUP.md) (Pipeline A integration) → [`12_SCHEDULED_SYNC.md`](12_SCHEDULED_SYNC.md) (cron sync)
 - **Architecture detail (parser → log_batch flow)** → [`10_ARCHITECTURE.md`](10_ARCHITECTURE.md)

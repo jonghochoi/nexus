@@ -184,7 +184,7 @@ The full flag reference, interactive mode, upload history, `sim_run_id` auto-det
 
 ## 🏷️ Recommended Tags *(reproducibility)*
 
-> Canonical sources: [`docs/00_PRINCIPLES.md#required-tags`](docs/00_PRINCIPLES.md#-required-tags), [`docs/ko/02_EXPERIMENT_STANDARD.md` § 3-1](docs/ko/02_EXPERIMENT_STANDARD.md#-3-tags-규칙), and [`post_upload/config.py::required_tags()`](post_upload/config.py).
+> Canonical sources: [`docs/00_PRINCIPLES.md#required-tags`](docs/00_PRINCIPLES.md#-required-tags), [`docs/ko/02_EXPERIMENT_STANDARD.md` § 3-1](docs/ko/02_EXPERIMENT_STANDARD.md#3-tags-규칙), and [`post_upload/config.py::required_tags()`](post_upload/config.py).
 
 | Tag | Example | Required |
 |---|---|:---:|
@@ -198,7 +198,7 @@ The full flag reference, interactive mode, upload history, `sim_run_id` auto-det
 
 > 💡 `sim_run_id` links a real-robot evaluation run back to the exact sim policy deployed — critical for Sim-to-Real failure tracing.
 
-> 💡 `git_commit` and `git_dirty` are set automatically by `MLflowLogger` (Pipeline A). For Pipeline B post-uploads, pass `--git_commit <hash>` manually. When `git_dirty=true`, the full diff is saved as `artifacts/git/git_patch.html` (previewable inline in the MLflow UI). See [`docs/30_ADVANCED_FEATURES.md`](docs/30_ADVANCED_FEATURES.md#-5-git-commit-tracking) for details.
+> 💡 `git_commit` and `git_dirty` are set automatically by `MLflowLogger` (Pipeline A). For Pipeline B post-uploads, pass `--git_commit <hash>` manually. When `git_dirty=true`, the full diff is saved as `artifacts/git/git_patch.html` (previewable inline in the MLflow UI). See [`docs/30_ADVANCED_FEATURES.md`](docs/30_ADVANCED_FEATURES.md#5-git-commit-tracking) for details.
 
 ---
 

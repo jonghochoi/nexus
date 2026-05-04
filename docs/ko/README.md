@@ -6,7 +6,7 @@
 
 ---
 
-## 📖 읽는 순서
+## 읽는 순서
 
 | 순서 | 문서 | 무엇을 다루나요 |
 |:---:|---|---|
@@ -19,7 +19,7 @@
 
 ---
 
-## 🛠️ 다음 단계 *(역할별)*
+## 다음 단계 *(역할별)*
 
 실험을 직접 진행하거나 도구를 셋업할 때 참고할 영문 가이드입니다.
 
@@ -34,7 +34,7 @@
 
 ---
 
-## 🤝 팀 합의 규칙 *(가장 중요한 4가지)*
+## 팀 합의 규칙 *(가장 중요한 4가지)*
 
 자세한 내용은 [`02_EXPERIMENT_STANDARD.md`](02_EXPERIMENT_STANDARD.md)에 있고, 영문 요약은 [`../00_PRINCIPLES.md`](../00_PRINCIPLES.md)에 있습니다. 한 페이지에 다시 정리해두는 이유는, 한글 트랙만 따라가더라도 핵심을 놓치지 않게 하기 위함입니다.
 
@@ -43,4 +43,4 @@
 3. **실패한 Run은 절대 삭제하지 않습니다** — `fail_reason` 태그 + Confluence "실패 분석" 작성.
 4. **실험 시작 전에 가설을 먼저** — 사후합리화 방지.
 
-> ⚠️ 공유 GPU 서버에서 작업하는 경우, 본인의 `researcher` 값을 `~/.nexus/sync_config.json`에 반드시 설정하세요. 누락하면 다른 팀원의 Run까지 export되어 중앙 서버에 중복 metric이 쌓입니다. 상세: [`../12_SCHEDULED_SYNC.md` Step 5](../12_SCHEDULED_SYNC.md#-step-5--multi-user-gpu-servers).
+> ⚠️ 공유 GPU 서버에서 작업하는 경우, 본인의 `researcher` 값을 `~/.nexus/sync_config.json`에 반드시 설정하세요. 누락하면 다른 팀원의 Run까지 export되어 중앙 서버에 중복 metric이 쌓입니다. 상세: [`../12_SCHEDULED_SYNC.md` Step 5](../12_SCHEDULED_SYNC.md#step-5--multi-user-gpu-servers).

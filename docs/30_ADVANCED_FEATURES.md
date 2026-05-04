@@ -6,21 +6,21 @@
 
 ---
 
-## 📑 Table of Contents
+## Table of Contents
 
-- [📦 Import pattern](#-import-pattern)
-- [🧩 1. SweepLogger — hyperparameter sweep management](#-1-sweeplogger--hyperparameter-sweep-management)
-- [🧩 2. RL diagnostic metrics](#-2-rl-diagnostic-metrics)
-- [🧩 3. Model Registry](#-3-model-registry)
-- [🧩 4. SystemMetricsLogger — background resource logging](#-4-systemmetricslogger--background-resource-logging)
-- [🧩 5. Git commit tracking](#-5-git-commit-tracking)
-- [🧩 6. Chart settings — persistent column layout](#-6-chart-settings--persistent-column-layout)
-- [🧩 7. Smoke test — advanced mode](#-7-smoke-test--advanced-mode)
-- [🗺️ Next steps](#-next-steps)
+- [Import pattern](#import-pattern)
+- [1. SweepLogger — hyperparameter sweep management](#1-sweeplogger--hyperparameter-sweep-management)
+- [2. RL diagnostic metrics](#2-rl-diagnostic-metrics)
+- [3. Model Registry](#3-model-registry)
+- [4. SystemMetricsLogger — background resource logging](#4-systemmetricslogger--background-resource-logging)
+- [5. Git commit tracking](#5-git-commit-tracking)
+- [6. Chart settings — persistent column layout](#6-chart-settings--persistent-column-layout)
+- [7. Smoke test — advanced mode](#7-smoke-test--advanced-mode)
+- [Next steps](#next-steps)
 
 ---
 
-## 📦 Import pattern
+## Import pattern
 
 Advanced features are **not** exported from `nexus.logger` by default. Each module must be imported explicitly:
 
@@ -37,7 +37,7 @@ from nexus.logger                import rl_metrics          # module, not a clas
 
 ---
 
-## 🧩 1. SweepLogger — hyperparameter sweep management
+## 1. SweepLogger — hyperparameter sweep management
 
 Groups multiple training runs under a single parent run in the MLflow UI tree. Useful when running a grid search or Optuna sweep.
 
@@ -77,9 +77,9 @@ sweep.close()
 
 ---
 
-## 🧩 2. RL diagnostic metrics
+## 2. RL diagnostic metrics
 
-### 2.1 `log_rl_metrics()` — per-step logging
+### ── `log_rl_metrics()` — per-step logging
 
 `MLflowLogger` and `DualLogger` both expose `log_rl_metrics()`. It logs standard PPO/RL diagnostics under the `rl/` key namespace.
 
@@ -97,7 +97,7 @@ logger.log_rl_metrics(
 
 Keys logged to MLflow: `rl/explained_variance`, `rl/approx_kl`, `rl/clip_fraction`, `rl/grad_norm`, `rl/entropy`, `rl/success_rate`. Any keyword left as `None` is silently skipped.
 
-### 2.2 `rl_metrics` module — pure NumPy helpers
+### ── `rl_metrics` module — pure NumPy helpers
 
 Compute the values before logging them:
 
@@ -122,9 +122,9 @@ No MLflow dependency — safe to import anywhere in a training codebase.
 
 ---
 
-## 🧩 3. Model Registry
+## 3. Model Registry
 
-### 3.1 Registering a checkpoint
+### ── Registering a checkpoint
 
 After uploading a checkpoint with `log_checkpoint()`, register it in the MLflow Model Registry:
 
@@ -139,7 +139,7 @@ version = logger.register_checkpoint(
 print(f"Registered as version {version}")
 ```
 
-### 3.2 Promoting a model to Production
+### ── Promoting a model to Production
 
 ```python
 logger.promote_model(
@@ -149,7 +149,7 @@ logger.promote_model(
 )
 ```
 
-### 3.3 `ModelRegistry` — querying the registry
+### ── `ModelRegistry` — querying the registry
 
 ```python
 from nexus.logger.model_registry import ModelRegistry
@@ -176,7 +176,7 @@ registry.set_sim_to_real_link(
 
 ---
 
-## 🧩 4. SystemMetricsLogger — background resource logging
+## 4. SystemMetricsLogger — background resource logging
 
 Spawns a daemon thread that periodically logs CPU, RAM, and GPU metrics to MLflow without blocking training.
 
@@ -215,11 +215,11 @@ pip install psutil nvidia-ml-py
 
 ---
 
-## 🧩 5. Git commit tracking
+## 5. Git commit tracking
 
 `MLflowLogger` automatically captures the git state of the training code at run start. No extra code is needed — it is on by default.
 
-### 5.1 What gets recorded
+### ── What gets recorded
 
 | MLflow location | Key | Value |
 |---|---|---|
@@ -227,11 +227,11 @@ pip install psutil nvidia-ml-py
 | Tags tab | `git_dirty` | `"false"` when tree is clean, `"true"` when there are uncommitted changes |
 | Artifacts | `git/git_patch.html` | Full `git diff HEAD` rendered as a self-contained HTML page with line-level colouring — **only present when `git_dirty = "true"`** |
 
-### 5.2 Inspecting a dirty-tree run
+### ── Inspecting a dirty-tree run
 
 If training was launched with uncommitted changes, open `git/git_patch.html` directly in the MLflow Artifacts tab to view the diff inline (additions in green, deletions in red, hunk headers in blue). The page is self-contained — no external assets needed. For byte-exact reproducibility, commit before training so `git_dirty = "false"` and `git_commit` alone identifies the source state.
 
-### 5.3 Opting out
+### ── Opting out
 
 Pass `track_git=False` to suppress all git tags and artifacts — useful when training outside a git repo or in CI environments where the working tree is intentionally untracked:
 
@@ -251,7 +251,7 @@ logger = make_logger(mode="mlflow", ..., track_git=False)
 
 ---
 
-## 🧩 6. Chart settings — persistent column layout
+## 6. Chart settings — persistent column layout
 
 MLflow stores the runs-table column visibility (which tags, params, and metrics are shown) in the **browser's localStorage**. This means the layout resets whenever you open a fresh browser or switch machines.
 
@@ -275,7 +275,7 @@ The bookmarklet fetches the stored settings from the MLflow API and writes them 
 
 ---
 
-## 🧩 7. Smoke test — advanced mode
+## 7. Smoke test — advanced mode
 
 The smoke test (`tests/smoke_test.py`) runs only core tests by default. Pass `--advanced` to also validate the features described in this document.
 
@@ -289,7 +289,7 @@ python tests/smoke_test.py --advanced
 
 ---
 
-## 🗺 Next steps
+## Next steps
 
 - **Persistent MLflow chart/column layout** → [`31_CHART_SETTINGS_GUIDE.md`](31_CHART_SETTINGS_GUIDE.md)
 - **Architecture detail (pipelines, run lifecycle, registry)** → [`10_ARCHITECTURE.md`](10_ARCHITECTURE.md)

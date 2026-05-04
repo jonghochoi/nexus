@@ -109,6 +109,53 @@ Several concepts are reflected in multiple places. Change one without auditing t
 - **Changing the default URIs (`5100`, `5000`)** — defaults are hardcoded across `nexus/logger/`, `scheduled_sync/*`, `post_upload/`, `chart_settings/apply_chart_settings.py`, and the README diagrams. Grep for `5100` and `5000` and change them in concert.
 - **New team-wide chart or column** — edit `chart_settings/chart_settings.json`, then run `python chart_settings/apply_chart_settings.py apply` against the central server. The bookmarklet picks up the new payload automatically; no JS edit needed.
 
+## Docs Markdown style (`docs/`)
+
+All Markdown guide files under `docs/` follow a single header convention established in the standardization pass. When adding or editing docs, match this style exactly.
+
+### Header levels
+
+| Level | Format | Rule |
+|:---:|---|---|
+| H1 | `# 🔧 Document Title` | One thematic emoji + plain title. Emoji kept — it identifies the doc at a glance in file listings. One H1 per document. |
+| H2 | `## Section Title` | **No emoji, ever.** Plain `## Title`. This eliminates the "which emojis are structural?" question entirely. |
+| H3 | `### ── Subsection Title` | Prefix `──` (U+2500 × 2 + space). No emoji, no numeric prefix. |
+| H4 | `#### ── Sub-subsection Title` | Same `──` prefix pattern as H3. |
+
+### H3 / H4 prefix characters
+
+The `──` characters are U+2500 (BOX DRAWINGS LIGHT HORIZONTAL), matching the source-code section-divider convention used throughout this repo. Copy-paste from an existing header — do not type hyphens or minus signs.
+
+### Anchor IDs for TOC links
+
+GitHub's anchor generator strips the `──` characters but keeps the space that follows them, producing a **leading hyphen** in the anchor:
+
+```
+### ── Method selection criteria  →  id="-method-selection-criteria"
+```
+
+Consequences:
+
+- **TOC links to H2 sections** — no leading hyphen (H2 headers start with a letter, no leading space after stripping).
+  ```markdown
+  [Step 1 — Verify](#step-1--verify-install-on-the-gpu-node)
+  ```
+- **TOC links to H3/H4 sections** — include the leading hyphen:
+  ```markdown
+  [Method selection criteria](#-method-selection-criteria)
+  [Method A — pip wheel offline transfer](#-method-a--pip-wheel-offline-transfer)
+  ```
+- **Em dash `—` in headers** — the em dash itself is stripped; both surrounding spaces are kept → double hyphen in the anchor:
+  ```
+  ## Step 0 — Verify  →  #step-0--verify
+  ```
+
+### Emojis in body text
+
+Emojis may still appear in **body text** (tables, blockquotes, callout notes such as `⚠️`, `✅`, `💡`). Only headers H2 and below are emoji-free.
+
+---
+
 ## Code formatting (ruff)
 
 All Python code in this repository is formatted with **ruff**. The canonical settings live in `pyproject.toml` under `[tool.ruff]` and `[tool.ruff.format]`:
