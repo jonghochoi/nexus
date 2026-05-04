@@ -9,35 +9,27 @@
 #   2. SCP              — transfers delta bundle to MLflow server inbox
 #   3. SSH              — runs import_delta.py on server to load delta
 #
+# Called by sync_mlflow_all.sh once per experiment each cron tick.
+# sync_mlflow_all.sh auto-discovers all experiments, so callers should use
+# that wrapper rather than invoking this script directly for ongoing sync.
+#
 # State file (GPU server): ~/.nexus/sync_state/{experiment}.json
 #   Tracks per-run, per-tag last-synced step.
 #   On the first sync all data is transferred; subsequent syncs are incremental.
 #
-# Config files (optional): two-tier, system + user
-#   /etc/nexus/sync_config.json     — operator-provided, team-wide values
-#                                     (remote, remote_nexus_dir, ssh_port, ...)
-#   ~/.nexus/sync_config.json       — per-user overrides (researcher, ssh_key)
-#
-#   Both are auto-discovered when --config is not passed. Per-key merge:
-#   user file's keys override system file's keys.
+# Config file (auto-discovered): /etc/nexus/sync_config.json
+#   Provides team-wide values: remote, remote_nexus_dir, ssh_port, etc.
 #
 # Resolution order — first non-empty wins per key:
 #   1. CLI flag                       (e.g. --experiment foo)
 #   2. --config <path>                (explicit JSON file — replaces auto-discovery)
-#   3. ~/.nexus/sync_config.json      (per-user)
-#   4. /etc/nexus/sync_config.json    (system / team-wide)
-#   5. Built-in default               (only for local_uri / remote_uri / ssh_port)
+#   3. /etc/nexus/sync_config.json    (system / team-wide)
+#   4. Built-in default               (only for local_uri / remote_uri / ssh_port)
 #
-# Multi-user note: when several researchers share one GPU server, each user
-# MUST set `researcher` (in their ~/.nexus/sync_config.json or via CLI). Without
-# it, every cron job exports every other user's runs and the central server
-# logs duplicate metric points at identical steps.
-#
-# Usage (cron every 5 minutes):
+# Usage:
 #   bash sync_mlflow_to_server.sh \
-#       [--config          ~/.nexus/sync_config.json]   # or set keys directly:
-#       [--experiment      robot_hand_rl] \
-#       [--researcher      kim] \
+#       [--config          /etc/nexus/sync_config.json]   # or set keys directly:
+#       --experiment       robot_hand_rl \
 #       [--remote          user@mlflow-server:/data/mlflow_delta_inbox] \
 #       [--remote_nexus_dir /opt/nexus] \
 #       [--local_uri       http://127.0.0.1:5100] \
@@ -55,16 +47,15 @@
 #   4 — SCP transfer failed after retries
 #   5 — remote import (ssh import_delta.py) failed
 #
-# Cron example with a sync_config.json (most common):
-#   */5 * * * * bash /path/to/nexus/scheduled_sync/sync_mlflow_to_server.sh \
-#       >> /path/to/sync_cron.log 2>&1
+# Cron example (via sync_mlflow_all.sh — recommended):
+#   */5 * * * * bash /path/to/nexus/scheduled_sync/sync_mlflow_all.sh \
+#       >> /var/log/nexus_sync.log 2>&1
 # ============================================================
 
 set -euo pipefail
 
 # ── Empty placeholders (defaults are applied AFTER config-file merge)
 EXPERIMENT=""
-RESEARCHER=""
 REMOTE=""
 LOCAL_MLFLOW_URI=""
 REMOTE_MLFLOW_URI=""
@@ -81,7 +72,6 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --config)           CONFIG_FILE="$2";       shift 2 ;;
         --experiment)       EXPERIMENT="$2";        shift 2 ;;
-        --researcher)       RESEARCHER="$2";        shift 2 ;;
         --remote)           REMOTE="$2";            shift 2 ;;
         --local_uri)        LOCAL_MLFLOW_URI="$2";  shift 2 ;;
         --remote_uri)       REMOTE_MLFLOW_URI="$2"; shift 2 ;;
@@ -96,7 +86,6 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ── Determine config sources, ordered low-to-high priority
-USER_CONFIG="${HOME}/.nexus/sync_config.json"
 SYSTEM_CONFIG="/etc/nexus/sync_config.json"
 CONFIG_SOURCES=()
 if [[ -n "$CONFIG_FILE" ]]; then
@@ -104,12 +93,9 @@ if [[ -n "$CONFIG_FILE" ]]; then
     CONFIG_SOURCES=("$CONFIG_FILE")
 else
     [[ -f "$SYSTEM_CONFIG" ]] && CONFIG_SOURCES+=("$SYSTEM_CONFIG")
-    [[ -f "$USER_CONFIG"   ]] && CONFIG_SOURCES+=("$USER_CONFIG")
 fi
 
-# ── Read each config in order — later files overwrite earlier ones, so user
-# overrides system. CLI flags still win because they were assigned first;
-# we only ever fill blanks. The shared python script returns shell-quoted
+# ── Read each config in order. The shared python script returns shell-quoted
 # `CFG_<VAR>=<value>` lines for known keys; unknown keys produce a warning.
 parse_config_file() {
     local file="$1"
@@ -119,7 +105,6 @@ parse_config_file() {
 import json, shlex, sys
 KEY_MAP = {
     "experiment":       "EXPERIMENT",
-    "researcher":       "RESEARCHER",
     "remote":           "REMOTE",
     "local_uri":        "LOCAL_MLFLOW_URI",
     "remote_uri":       "REMOTE_MLFLOW_URI",
@@ -138,7 +123,7 @@ except json.JSONDecodeError as e:
 if not isinstance(cfg, dict):
     print("[ERROR] sync config must be a JSON object", file=sys.stderr)
     sys.exit(2)
-unknown = sorted(set(cfg) - set(KEY_MAP))
+unknown = sorted(k for k in set(cfg) - set(KEY_MAP) if not k.startswith("_"))
 if unknown:
     print(f"[WARN] {sys.argv[1]}: ignoring unknown keys: {unknown}", file=sys.stderr)
 for k, var in KEY_MAP.items():
@@ -163,7 +148,6 @@ done
 
 # CLI > merged config: only fill where CLI didn't already set a value.
 EXPERIMENT="${EXPERIMENT:-${CFG_EXPERIMENT:-}}"
-RESEARCHER="${RESEARCHER:-${CFG_RESEARCHER:-}}"
 REMOTE="${REMOTE:-${CFG_REMOTE:-}}"
 LOCAL_MLFLOW_URI="${LOCAL_MLFLOW_URI:-${CFG_LOCAL_MLFLOW_URI:-}}"
 REMOTE_MLFLOW_URI="${REMOTE_MLFLOW_URI:-${CFG_REMOTE_MLFLOW_URI:-}}"
@@ -185,10 +169,8 @@ if [[ -z "$EXPERIMENT" || -z "$REMOTE" || -z "$REMOTE_NEXUS_DIR" ]]; then
     echo "Usage: bash sync_mlflow_to_server.sh \\"
     echo "    [--config          <path>]           Path to sync config JSON"
     echo "                                         (auto-discovers /etc/nexus/sync_config.json"
-    echo "                                         and ~/.nexus/sync_config.json when omitted)"
+    echo "                                         when omitted)"
     echo "    --experiment       <name>            MLflow experiment name"
-    echo "    [--researcher      <name>]           Filter runs by this researcher tag"
-    echo "                                         (REQUIRED on shared GPU servers)"
     echo "    --remote           <user@host:/path> SCP destination for delta files"
     echo "    --remote_nexus_dir <path>            nexus installation path on MLflow server"
     echo "    [--local_uri       <uri>]            Local MLflow URI  (default: http://127.0.0.1:5100)"
@@ -218,14 +200,39 @@ REMOTE_PATH="${REMOTE##*:}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # `${USER}_..._${PID}` makes the filename unique even when several users on
-# the same GPU server fire `*/5 * * * *` cron jobs in the same second. The
-# previous `delta_<TS>.json` collided in /tmp and on the remote inbox.
+# the same GPU server fire `*/5 * * * *` cron jobs in the same second.
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 DELTA_USER="${USER:-$(id -un)}"
 DELTA_FILENAME="delta_${DELTA_USER}_$(date '+%Y%m%d_%H%M%S')_$$.tar.gz"
 DELTA_FILE="/tmp/${DELTA_FILENAME}"
 
-echo "[$TIMESTAMP] MLflow delta sync: $EXPERIMENT${RESEARCHER:+ (researcher=$RESEARCHER)}"
+echo "[$TIMESTAMP] MLflow delta sync: $EXPERIMENT"
+
+# ── Concurrent instance detection ────────────────────────────────────────────
+# A second sync process means another cron was accidentally registered — which
+# creates a competing state file and causes duplicate metric points.
+CONFLICT_PIDS=$(pgrep -f "sync_mlflow_to_server" 2>/dev/null | grep -v "^$$" || true)
+if [[ -n "$CONFLICT_PIDS" ]]; then
+    echo "  [WARN] Another sync_mlflow_to_server process is running:"
+    ps -o pid,user,etime,args -p "$(echo "$CONFLICT_PIDS" | tr '\n' ',')" 2>/dev/null || true
+    echo "         A competing cron creates a duplicate state file → duplicate metric points."
+    echo "         Remove the second cron immediately."
+fi
+
+# ── Self-overlap lock (one instance per experiment) ──────────────────────────
+# Prevents a slow sync from overlapping with the next cron tick for the same
+# experiment. Lock path sanitises the name to keep it a valid filename.
+LOCK_FILE="/tmp/nexus_sync_lock_${EXPERIMENT//[^a-zA-Z0-9_-]/_}"
+if [[ -e "$LOCK_FILE" ]]; then
+    LOCK_PID=$(cat "$LOCK_FILE" 2>/dev/null || true)
+    if [[ -n "$LOCK_PID" ]] && kill -0 "$LOCK_PID" 2>/dev/null; then
+        echo "  [WARN] Sync for '$EXPERIMENT' already running (PID $LOCK_PID). Skipping this tick."
+        exit 0
+    fi
+    rm -f "$LOCK_FILE"  # stale lock from a previously killed process
+fi
+echo $$ > "$LOCK_FILE"
+trap 'rm -f "$LOCK_FILE"' EXIT INT TERM
 
 # ── Activate venv if present (prefer shared ~/.nexus/venv, fall back to ./venv)
 if [ -f "${HOME}/.nexus/venv/bin/activate" ]; then
@@ -242,8 +249,7 @@ echo "  [1/3] Exporting delta from local MLflow ($LOCAL_MLFLOW_URI)..."
 EXPORT_ARGS=(--tracking_uri "$LOCAL_MLFLOW_URI"
              --experiment   "$EXPERIMENT"
              --output       "$DELTA_FILE")
-[[ -n "$STATE_FILE"  ]] && EXPORT_ARGS+=(--state_file "$STATE_FILE")
-[[ -n "$RESEARCHER"  ]] && EXPORT_ARGS+=(--researcher "$RESEARCHER")
+[[ -n "$STATE_FILE" ]] && EXPORT_ARGS+=(--state_file "$STATE_FILE")
 
 # `|| EXPORT_EXIT=$?` is required: under `set -e`, a non-zero python exit
 # (including the legitimate exit 2 = "no new data") would abort the script

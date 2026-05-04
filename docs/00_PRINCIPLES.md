@@ -11,10 +11,10 @@
 | Anchor | Title |
 |---|---|
 | [`#tool-role-separation`](#-tool-role-separation) | MLflow = numbers, Confluence = judgment |
-| [`#required-tags`](#-required-tags) | 4 reproducibility tags (+ `sim_run_id` for real-robot eval) |
+| [`#required-tags`](#-required-tags) | 1 required tag: `experiment` |
 | [`#sim-run-id`](#-sim_run_id) | Real-robot eval must carry `sim_run_id` |
 | [`#failed-run-preservation`](#-failed-run-preservation) | Never delete failed runs |
-| [`#multi-user-researcher`](#-multi-user-researcher) | Each user must set their own `researcher` on shared GPU servers |
+| [`#single-cron`](#-single-cron) | Exactly one cron per GPU server — `sync_mlflow_all.sh` syncs all team members' runs |
 | [`#checkpoint-policy`](#-checkpoint-policy) | Exactly two artifacts per run: `best.pth`, `last.pth` |
 | [`#state-file`](#-state-file) | `~/.nexus/sync_state/` is the source of truth for sync position |
 | [`#default-uris`](#-default-uris) | Local 5100, central 5000 — change in lockstep |
@@ -35,11 +35,11 @@ If you write interpretation in MLflow descriptions, the team won't see it. If yo
 
 ### ── Required tags
 
-Every run must carry these four tags — without them, the run cannot be reproduced or compared:
+Every run must carry this tag:
 
-`experiment` · `researcher` · `task` · `hardware`
+`experiment`
 
-The **single source of truth** is the code: [`post_upload/config.py::required_tags()`](../post_upload/config.py). The team-facing description with examples is in [`ko/02_EXPERIMENT_STANDARD.md` § 3-1](ko/02_EXPERIMENT_STANDARD.md#3-tags-규칙).
+The **single source of truth** is the code: [`post_upload/config.py::required_tags()`](../post_upload/config.py). Additional tags (e.g. `researcher`, `task`, `hardware`, `seed`) are useful metadata but are not enforced.
 
 ### ── `sim_run_id`
 
@@ -65,11 +65,21 @@ Write the experiment's hypothesis in Confluence **before** launching the run. Wr
 
 These are technical contracts. Violating them silently breaks the system.
 
-### ── Multi-user researcher
+### ── Single cron
 
-> ⚠️ On shared GPU servers, **each user must set their own `researcher` tag** in `~/.nexus/sync_config.json`.
+> ⚠️ On shared GPU servers, **exactly one cron must run on the entire server.**
 
-Without per-user `researcher`, parallel cron jobs export each other's runs and the central server logs duplicate metric points at identical steps. The state file path is namespaced by researcher (`~/.nexus/sync_state/{exp}__{researcher}.json`) precisely to enforce isolation. Detail: [`12_SCHEDULED_SYNC.md` Step 5](12_SCHEDULED_SYNC.md#step-5--multi-user-gpu-servers) and the verification checklist in the same doc. See also [`scheduled_sync/export_delta.py`](../scheduled_sync/export_delta.py) `--researcher` flag.
+The operator registers one cron using `sync_mlflow_all.sh`. That wrapper
+auto-discovers all experiments from local MLflow each tick and calls
+`sync_mlflow_to_server.sh` per experiment. A single state file per experiment
+tracks every run_id independently — no per-user filter is needed because there
+are no competing crons. Team members need zero sync knowledge.
+
+A second cron from any user on the same server creates a competing state file
+and causes duplicate metric points on the central server. `validate_sync.sh`
+and `sync_mlflow_all.sh` both warn when a duplicate cron is detected.
+
+Detail: [`12_SCHEDULED_SYNC.md` Step 5](12_SCHEDULED_SYNC.md#step-5--multi-user-servers).
 
 ### ── Checkpoint policy
 
@@ -79,7 +89,7 @@ Without per-user `researcher`, parallel cron jobs export each other's runs and t
 
 ### ── State file
 
-> The file at `~/.nexus/sync_state/{experiment}[__{researcher}].json` is the **source of truth** for "what has been synced."
+> The file at `~/.nexus/sync_state/{experiment}.json` is the **source of truth** for "what has been synced."
 
 Deleting it forces a full re-sync on the next cron tick. It used to live in `/tmp` but `/tmp` is wiped on reboot, which silently triggered full re-syncs every cycle. Do not move it back. Detail: `CLAUDE.md`, [`scheduled_sync/export_delta.py`](../scheduled_sync/export_delta.py).
 

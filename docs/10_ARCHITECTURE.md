@@ -38,7 +38,7 @@ NEXUS uses `DualLogger` to run both tools simultaneously. TensorBoard handles re
 ### ── Pipeline A — Direct MLflow Logging *(recommended, scheduled sync)*
 
 ```
-PPO.write_stats()
+trainer.write_stats()
       │
       ▼
   DualLogger.add_scalar()
@@ -68,14 +68,14 @@ PPO.write_stats()
 
 > ✅ **Used when:** training code uses `make_logger()` and the run is actively training (or long-running).
 >
-> 🔁 **Incremental:** per-run, per-tag last-synced step is tracked in `~/.nexus/sync_state/{experiment}[__{researcher}].json`.
+> 🔁 **Incremental:** per-run, per-tag last-synced step is tracked in `~/.nexus/sync_state/{experiment}.json`.
 
 ---
 
 ### ── Pipeline B — TensorBoard Post-Upload *(one-shot, no code changes)*
 
 ```
-PPO.write_stats()
+trainer.write_stats()
       │
       ▼
   SummaryWriter
@@ -99,7 +99,7 @@ PPO.write_stats()
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    PPO Training Process                 │
+│                      Training Process                   │
 │                                                         │
 │  __init__()                                             │
 │  ├── make_logger(params=agent_cfg)                      │
@@ -270,7 +270,7 @@ writer.close() called
 One training run stored in MLflow:
 
 ```
-Run: "ShadowHand_PPO_seed42_20240315_143022"
+Run: "ShadowHand_seed42_20240315_143022"
 │
 ├── Parameters (logged once at run start)
 │   ├── lr                     0.0003

@@ -1,7 +1,7 @@
 """Config loader for the nexus post-upload CLI.
 
 Reads ~/.nexus/post_config.json (or a custom path) and returns a merged dict
-with defaults for tracking_uri, experiment, and team-fixed tags.
+with defaults for tracking_uri, experiment, and tags.
 Command-line flags override these defaults.
 """
 
@@ -22,20 +22,12 @@ BUILTIN_DEFAULTS = {
     "tags": {"hardware": "robot_22dof"},
 }
 
-# Tags that must be present on every uploaded run (experiment & task are per-run;
-# researcher is per-user but is typically set in ~/.nexus/post_config.json;
-# experiment is auto-injected from the --experiment argument in upload_tb.py).
-_BASE_REQUIRED = ("experiment", "researcher", "task", "hardware")
-
-# Experiments where sim_run_id becomes required for Sim-to-Real traceability
-# (see docs/ko/02_EXPERIMENT_STANDARD.md: real_robot_eval needs sim_run_id).
-REAL_EVAL_EXPERIMENTS = ("real_robot_eval",)
+# experiment is auto-injected from the --experiment argument in upload_tb.py.
+_BASE_REQUIRED = ("experiment",)
 
 
 def required_tags(experiment: str) -> tuple:
     """Return the tuple of required tags for a given experiment."""
-    if experiment in REAL_EVAL_EXPERIMENTS:
-        return _BASE_REQUIRED + ("sim_run_id",)
     return _BASE_REQUIRED
 
 
@@ -59,9 +51,8 @@ def load_config(path: Optional[str] = None) -> dict:
     }
 
     if not config_path.exists():
-        # One-time migration nudge — the file was renamed to disambiguate from
-        # the new ~/.nexus/sync_config.json (Pipeline A). Print once and fall
-        # through to defaults so the user can act on the message.
+        # One-time migration nudge — the file was renamed from the legacy path.
+        # Print once and fall through to defaults so the user can act on the message.
         if path is None and LEGACY_CONFIG_PATH.exists():
             print(
                 f"[WARN] Found legacy config at {LEGACY_CONFIG_PATH}. "
