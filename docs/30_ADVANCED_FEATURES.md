@@ -195,7 +195,7 @@ Spawns a daemon thread that periodically logs CPU, RAM, and GPU metrics to MLflo
 from nexus.logger.system_metrics import SystemMetricsLogger
 
 logger = make_logger(mode="mlflow", ...)
-sys_logger = SystemMetricsLogger(logger, interval_seconds=30)
+sys_logger = SystemMetricsLogger(logger, interval_seconds=30, gpu_index=3)
 
 sys_logger.start()
 
@@ -212,17 +212,61 @@ logger.close()
 |---|---|
 | `system/cpu_percent` | `psutil` |
 | `system/ram_gb` | `psutil` |
-| `system/gpu_memory_mb` | `nvidia-ml-py` or `nvidia-smi` |
-| `system/gpu_util_percent` | `nvidia-ml-py` or `nvidia-smi` |
+| `system/gpu_memory_mb` | `gpu_index` set + `nvidia-ml-py` or `nvidia-smi` |
+| `system/gpu_util_percent` | `gpu_index` set + `nvidia-ml-py` or `nvidia-smi` |
 
 Silently skips any metric whose dependency is not installed. The thread is a daemon — it will not prevent process exit if `stop()` is not called explicitly.
-
-**GPU auto-detection:** on shared servers where each job occupies a different GPU, the logger automatically finds the physical GPU index the current process is using — regardless of whether the GPU was selected via `CUDA_VISIBLE_DEVICES=2` or `--device cuda:2`. Detection is done by scanning which GPU has the current PID's compute allocation via `nvidia-ml-py` (pynvml). Works correctly inside **containers** by resolving the host-namespace PID from `/proc/self/sched`; falls back to `CUDA_VISIBLE_DEVICES` when it specifies exactly one device. Detection is **lazy** — GPU metrics are skipped until the process has actually allocated GPU memory (e.g. after `model.to(device)`), then the index is locked and written to the run tag `system.gpu_index` so the active device is visible in the MLflow UI.
 
 Optional installs:
 ```bash
 pip install psutil nvidia-ml-py
 ```
+
+### ── GPU metrics: explicit opt-in via `gpu_index`
+
+GPU collection is **off by default**. Pass `gpu_index=N` to enable it. The chosen index is stamped onto the run tag `system.gpu_index` at `start()` time so the active device is visible in the MLflow UI.
+
+There is no auto-detection. On multi-GPU hosts, frameworks like PyTorch routinely create a small stray CUDA context on GPU 0 (during default-device initialisation, `torch.cuda.device_count()` calls, or library imports) before the actual training tensors move to `cuda:N`. Any PID-based scan would then attribute metrics to the wrong device, so the caller must specify the index explicitly.
+
+#### ── How to pick `gpu_index`
+
+The value is interpreted exactly as `nvidia-smi -i=N` interprets it — i.e. an **NVML index**, not a CUDA device index. The two differ when `CUDA_VISIBLE_DEVICES` is in use:
+
+| Launch pattern | What `cuda:0` maps to | `gpu_index` to pass |
+|---|---|---|
+| `python train.py` with `torch.device("cuda:3")` | physical GPU 3 | `3` |
+| `CUDA_VISIBLE_DEVICES=3 python train.py` (code uses `cuda:0`) | physical GPU 3 | `3` |
+| Container with `NVIDIA_VISIBLE_DEVICES=3` (NVML inside container only sees one device) | the only visible GPU | `0` |
+
+> ⚠️ `CUDA_VISIBLE_DEVICES` does **not** remap NVML/`nvidia-smi` indices — it only restricts what the CUDA runtime exposes. NVML still uses physical indices, so the value you pass to `SystemMetricsLogger` must be the **physical** index even when your training code references `cuda:0`. The container case is different because `NVIDIA_VISIBLE_DEVICES` (NVIDIA Container Toolkit) does isolate the NVML view.
+
+#### ── Recommended pattern
+
+For unambiguous attribution on multi-GPU hosts, prefer `CUDA_VISIBLE_DEVICES=N` over hard-coding `torch.device("cuda:N")` in code — the former prevents the framework from creating stray contexts on other GPUs, and the same value works for both the runtime and the metrics logger:
+
+```bash
+CUDA_VISIBLE_DEVICES=3 python train.py --gpu-metrics-index 3
+```
+
+```python
+# train.py
+import argparse, torch
+from nexus.logger import make_logger
+from nexus.logger.system_metrics import SystemMetricsLogger
+
+p = argparse.ArgumentParser()
+p.add_argument("--gpu-metrics-index", type=int, default=None,
+               help="NVML/nvidia-smi index of the GPU to track (omit to skip GPU metrics)")
+args = p.parse_args()
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # cuda:0 inside CVD mask
+
+logger = make_logger(mode="mlflow", run_name="my_run", ...)
+sys_logger = SystemMetricsLogger(logger, gpu_index=args.gpu_metrics_index)
+sys_logger.start()
+```
+
+If you don't need per-GPU memory/utilisation in MLflow at all, simply omit `gpu_index` — only CPU and RAM will be logged.
 
 ---
 

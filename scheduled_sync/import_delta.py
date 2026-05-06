@@ -61,6 +61,10 @@ def get_or_create_run(client: MlflowClient, experiment_id: str, run_name: str, t
     """
     Find an existing run by run_name or create a new one.
     run_name is the stable identifier across incremental delta cycles.
+
+    Status is applied in main() from the `status` field of each delta entry —
+    not here — so terminal states (FINISHED / FAILED / KILLED) reach the
+    central UI instead of being clobbered on lookup.
     """
     existing = client.search_runs(
         experiment_ids=[experiment_id],
@@ -69,10 +73,7 @@ def get_or_create_run(client: MlflowClient, experiment_id: str, run_name: str, t
         max_results=1,
     )
     if existing:
-        run_id = existing[0].info.run_id
-        if existing[0].info.status != "RUNNING":
-            client.update_run(run_id, status="RUNNING")
-        return run_id
+        return existing[0].info.run_id
 
     run = client.create_run(
         experiment_id=experiment_id,
@@ -128,8 +129,16 @@ def main():
             params_raw = run_data.get("params", [])
             metrics_raw = run_data.get("metrics", [])
             source_run_id = run_data["run_id"]
+            source_status = run_data.get("status")
 
             run_id = get_or_create_run(client, experiment_id, run_name, tags)
+
+            # Reopen the central run if we have new params/metrics to ingest —
+            # MLflow rejects log_batch on terminated runs. This handles the
+            # crash-and-resume case: GPU node restarts under the same run_name,
+            # local goes back to RUNNING, and new deltas need a writable run.
+            if (params_raw or metrics_raw) and client.get_run(run_id).info.status != "RUNNING":
+                client.update_run(run_id, status="RUNNING")
 
             # Params only present for new runs (first sync)
             if params_raw:
@@ -179,9 +188,15 @@ def main():
             client.set_tag(run_id, "nexus.lastSyncTime", sync_time_iso)
             client.set_tag(run_id, "nexus.syncedFromHost", source_host)
 
+            # Propagate terminal status from the GPU node so FINISHED /
+            # FAILED / KILLED runs are reflected in the central UI.
+            if source_status in ("FINISHED", "FAILED", "KILLED"):
+                if client.get_run(run_id).info.status != source_status:
+                    client.set_terminated(run_id, status=source_status)
+
             print(
                 f"  [OK] {run_name}: {len(metrics_raw)} metric points, "
-                f"{run_artifacts} artifact file(s)",
+                f"{run_artifacts} artifact file(s) [status={source_status or 'unknown'}]",
                 flush=True,
             )
 
