@@ -39,7 +39,7 @@ Every run must carry this tag:
 
 `experiment`
 
-The **single source of truth** is the code: [`post_upload/config.py::required_tags()`](../post_upload/config.py). Additional tags (e.g. `researcher`, `task`, `hardware`, `seed`) are useful metadata but are not enforced.
+The **single source of truth** is the code: [`nexus/post_upload/config.py::required_tags()`](../nexus/post_upload/config.py). Additional tags (e.g. `researcher`, `task`, `hardware`, `seed`) are useful metadata but are not enforced.
 
 ### ── `sim_run_id`
 
@@ -100,7 +100,7 @@ Deleting it forces a full re-sync on the next cron tick. It used to live in `/tm
 | `http://127.0.0.1:5100` | Local MLflow on every GPU server (loopback only) |
 | `http://127.0.0.1:5000` / `http://nexus-server:5000` | Central MLflow on the NEXUS server |
 
-These appear hardcoded as defaults across `nexus/logger/`, `scheduled_sync/`, `post_upload/`, `chart_settings/`, and the README diagrams. **Change them in concert** — `grep -rn "5100\|5000"` and update every site. Detail: `CLAUDE.md` § "When adding new features".
+These appear hardcoded as defaults across `nexus/logger/`, `nexus/post_upload/`, `scheduled_sync/`, `chart_settings/`, and the README diagrams. **Change them in concert** — `grep -rn "5100\|5000"` and update every site. Detail: `CLAUDE.md` § "When adding new features".
 
 ### ── mlflow-skinny contract
 

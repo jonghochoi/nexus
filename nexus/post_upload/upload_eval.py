@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """
-post_upload/upload_eval.py
-==========================
+nexus/post_upload/upload_eval.py
+================================
 Attaches post-hoc evaluation artifacts (mp4 rollouts, GIF previews, reports,
 score JSONs) to an existing MLflow run that was created by upload_tb.py or by
 Pipeline A's MLflowLogger. The run is resolved by --run_name; the directory
 passed via --eval_dir lands under eval/<eval_id>/ — never under checkpoints/.
 
 Two entry points:
-    1. CLI — ``python upload_eval.py --run_name X --eval_dir Y``
-    2. Python — ``from upload_eval import upload_eval; upload_eval(...)``
+    1. CLI — ``nexus-upload-eval --run_name X --eval_dir Y``
+            (or ``python -m nexus.post_upload.upload_eval ...``)
+    2. Python — ``from nexus.post_upload.upload_eval import upload_eval``
        Used by glue scripts that drive an external eval tool (e.g. observer)
        and want to upload its outputs in-process. The Python API is
        non-interactive (no y/n prompt) and accepts a ``metrics`` dict
@@ -47,20 +48,15 @@ import urllib.parse
 from pathlib import Path
 from typing import Optional
 
-# Ensure sibling modules resolve whether invoked from repo root or post_upload/.
-# The parent insertion lets ``nexus.logger.run_info`` import from either layout.
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
 import mlflow
 from mlflow.tracking import MlflowClient
 from rich.console import Console
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn
 
-from config import DEFAULT_CONFIG_PATH, load_config
-from history import make_eval_record, print_history, save_upload
-from nexus.logger.run_info import read_run_info
+from ..logger.run_info import read_run_info
+from .config import DEFAULT_CONFIG_PATH, load_config
+from .history import make_eval_record, print_history, save_upload
 
 console = Console()
 

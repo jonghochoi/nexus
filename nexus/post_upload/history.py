@@ -18,7 +18,7 @@ from typing import Optional
 from rich.console import Console
 from rich.table import Table
 
-from config import HISTORY_LIMIT, HISTORY_PATH
+from .config import HISTORY_LIMIT, HISTORY_PATH
 
 console = Console()
 

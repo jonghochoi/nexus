@@ -22,6 +22,22 @@ requires-python = ">=3.10"
 #   pip install "nexus-logger[server] @ git+https://github.com/jonghochoi/nexus.git"
 server = ["mlflow>=2.0,<3"]
 
+# Pipeline B uploader CLIs. Optional — they pull in tbparse/pandas/rich which
+# are not needed on training nodes that only call ``make_logger()``. Install
+# with: pip install "nexus-logger[post_upload] @ git+..."
+post_upload = [
+    "tbparse>=0.0.8",
+    "pandas",
+    "rich",
+]
+
+[project.scripts]
+# Pipeline B CLI entry points — installed on PATH by pip.
+# Equivalent to ``python -m nexus.post_upload.<module>``.
+nexus-upload-tb   = "nexus.post_upload.upload_tb:main"
+nexus-upload-eval = "nexus.post_upload.upload_eval:main"
+nexus-verify-tb   = "nexus.post_upload.verify_tb:main"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["nexus*"]

@@ -98,6 +98,11 @@ External projects (a trainer repo, an inference service) can pip-install the log
 |---|---|
 | **Trainer / CI** *(default — client only)* | `"nexus-logger @ git+https://github.com/jonghochoi/nexus.git"` |
 | **Central MLflow host** *(adds the server stack)* | `"nexus-logger[server] @ git+https://github.com/jonghochoi/nexus.git"` |
+| **Pipeline B uploader CLIs** *(adds tbparse / pandas / rich)* | `"nexus-logger[post_upload] @ git+https://github.com/jonghochoi/nexus.git"` |
+
+The `[post_upload]` extra installs three console scripts on PATH —
+`nexus-upload-tb`, `nexus-upload-eval`, `nexus-verify-tb` — and exposes
+`from nexus.post_upload.upload_eval import upload_eval` for in-process glue.
 
 The default pulls **`mlflow-skinny`** — `MlflowClient` and the tracking / entities APIs only — without Flask, SQLAlchemy, alembic, gunicorn. Add `[server]` only on the host that actually runs `mlflow server`. For reproducibility, pin to a tag or commit: `...nexus.git@v0.2.0` or `...nexus.git@<sha>`.
 
@@ -149,7 +154,7 @@ The default pulls **`mlflow-skinny`** — `MlflowClient` and the tracking / enti
 
 ## Recommended Tags
 
-> Canonical sources: [`docs/00_PRINCIPLES.md#required-tags`](docs/00_PRINCIPLES.md#-required-tags) and [`post_upload/config.py::required_tags()`](post_upload/config.py).
+> Canonical sources: [`docs/00_PRINCIPLES.md#required-tags`](docs/00_PRINCIPLES.md#-required-tags) and [`nexus/post_upload/config.py::required_tags()`](nexus/post_upload/config.py).
 
 | Tag | Example | Required |
 |---|---|:---:|

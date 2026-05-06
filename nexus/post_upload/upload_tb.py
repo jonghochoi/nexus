@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
-post_upload/upload_tb.py
-========================
+nexus/post_upload/upload_tb.py
+==============================
 TensorBoard tfevents -> MLflow conversion uploader (Pipeline B)
 
 Usage:
-    python upload_tb.py --tb_dir ./logs/run_001 --experiment robot_hand_grasp --run_name ppo_v1
+    nexus-upload-tb --tb_dir ./logs/run_001 --experiment robot_hand_grasp --run_name ppo_v1
+    # or, equivalently:
+    python -m nexus.post_upload.upload_tb --tb_dir ./logs/run_001 ...
 
 Expected tfevents directory structure:
     logs/
@@ -20,9 +22,6 @@ import time
 from pathlib import Path
 from typing import Optional
 
-# Ensure sibling modules resolve whether invoked from repo root or post_upload/.
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
 import mlflow
 from mlflow.entities import Metric
 from mlflow.tracking import MlflowClient
@@ -34,9 +33,9 @@ from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn
 from rich import print as rprint
 
-from config import DEFAULT_CONFIG_PATH, load_config, required_tags
-from history import last_upload, make_record, print_history, save_upload
-from verify_tb import run_verify
+from .config import DEFAULT_CONFIG_PATH, load_config, required_tags
+from .history import last_upload, make_record, print_history, save_upload
+from .verify_tb import run_verify
 
 console = Console()
 

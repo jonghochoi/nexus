@@ -27,10 +27,14 @@ There is no pytest config and no linter — `smoke_test.py` is a hand-rolled scr
 Pipeline B CLI smoke (no MLflow upload):
 
 ```bash
-cd post_upload && python upload_tb.py --tb_dir <path> --dry_run
-python upload_tb.py --history                   # show ~/.nexus/history.json
-python verify_tb.py --from-last                 # re-verify the last upload
-python upload_eval.py --run_name <name> --eval_dir <path>   # attach eval artifacts (mp4, report) to an existing run
+python -m nexus.post_upload.upload_tb --tb_dir <path> --dry_run
+python -m nexus.post_upload.upload_tb --history          # show ~/.nexus/history.json
+python -m nexus.post_upload.verify_tb --from-last        # re-verify the last upload
+python -m nexus.post_upload.upload_eval --run_name <name> --eval_dir <path>
+# or, after `pip install nexus-logger[post_upload]`:
+nexus-upload-tb --tb_dir <path> --dry_run
+nexus-verify-tb --from-last
+nexus-upload-eval --run_name <name> --eval_dir <path>
 ```
 
 ## High-level architecture
@@ -49,7 +53,7 @@ Used when training code is modified to call `make_logger()`. Full data-flow is i
 - **State file** at `~/.nexus/sync_state/{experiment}.json` is the sync source of truth. Deleting it triggers a full re-sync. (Old default `/tmp/...` was wiped on reboot — that location is no longer used.)
 - **`validate_sync.sh`** is a pre-flight checker — exits 0 only when all checks pass; prints a paste-ready cron line but never edits crontab itself.
 
-### Pipeline B — `post_upload/` (one-shot, no trainer changes)
+### Pipeline B — `nexus/post_upload/` (one-shot, no trainer changes)
 
 Back-fills completed tfevents and attaches post-hoc eval artifacts. Full walkthrough in `docs/13_POST_UPLOAD.md`. Key behaviors that affect code changes:
 
@@ -66,7 +70,7 @@ Back-fills completed tfevents and attaches post-hoc eval artifacts. Full walkthr
 - **Default URIs**: GPU-server local MLflow is `http://127.0.0.1:5100`; central MLflow is `http://127.0.0.1:5000` (and `http://nexus-server:5000` from clients). These appear hardcoded as defaults across many files — change them in concert.
 - **Metric name sanitization**: `name.replace(" ", "_").replace(":", "-")`. Slashes are preserved so TensorBoard's `losses/actor_loss` hierarchy survives. **Three** copies must stay in lock-step — `MLflowLogger._sanitize` (logger), `upload_tb.sanitize_metric_name` (uploader), and `verify_tb.sanitize_metric_name` (verifier applies it to the TB-side tags before comparing) — or `verify_tb.py` will report tag-list mismatches.
 - **Param flattening**: `MLflowLogger._flatten` recursively flattens nested dict params with `.` separator. Lists/tuples are stored via `str(v)` (not flattened).
-- **Required tags**: the canonical statement is in `docs/00_PRINCIPLES.md` → `#required-tags`. The code-side enforcement lives in `post_upload/config.py::required_tags()` — always `(experiment,)`. The user-facing summary is `README.md` → "Recommended Tags". If you change required tags, update both sites.
+- **Required tags**: the canonical statement is in `docs/00_PRINCIPLES.md` → `#required-tags`. The code-side enforcement lives in `nexus/post_upload/config.py::required_tags()` — always `(experiment,)`. The user-facing summary is `README.md` → "Recommended Tags". If you change required tags, update both sites.
 - **Checkpoint policy**: only two artifacts ever exist under `checkpoints/` in MLflow — `best.pth` (highest score so far) and `last.pth` (most recent epoch). `MLflowLogger.log_checkpoint(path, kind)` enforces `kind in {"best", "last"}` and renames the source file on upload, so the on-disk filename doesn't matter. *(Canonical: `docs/00_PRINCIPLES.md#checkpoint-policy`.)*
 
 ### `nexus/logger/` package layout (matters for imports)
@@ -96,7 +100,7 @@ Shared ANSI styling module imported by CLI scripts across the repo. Exports `SIG
 Several concepts are reflected in multiple places. Change one without auditing the others and the docs will silently rot. Use these checklists when making each category of change.
 
 **New required tag**
-- [ ] `post_upload/config.py::required_tags()` — code-side enforcement
+- [ ] `nexus/post_upload/config.py::required_tags()` — code-side enforcement
 - [ ] `docs/00_PRINCIPLES.md` → `#required-tags` — canonical anchor table
 - [ ] `README.md` → "Recommended Tags" table
 
@@ -112,13 +116,14 @@ Several concepts are reflected in multiple places. Change one without auditing t
 - [ ] `tests/smoke_test.py` — add a case under `--advanced`
 
 **New Pipeline B CLI flag**
-- [ ] `post_upload/upload_tb.py::parse_args()` (or `upload_eval.py::parse_args()` for eval-side flags)
+- [ ] `nexus/post_upload/upload_tb.py::parse_args()` (or `upload_eval.py::parse_args()` for eval-side flags)
 - [ ] `README.md` → "Pipeline B" flag table
 - [ ] `docs/13_POST_UPLOAD.md` — deeper notes
 
-**New Pipeline B script** (new file added to `post_upload/`)
+**New Pipeline B script** (new file added to `nexus/post_upload/`)
 - [ ] `docs/13_POST_UPLOAD.md` — document the new script
 - [ ] `README.md` → "Pipeline B" section
+- [ ] `pyproject.toml` `[project.scripts]` — add a `nexus-<name>` console entry if the script has a CLI
 
 **New Pipeline A sync option**
 - [ ] `scheduled_sync/sync_mlflow_to_server.sh` — CLI flag (argument-parsing case) + matching JSON key in `KEY_MAP`
@@ -133,7 +138,7 @@ Several concepts are reflected in multiple places. Change one without auditing t
 - [ ] `docs/31_CHART_SETTINGS_GUIDE.md` — update if the new setting changes user workflow
 
 **Changing default URIs (`5100`, `5000`)**
-- [ ] Grep for `5100` and `5000` across `nexus/logger/`, `scheduled_sync/*`, `post_upload/`, `chart_settings/apply_chart_settings.py`, and `README.md` diagrams — change in concert
+- [ ] Grep for `5100` and `5000` across `nexus/logger/`, `nexus/post_upload/`, `scheduled_sync/*`, `chart_settings/apply_chart_settings.py`, and `README.md` diagrams — change in concert
 
 **Adding a new doc file under `docs/`**
 - [ ] `README.md` → "Further Reading" table — add the new entry with its numeric prefix
@@ -230,7 +235,7 @@ This repo deliberately uses unicode box-drawing and em-dash characters in commen
 
 Concrete rules when authoring or editing a file:
 
-1. **Every Python module starts with a docstring** that opens with `module/relative_path.py`, then a line of `=` exactly as long as that path, then a one-paragraph summary. See `nexus/logger/mlflow_logger.py:1`, `post_upload/upload_tb.py:1`, `scheduled_sync/export_delta.py:1`.
+1. **Every Python module starts with a docstring** that opens with `module/relative_path.py`, then a line of `=` exactly as long as that path, then a one-paragraph summary. See `nexus/logger/mlflow_logger.py:1`, `nexus/post_upload/upload_tb.py:1`, `scheduled_sync/export_delta.py:1`.
 2. **Section dividers** use `# ── Title ──...` — pad the trailing `─` run so the comment ends near column 76 (look at neighbouring dividers in the same file and match width). Numbered top-level sections (`# ── 1. Argument parsing ──...`) appear in the larger CLI scripts (`upload_tb.py`, `verify_tb.py`).
 3. **Class- or method-internal sections** use the same `# ──` style indented to match the surrounding code (see `MLflowLogger` at `nexus/logger/mlflow_logger.py:93,191`).
 4. **Use em dash `—`, not ` - `**, when joining a label to its explanation in docstrings or in "why" comments. Same for prose punctuation inside comments. Hyphen-minus `-` stays for compound words and CLI flags only.
@@ -291,7 +296,7 @@ Optional for trivial one-liners; required for any commit that touches more than 
 4. **Lists for multiple changes**:
    - Use `-` bullets for parallel small changes (`docs: fix TOC order ...`).
    - Use `1.` `2.` `3.` numbered items when the changes are sequenced or you reference them by number elsewhere (`fix(validate_sync): skip dry-run ...`).
-5. **Per-file groupings** for larger commits: file path on its own line ending with `:`, then an indented bullet list of changes for that file. See `refactor(tags): clean up required tags ...` for the canonical layout (`post_upload/config.py:` then `  - ...`).
+5. **Per-file groupings** for larger commits: file path on its own line ending with `:`, then an indented bullet list of changes for that file. See `refactor(tags): clean up required tags ...` for the canonical layout (`nexus/post_upload/config.py:` then `  - ...`).
 6. **Unicode dividers** for the largest commits (typically `feat`/`refactor` touching many files, or `docs:` track-wide restructures). Match the source-code divider style:
 
    ```
@@ -300,7 +305,7 @@ Optional for trivial one-liners; required for any commit that touches more than 
 
    Use `─` (U+2500) — never `-` or `=`. Pad the trailing run so the line ends near column 72. Numbered sections (`── 1. ...`, `── 2. ...`) when there are multiple, plain titles (`── Section ──...`) otherwise. See `fix: repair broken TOC anchor links in all guide docs` and `docs: unify style of operator (20/21) and opt-in (30/31) docs` for canonical examples.
 7. **Em dash `—` (U+2014)**, not ` - `, when joining a label to its explanation in body prose. Same rule as for source-code comments.
-8. **Backticks** around paths (`post_upload/upload_tb.py`), identifiers (`MlflowClient`, `_BASE_REQUIRED`), CLI flags (`--dry_run`), and shell commands.
+8. **Backticks** around paths (`nexus/post_upload/upload_tb.py`), identifiers (`MlflowClient`, `_BASE_REQUIRED`), CLI flags (`--dry_run`), and shell commands.
 
 ### Audit checklist before committing
 
@@ -312,7 +317,7 @@ Optional for trivial one-liners; required for any commit that touches more than 
 ## Things to be careful about
 
 - See the dedicated **Comment & docstring style** section above before editing or creating any source file — the unicode banner / divider conventions are mandatory in this repo.
-- **`pyproject.toml` ships `mlflow-skinny` as the default runtime dep**, with full `mlflow` only behind the `[server]` extra. All Python code in `nexus/logger/`, `post_upload/`, `scheduled_sync/`, `chart_settings/`, and `tests/` must stay within client / tracking APIs that exist in skinny — `MlflowClient`, `mlflow.entities.*`, `mlflow.set_tracking_uri/set_experiment/get_experiment_by_name`, `register_model`, `set_experiment_tag`. APIs that require the full distribution — `mlflow.pyfunc.load_model`, `mlflow.models.Model` flavor builders, anything under `mlflow.server.*` — would silently break the default training-node install (`pip install "nexus-logger @ git+..."`). The only full-mlflow consumer in this repo is the `mlflow server` CLI inside `scheduled_sync/start_local_mlflow.sh`, run from the operator venv built by `setup.sh` (which still installs full mlflow), not from `pip install nexus-logger`. *(Canonical: `docs/00_PRINCIPLES.md#mlflow-skinny-contract`.)*
+- **`pyproject.toml` ships `mlflow-skinny` as the default runtime dep**, with full `mlflow` only behind the `[server]` extra. All Python code in `nexus/logger/`, `nexus/post_upload/`, `scheduled_sync/`, `chart_settings/`, and `tests/` must stay within client / tracking APIs that exist in skinny — `MlflowClient`, `mlflow.entities.*`, `mlflow.set_tracking_uri/set_experiment/get_experiment_by_name`, `register_model`, `set_experiment_tag`. APIs that require the full distribution — `mlflow.pyfunc.load_model`, `mlflow.models.Model` flavor builders, anything under `mlflow.server.*` — would silently break the default training-node install (`pip install "nexus-logger @ git+..."`). The only full-mlflow consumer in this repo is the `mlflow server` CLI inside `scheduled_sync/start_local_mlflow.sh`, run from the operator venv built by `setup.sh` (which still installs full mlflow), not from `pip install nexus-logger`. *(Canonical: `docs/00_PRINCIPLES.md#mlflow-skinny-contract`.)*
 - `setup.sh` pins `mlflow==2.13.0`, `tensorboard==2.16.2`, `tbparse==0.0.8`. The `tbparse` column-name handling in `upload_tb.parse_tfevents` and `verify_tb.fetch_tb_metrics` already has a fallback for older `tbparse` (`tags` → `tag`) — preserve it if upgrading.
 - Do not add `git push` / `scp` / cron-installation steps to `setup.sh`. The deployment is intentionally split: setup.sh only builds the venv, and operators wire up cron / SSH keys themselves following `docs/20_MLFLOW_SERVER_SETUP.md`.
 - `tests/smoke_test.py` writes real runs to a real MLflow server under the experiment name `nexus_smoke_test`. Don't point it at a production tracking URI without intending to.

@@ -1,19 +1,16 @@
 #!/usr/bin/env python3
 """
-post_upload/verify_tb.py
-========================
+nexus/post_upload/verify_tb.py
+==============================
 Validates the uploaded MLflow run against the original TensorBoard data.
 
 Usage:
-    python verify_tb.py --run_id <run_id> --tb_dir ./logs/run_001
+    nexus-verify-tb --run_id <run_id> --tb_dir ./logs/run_001
+    # or, equivalently:
+    python -m nexus.post_upload.verify_tb --run_id <run_id> --tb_dir ./logs/run_001
 """
 
 import argparse
-import sys
-from pathlib import Path
-
-# Ensure sibling modules resolve whether invoked from repo root or post_upload/.
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import mlflow
 import pandas as pd
@@ -47,7 +44,7 @@ def parse_args():
     args = parser.parse_args()
 
     if args.from_last:
-        from history import last_upload
+        from .history import last_upload
 
         last = last_upload(script="upload_tb")
         if last is None:

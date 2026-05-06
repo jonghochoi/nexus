@@ -87,7 +87,7 @@ trainer.write_stats()
         │
         │ (after training ends — manual, one-time)
         ▼
-  post_upload/upload_tb.py
+  nexus/post_upload/upload_tb.py
         │ parse tfevents → log_batch()
         ▼
   [MLflow Server :5000]
@@ -171,7 +171,7 @@ nexus/
 │       ├── model_registry.py       # [Advanced] Model Registry operations
 │       └── system_metrics.py       # [Advanced] Background CPU/GPU logging
 │
-├── post_upload/                    # Pipeline B — upload after training
+├── nexus/post_upload/              # Pipeline B — upload after training
 │   ├── upload_tb.py                # Full tfevents → MLflow batch upload
 │   ├── verify_tb.py                # Numeric validation vs. TB source
 │   └── upload_eval.py              # Attach evaluation artifacts (mp4 / report) to a run
@@ -230,9 +230,9 @@ The next section maps each runtime component (factory, loggers, sync scripts) to
 | `validate_sync.sh` | `scheduled_sync/` | 🔍 Pre-flight checker: SSH, inbox, experiment, dry-run |
 | `export_delta.py` | `scheduled_sync/` | 📦 Serializes new metrics + artifacts into tar.gz bundle |
 | `import_delta.py` | `scheduled_sync/` | ⬆️ Unpacks bundle, logs metrics + uploads artifacts to central MLflow |
-| `upload_tb.py` | `post_upload/` | 📤 Manual full upload after training |
-| `verify_tb.py` | `post_upload/` | ✅ Validates upload against TB source |
-| `upload_eval.py` | `post_upload/` | 🎬 Attaches eval artifacts (mp4/report) to an existing run |
+| `upload_tb.py` | `nexus/post_upload/` | 📤 Manual full upload after training |
+| `verify_tb.py` | `nexus/post_upload/` | ✅ Validates upload against TB source |
+| `upload_eval.py` | `nexus/post_upload/` | 🎬 Attaches eval artifacts (mp4/report) to an existing run |
 
 ---
 

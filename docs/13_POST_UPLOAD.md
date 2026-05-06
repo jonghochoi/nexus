@@ -2,7 +2,7 @@
 
 > **Purpose:** Upload a completed tfevents directory to MLflow as a one-shot batch — no trainer code changes required. Suitable when training is already done, or when the trainer is not yet integrated with `make_logger()`.
 >
-> This guide is for **engineers / researchers** running `post_upload/upload_tb.py`. The high-level "what is Pipeline B" overview lives in [`README.md`](../README.md#-two-ways-to-use-nexus); the system architecture is in [`10_ARCHITECTURE.md`](10_ARCHITECTURE.md).
+> This guide is for **engineers / researchers** running `nexus/post_upload/upload_tb.py`. The high-level "what is Pipeline B" overview lives in [`README.md`](../README.md#-two-ways-to-use-nexus); the system architecture is in [`10_ARCHITECTURE.md`](10_ARCHITECTURE.md).
 
 ---
 
@@ -26,25 +26,25 @@
 
 ```bash
 # One-time setup
-cp post_upload/post_config.example.json ~/.nexus/post_config.json
+cp nexus/post_upload/post_config.example.json ~/.nexus/post_config.json
 $EDITOR ~/.nexus/post_config.json   # set tracking_uri + your fixed tags
 
 # Every upload
-python post_upload/upload_tb.py --tb_dir /path/to/run_001
+python -m nexus.post_upload.upload_tb --tb_dir /path/to/run_001
 # → prompts for seed/task if missing, uploads, auto-verifies
 ```
 
 Repeat the same config for another seed?
 
 ```bash
-python post_upload/upload_tb.py --tb_dir /path/to/run_002 --repeat-last --tags seed=2
+python -m nexus.post_upload.upload_tb --tb_dir /path/to/run_002 --repeat-last --tags seed=2
 ```
 
 List recent uploads / re-verify the last one:
 
 ```bash
-python post_upload/upload_tb.py --history
-python post_upload/verify_tb.py --from-last
+python -m nexus.post_upload.upload_tb --history
+python -m nexus.post_upload.verify_tb --from-last
 ```
 
 ---
@@ -77,7 +77,7 @@ Before the actual upload, use `--dry_run` to preview which metrics will be parse
 cd nexus/
 source ~/.nexus/activate.sh   # or: nexus-activate
 
-python post_upload/upload_tb.py \
+python -m nexus.post_upload.upload_tb \
     --tb_dir    /path/to/your/logs/run_001 \
     --dry_run
 ```
@@ -108,10 +108,10 @@ After reviewing the dry-run contents, proceed with the actual upload. Make sure 
 ```bash
 # Short form — config supplies tracking_uri, researcher, hardware, etc.
 # Missing required tags (researcher/seed/task) are prompted interactively.
-python post_upload/upload_tb.py --tb_dir /path/to/your/logs/run_001
+python -m nexus.post_upload.upload_tb --tb_dir /path/to/your/logs/run_001
 
 # Or fully explicit (for CI or ad-hoc overrides)
-python post_upload/upload_tb.py \
+python -m nexus.post_upload.upload_tb \
     --tb_dir       /path/to/your/logs/run_001 \
     --experiment   robot_hand_rl \
     --run_name     ppo_baseline_v1 \
@@ -140,7 +140,7 @@ Pass `--no_verify` to skip the automatic check (e.g. in CI where you verify late
 Automatic verification runs at the end of every upload — no manual step needed. To re-verify a previous upload, or to validate one that was run with `--no_verify`:
 
 ```bash
-python post_upload/verify_tb.py \
+python -m nexus.post_upload.verify_tb \
     --run_id       a1b2c3d4e5f6...   \
     --tb_dir       /path/to/your/logs/run_001 \
     --tracking_uri http://127.0.0.1:5100
@@ -187,7 +187,7 @@ The CLI reads defaults from `~/.nexus/post_config.json`. Ship the example file t
 
 ```bash
 mkdir -p ~/.nexus
-cp post_upload/post_config.example.json ~/.nexus/post_config.json
+cp nexus/post_upload/post_config.example.json ~/.nexus/post_config.json
 ```
 
 Example:
@@ -241,7 +241,7 @@ Override the config path with `--config /path/to/other.json` (useful for CI or s
 - **Explicit** — `-i` / `--interactive` prompts for every required tag regardless, which is handy for editing a repeated set (see Step 4):
 
   ```bash
-  python post_upload/upload_tb.py --tb_dir /path/to/run_003 --repeat-last -i
+  python -m nexus.post_upload.upload_tb --tb_dir /path/to/run_003 --repeat-last -i
   ```
 
 ### ── Precedence (low → high)
@@ -279,10 +279,10 @@ Re-verify a past upload:
 
 ```bash
 # Most recent
-python post_upload/verify_tb.py --from-last
+python -m nexus.post_upload.verify_tb --from-last
 
 # A specific run
-python post_upload/verify_tb.py \
+python -m nexus.post_upload.verify_tb \
     --run_id a1b2c3d4e5f6... \
     --tb_dir /path/to/run_001
 ```
@@ -296,7 +296,7 @@ Every upload is recorded in `~/.nexus/history.json` (newest first, capped at 20 
 ### ── `--history` — list recent uploads
 
 ```
-$ python post_upload/upload_tb.py --history
+$ python -m nexus.post_upload.upload_tb --history
 
         Recent uploads (last 3)
   When                  Experiment         Run Name          Run ID          Verify  Key Tags
@@ -311,16 +311,16 @@ Inherit `experiment`, `run_name`, and `tags` from the most recent upload — per
 
 ```bash
 # Upload 10 seeds of the same task without re-typing everything:
-python post_upload/upload_tb.py --tb_dir ./runs/seed1 --tags seed=1 task=in_hand_reorientation
-python post_upload/upload_tb.py --tb_dir ./runs/seed2 --repeat-last --tags seed=2
-python post_upload/upload_tb.py --tb_dir ./runs/seed3 --repeat-last --tags seed=3
+python -m nexus.post_upload.upload_tb --tb_dir ./runs/seed1 --tags seed=1 task=in_hand_reorientation
+python -m nexus.post_upload.upload_tb --tb_dir ./runs/seed2 --repeat-last --tags seed=2
+python -m nexus.post_upload.upload_tb --tb_dir ./runs/seed3 --repeat-last --tags seed=3
 ...
 ```
 
 Combine with `-i` to edit a tag interactively with the previous value prefilled:
 
 ```bash
-python post_upload/upload_tb.py --tb_dir ./runs/seed2 --repeat-last -i
+python -m nexus.post_upload.upload_tb --tb_dir ./runs/seed2 --repeat-last -i
 #   seed [1]: 2
 #   task [in_hand_reorientation]: ↵  (accept)
 ```
@@ -330,7 +330,7 @@ python post_upload/upload_tb.py --tb_dir ./runs/seed2 --repeat-last -i
 Re-run verification on the most recent upload without copy/paste:
 
 ```bash
-python post_upload/verify_tb.py --from-last
+python -m nexus.post_upload.verify_tb --from-last
 ```
 
 ---
@@ -455,7 +455,7 @@ When an external evaluator (e.g. an in-house play script, a third-party report g
 2. **Python API.** `upload_eval.py` exposes a non-interactive `upload_eval(...)` function that the eval glue can call in-process — no subprocess, no `y/n` prompt:
 
    ```python
-   from upload_eval import upload_eval
+   from nexus.post_upload.upload_eval import upload_eval
 
    eval_id = upload_eval(
        run_name=info["run_name"],
@@ -473,7 +473,7 @@ When an external evaluator (e.g. an in-house play script, a third-party report g
 CLI equivalent for shell-only glue:
 
 ```bash
-python post_upload/upload_eval.py \
+python -m nexus.post_upload.upload_eval \
     --run-info     /path/to/output/.nexus_run.json \
     --eval_dir     /path/to/output/eval \
     --metrics-from /path/to/output/eval/<run>/metrics.json
@@ -497,7 +497,7 @@ bash setup.sh --alias && source ~/.bashrc
 nexus-activate   # or: source ~/.nexus/activate.sh
 
 # One-time config — fill in your name and the central server
-cp post_upload/post_config.example.json ~/.nexus/post_config.json
+cp nexus/post_upload/post_config.example.json ~/.nexus/post_config.json
 $EDITOR ~/.nexus/post_config.json
 ```
 
@@ -515,7 +515,7 @@ $EDITOR ~/.nexus/post_config.json
 First upload — the CLI handles the rest:
 
 ```
-$ python post_upload/upload_tb.py --tb_dir ./logs/ppo_first_try
+$ python -m nexus.post_upload.upload_tb --tb_dir ./logs/ppo_first_try
 
 ──────── TensorBoard -> MLflow Uploader ────────
 Config source: /home/lee/.nexus/post_config.json
@@ -562,7 +562,7 @@ You trained 5 seeds overnight:
 Upload the first with full metadata:
 
 ```bash
-python post_upload/upload_tb.py \
+python -m nexus.post_upload.upload_tb \
     --tb_dir   ~/runs/ppo_v17_seed1 \
     --run_name ppo_v17_seed1 \
     --tags     seed=1 task=in_hand_reorientation
@@ -572,7 +572,7 @@ For seeds 2–5, `--repeat-last` inherits experiment/tags from history — just 
 
 ```bash
 for S in 2 3 4 5; do
-    python post_upload/upload_tb.py \
+    python -m nexus.post_upload.upload_tb \
         --tb_dir   ~/runs/ppo_v17_seed${S} \
         --run_name ppo_v17_seed${S} \
         --repeat-last --tags seed=${S}
@@ -582,7 +582,7 @@ done
 Confirm all five landed:
 
 ```
-$ python post_upload/upload_tb.py --history
+$ python -m nexus.post_upload.upload_tb --history
 
   Recent uploads (last 5)
   When                Experiment     Run Name         Run ID     Verify  Key Tags
@@ -622,7 +622,7 @@ log_dir.mkdir(parents=True)
 Upload after eval completes:
 
 ```
-$ python post_upload/upload_tb.py \
+$ python -m nexus.post_upload.upload_tb \
     --tb_dir     ./logs/real_eval_2026-04-23 \
     --experiment real_robot_eval \
     --tags       seed=42 task=in_hand_reorientation
@@ -653,7 +653,7 @@ Interactive tag entry (press Enter to accept default)
 Upload failed:
 
 ```
-$ python post_upload/upload_tb.py --tb_dir ~/runs/ppo_v19_seed1 \
+$ python -m nexus.post_upload.upload_tb --tb_dir ~/runs/ppo_v19_seed1 \
       --tags seed=1 task=in_hand_reorientation
 ...
 [ERROR] Failed to connect to MLflow server: HTTPConnectionPool(...)
@@ -663,10 +663,10 @@ Nothing gets saved to history on connect failure, so the command works to replay
 
 ```bash
 # Confirm what the last successful upload looked like
-python post_upload/upload_tb.py --history
+python -m nexus.post_upload.upload_tb --history
 
 # Replay tags + change only the seed and run_name
-python post_upload/upload_tb.py \
+python -m nexus.post_upload.upload_tb \
     --tb_dir   ~/runs/ppo_v19_seed1 \
     --run_name ppo_v19_seed1 \
     --repeat-last --tags seed=1
@@ -675,7 +675,7 @@ python post_upload/upload_tb.py \
 **Upload succeeded, verification failed** (network hiccup during the verify step): the record IS saved with `verify_ok=False`. Re-verify later without copy-paste:
 
 ```bash
-python post_upload/verify_tb.py --from-last
+python -m nexus.post_upload.verify_tb --from-last
 ```
 
 ---
@@ -685,7 +685,7 @@ python post_upload/verify_tb.py --from-last
 You come back from lunch and can't remember if you uploaded `ppo_v17_seed3`:
 
 ```
-$ python post_upload/upload_tb.py --history
+$ python -m nexus.post_upload.upload_tb --history
 
   Recent uploads (last 3)
   2026-04-23T12:18    robot_hand_rl   ppo_v17_seed3   abc...   ✓   seed=3, task=in_hand_...
@@ -708,7 +708,7 @@ In CI (no TTY) every required tag must be explicit; there's no interactive fallb
   env:
     MLFLOW_URI: ${{ secrets.MLFLOW_URI }}
   run: |
-    python post_upload/upload_tb.py \
+    python -m nexus.post_upload.upload_tb \
         --tb_dir       ./logs/${RUN_NAME} \
         --experiment   robot_hand_rl \
         --run_name     ${RUN_NAME} \
@@ -727,7 +727,7 @@ Exit codes you can branch on:
 If a separate CI job handles verification, add `--no_verify` and fail the pipeline later on the verify step instead. For leaner configuration on a long-lived runner, keep `~/.nexus/post_config.json` populated and drop the fixed flags:
 
 ```bash
-python post_upload/upload_tb.py \
+python -m nexus.post_upload.upload_tb \
     --tb_dir ./logs/${RUN_NAME} \
     --tags   seed=${SEED} task=${TASK}
 ```

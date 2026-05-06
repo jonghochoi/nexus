@@ -45,7 +45,7 @@ w.close()
 "
 
 # upload_tb.py 로 run 생성 (이름: baseline_v1)
-echo "y" | python post_upload/upload_tb.py \
+echo "y" | python -m nexus.post_upload.upload_tb \
     --tb_dir /tmp/nexus_manual/tb/baseline_v1 \
     --tracking_uri http://127.0.0.1:5100 \
     --experiment manual_test \
@@ -91,7 +91,7 @@ ls -la /tmp/nexus_manual/eval/baseline_v1/
 
 ```bash
 # dry-run 으로 미리보기
-python post_upload/upload_eval.py \
+python -m nexus.post_upload.upload_eval \
     --tracking_uri http://127.0.0.1:5100 \
     --experiment manual_test --run_name baseline_v1 \
     --eval_dir /tmp/nexus_manual/eval/baseline_v1 \
@@ -101,7 +101,7 @@ python post_upload/upload_eval.py \
     --dry_run
 
 # 진짜 업로드
-echo "y" | python post_upload/upload_eval.py \
+echo "y" | python -m nexus.post_upload.upload_eval \
     --tracking_uri http://127.0.0.1:5100 \
     --experiment manual_test --run_name baseline_v1 \
     --eval_dir /tmp/nexus_manual/eval/baseline_v1 \
@@ -134,7 +134,7 @@ echo "y" | python post_upload/upload_eval.py \
 같은 mp4 폴더로 다른 `eval_id` 만 바꿔서 한 번 더:
 
 ```bash
-echo "y" | python post_upload/upload_eval.py \
+echo "y" | python -m nexus.post_upload.upload_eval \
     --tracking_uri http://127.0.0.1:5100 \
     --experiment manual_test --run_name baseline_v1 \
     --eval_dir /tmp/nexus_manual/eval/baseline_v1 \
@@ -156,7 +156,7 @@ echo "y" | python post_upload/upload_eval.py \
 observer 가 자기 페이지를 동봉하거나, 아예 mp4 만 던지고 싶을 때:
 
 ```bash
-echo "y" | python post_upload/upload_eval.py \
+echo "y" | python -m nexus.post_upload.upload_eval \
     --tracking_uri http://127.0.0.1:5100 \
     --experiment manual_test --run_name baseline_v1 \
     --eval_dir /tmp/nexus_manual/eval/baseline_v1 \
@@ -184,7 +184,7 @@ cat > /tmp/nexus_manual/eval_user_idx/index.html <<'HTML'
 </body></html>
 HTML
 
-echo "y" | python post_upload/upload_eval.py \
+echo "y" | python -m nexus.post_upload.upload_eval \
     --tracking_uri http://127.0.0.1:5100 \
     --experiment manual_test --run_name baseline_v1 \
     --eval_dir /tmp/nexus_manual/eval_user_idx \
@@ -207,7 +207,7 @@ eval_dir already contains index.html — leaving it alone.
 ## 7. 잘못된 run_name 은 dry-run 에서도 차단되어야 한다
 
 ```bash
-python post_upload/upload_eval.py \
+python -m nexus.post_upload.upload_eval \
     --tracking_uri http://127.0.0.1:5100 \
     --experiment manual_test --run_name oops_typo \
     --eval_dir /tmp/nexus_manual/eval/baseline_v1 \
@@ -229,7 +229,7 @@ mkdir -p "/tmp/nexus_manual/eval_spaces"
 cp /tmp/nexus_manual/eval/baseline_v1/rollout.mp4 \
    "/tmp/nexus_manual/eval_spaces/run 5 — best.mp4"
 
-echo "y" | python post_upload/upload_eval.py \
+echo "y" | python -m nexus.post_upload.upload_eval \
     --tracking_uri http://127.0.0.1:5100 \
     --experiment manual_test --run_name baseline_v1 \
     --eval_dir /tmp/nexus_manual/eval_spaces \
@@ -247,17 +247,17 @@ echo "y" | python post_upload/upload_eval.py \
 
 ```bash
 # eval 만
-python post_upload/upload_eval.py --history
+python -m nexus.post_upload.upload_eval --history
 
 # tb 만
-python post_upload/upload_tb.py --history
+python -m nexus.post_upload.upload_tb --history
 ```
 
 체크:
 
 - [ ] `upload_eval.py --history` 출력에 위에서 만든 eval 번들들이 있고, `Kind` 컬럼이 `eval` 이다
 - [ ] `upload_tb.py --history` 출력에는 §1 의 `baseline_v1` (`Kind=tb`) 만 보이고 eval 항목은 안 섞인다
-- [ ] `python post_upload/verify_tb.py --from-last` 가 §1 의 tb run 으로 잘 잡힌다 (eval 레코드를 잘못 끌고 오지 않음)
+- [ ] `python -m nexus.post_upload.verify_tb --from-last` 가 §1 의 tb run 으로 잘 잡힌다 (eval 레코드를 잘못 끌고 오지 않음)
 
 ---
 
