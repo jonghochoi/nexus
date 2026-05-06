@@ -7,8 +7,21 @@ score JSONs) to an existing MLflow run that was created by upload_tb.py or by
 Pipeline A's MLflowLogger. The run is resolved by --run_name; the directory
 passed via --eval_dir lands under eval/<eval_id>/ — never under checkpoints/.
 
-Usage:
-    python upload_eval.py --run_name baseline_v1 --eval_dir ./eval_outputs/baseline_v1
+Two entry points:
+    1. CLI — ``python upload_eval.py --run_name X --eval_dir Y``
+    2. Python — ``from upload_eval import upload_eval; upload_eval(...)``
+       Used by glue scripts that drive an external eval tool (e.g. observer)
+       and want to upload its outputs in-process. The Python API is
+       non-interactive (no y/n prompt) and accepts a ``metrics`` dict
+       directly so the caller can flatten domain-specific metrics.json files
+       however it likes — upload_eval.py itself stays generic.
+
+Optional convenience flags:
+    --run-info <path>     Read run_name / experiment / tracking_uri from a
+                          ``.nexus_run.json`` sidecar (written by make_logger).
+                          Explicit CLI args take precedence.
+    --metrics-from <path> Auto-promote numeric scalars from a JSON file
+                          (dotted-key flatten) into ``eval/<key>`` metrics.
 
 MLflow 2.13's artifact viewer renders HTML inline but not mp4. To make
 rollouts playable in the UI, an index.html is auto-generated next to the
@@ -26,6 +39,7 @@ Expected eval_dir layout:
 
 import argparse
 import html
+import json
 import sys
 import tempfile
 import time
@@ -34,7 +48,9 @@ from pathlib import Path
 from typing import Optional
 
 # Ensure sibling modules resolve whether invoked from repo root or post_upload/.
+# The parent insertion lets ``nexus.logger.run_info`` import from either layout.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import mlflow
 from mlflow.tracking import MlflowClient
@@ -44,6 +60,7 @@ from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn
 
 from config import DEFAULT_CONFIG_PATH, load_config
 from history import make_eval_record, print_history, save_upload
+from nexus.logger.run_info import read_run_info
 
 console = Console()
 
@@ -116,6 +133,24 @@ def parse_args(defaults: dict):
         dest="no_index",
         action="store_true",
         help="Don't auto-generate index.html (use when the observer ships its own)",
+    )
+    parser.add_argument(
+        "--run-info",
+        dest="run_info",
+        type=str,
+        default=None,
+        help="Path to a .nexus_run.json sidecar (or its parent directory). "
+        "Fills run_name / experiment / tracking_uri when those flags are absent — "
+        "explicit flags take precedence.",
+    )
+    parser.add_argument(
+        "--metrics-from",
+        dest="metrics_from",
+        type=str,
+        default=None,
+        help="Path to a JSON file. Numeric scalars (with dotted-key flattening "
+        "for nested dicts) are auto-promoted to 'eval/<key>' metrics on the run. "
+        "Merged with --metrics; --metrics wins on conflict.",
     )
     parser.add_argument(
         "--dry_run", action="store_true", help="List what would be uploaded, then exit"
@@ -329,6 +364,45 @@ def coerce_metric(value: str) -> Optional[float]:
         return None
 
 
+def flatten_metrics_json(path: Path) -> dict:
+    """Flatten a metrics JSON into a {dotted_key: float} dict.
+
+    Walks nested dicts with '.' separators (e.g. ``{"a": {"b": 1}}`` →
+    ``{"a.b": 1.0}``). Non-numeric leaves and lists are skipped silently —
+    the upstream metrics.json may carry strings (checkpoint name, dominant
+    failure mode) that aren't meaningful as MLflow scalars.
+    """
+    if not path.exists():
+        console.print(f"[red][ERROR] --metrics-from file not found: {path}[/red]")
+        sys.exit(1)
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        console.print(f"[red][ERROR] {path} is not valid JSON: {e}[/red]")
+        sys.exit(1)
+    if not isinstance(data, dict):
+        console.print(f"[red][ERROR] {path} must contain a JSON object at top level[/red]")
+        sys.exit(1)
+
+    out: dict[str, float] = {}
+
+    def walk(obj, prefix: str):
+        for k, v in obj.items():
+            key = f"{prefix}.{k}" if prefix else str(k)
+            if isinstance(v, dict):
+                walk(v, key)
+            elif isinstance(v, bool):
+                # bool is a subclass of int — keep as 0/1 metric.
+                out[key] = float(v)
+            elif isinstance(v, (int, float)):
+                out[key] = float(v)
+            # Strings, lists, None — silently skipped.
+
+    walk(data, "")
+    return out
+
+
 def namespace_tags(tags: dict) -> dict:
     """Prefix bare tag keys with 'eval.' so they don't collide with run-level tags.
 
@@ -378,7 +452,154 @@ def upload_artifacts(
             progress.advance(task)
 
 
-# ── 6. Main ──────────────────────────────────────────────────────────────────
+# ── 6. Python API ────────────────────────────────────────────────────────────
+def upload_eval(
+    *,
+    run_name: str,
+    eval_dir,
+    experiment: Optional[str] = None,
+    tracking_uri: Optional[str] = None,
+    eval_id: Optional[str] = None,
+    metrics: Optional[dict] = None,
+    metrics_from=None,
+    tags: Optional[dict] = None,
+    generate_index: bool = True,
+    dry_run: bool = False,
+    confirm: bool = False,
+    record_history: bool = True,
+    config_path: Optional[str] = None,
+    verbose: bool = True,
+) -> str:
+    """Programmatic entry point — used by glue scripts that drive an external
+    eval tool (observer, custom evaluators, etc.) and want to upload its
+    outputs in-process.
+
+    ``metrics`` is a {key: numeric} dict; ``metrics_from`` is the path to a
+    JSON file whose numeric scalars are auto-promoted (dotted-key flatten).
+    The two are merged — explicit ``metrics`` wins on key conflict.
+
+    ``experiment`` / ``tracking_uri`` fall back to ``~/.nexus/post_config.json``
+    (or ``config_path``) when omitted, matching the CLI's behavior.
+
+    ``confirm=False`` (default) skips the interactive y/n prompt — programmatic
+    callers should leave it off; the CLI passes ``confirm=True``.
+
+    Returns the ``eval_id`` (subdirectory under ``eval/``).
+    """
+    config = load_config(config_path)
+    experiment = experiment or config["experiment"]
+    tracking_uri = tracking_uri or config["tracking_uri"]
+
+    if verbose:
+        console.rule("[bold blue]Eval Artifact Uploader[/bold blue]")
+        console.print(f"[dim]Config source: {config['source']}[/dim]")
+        console.print(f"[cyan]MLflow URI:[/cyan] {tracking_uri}")
+        console.print(f"[cyan]Experiment:[/cyan] {experiment}")
+        console.print(f"[cyan]Run Name  :[/cyan] {run_name}\n")
+
+    eval_dir_path = Path(eval_dir).expanduser().resolve()
+    files = scan_eval_dir(eval_dir_path)
+    if verbose:
+        preview_files(eval_dir_path, files)
+
+    resolved_id = eval_id or time.strftime("%Y%m%d_%H%M%S")
+    artifact_path = f"eval/{resolved_id}"
+    if verbose:
+        console.print(f"[cyan]Will upload to:[/cyan] artifacts/{artifact_path}/\n")
+
+    # Merge: --metrics-from JSON is the floor; explicit metrics dict wins.
+    merged_metrics: dict = {}
+    if metrics_from is not None:
+        merged_metrics.update(flatten_metrics_json(Path(metrics_from)))
+    if metrics:
+        merged_metrics.update(metrics)
+
+    namespaced = namespace_tags(dict(tags or {}))
+
+    # Resolve the target run *before* the dry-run early-exit so misspelled
+    # run_names are caught up front rather than after a real upload attempt.
+    mlflow.set_tracking_uri(tracking_uri)
+    client = MlflowClient(tracking_uri=tracking_uri)
+    resolved = resolve_run(client, experiment, run_name)
+    run_id = resolved["run_id"]
+    if verbose:
+        console.print(f"[cyan]Resolved run_id:[/cyan] {run_id}\n")
+
+    if dry_run:
+        if verbose:
+            console.print("[bold yellow]--dry_run mode: skipping upload.[/bold yellow]")
+            if merged_metrics:
+                preview = {f"eval/{k}": v for k, v in merged_metrics.items()}
+                console.print(f"[cyan]Would log metrics:[/cyan] {preview}")
+            if namespaced:
+                console.print(f"[cyan]Would set tags:[/cyan] {namespaced}")
+        return resolved_id
+
+    if confirm:
+        console.print("Upload to MLflow? [bold](y/n)[/bold]: ", end="")
+        answer = input().strip().lower()
+        if answer != "y":
+            console.print("[yellow]Upload cancelled.[/yellow]")
+            return resolved_id
+
+    # Build index.html unless suppressed or one already exists in eval_dir.
+    has_user_index = any(rel.name == "index.html" for rel, _ in files)
+    index_html: Optional[str] = None
+    if generate_index and not has_user_index:
+        index_html = build_index_html(run_name, resolved_id, files)
+        if verbose:
+            console.print("[dim]Auto-generating index.html for in-UI playback.[/dim]")
+    elif has_user_index and verbose:
+        console.print("[dim]eval_dir already contains index.html — leaving it alone.[/dim]")
+
+    upload_artifacts(client, run_id, eval_dir_path, artifact_path, files, index_html)
+
+    # Log scalar eval metrics on the parent run, namespaced under eval/.
+    # Step is the unix timestamp so multiple eval bundles plot in order.
+    logged_metrics: dict = {}
+    if merged_metrics:
+        ts_step = int(time.time())
+        for k, v in merged_metrics.items():
+            f = v if isinstance(v, (int, float)) else coerce_metric(str(v))
+            if f is None:
+                console.print(f"[yellow][WARN] Skipping non-numeric metric: {k}={v}[/yellow]")
+                continue
+            client.log_metric(run_id, f"eval/{k}", float(f), step=ts_step)
+            logged_metrics[k] = float(f)
+
+    # Always stamp eval.last_id so consumers can find the latest bundle.
+    persistent_tags = {"eval.last_id": resolved_id, **namespaced}
+    for k, v in persistent_tags.items():
+        client.set_tag(run_id, k, v)
+
+    if verbose:
+        console.print("\n[bold green]✓ Eval upload complete![/bold green]")
+        console.print(f"  Run ID        : [yellow]{run_id}[/yellow]")
+        console.print(f"  Artifact path : artifacts/{artifact_path}/")
+        if index_html is not None:
+            console.print(
+                f"  UI playback   : open the run in MLflow → Artifacts → {artifact_path}/index.html"
+            )
+
+    if record_history:
+        save_upload(
+            make_eval_record(
+                run_id=run_id,
+                eval_dir=str(eval_dir_path),
+                eval_id=resolved_id,
+                experiment=resolved["experiment_name"],
+                run_name=run_name,
+                tracking_uri=tracking_uri,
+                artifact_path=artifact_path,
+                files=[str(rel) for rel, _ in files],
+                metrics=logged_metrics,
+                tags=namespaced,
+            )
+        )
+    return resolved_id
+
+
+# ── 7. Main (CLI shell) ──────────────────────────────────────────────────────
 def _preparse_config_path() -> Optional[str]:
     """Scan sys.argv for --config so we can load the config before argparse
     builds its defaults. Returns the path if present, else None."""
@@ -399,100 +620,41 @@ def main():
         print_history(script="upload_eval")
         return
 
+    # --run-info — fill in missing run_name / experiment / tracking_uri from
+    # the .nexus_run.json sidecar. Explicit CLI args always win.
+    if args.run_info:
+        info = read_run_info(args.run_info)
+        if not args.run_name:
+            args.run_name = info["run_name"]
+        # The argparse defaults below come from load_config(), so we can't
+        # tell "user passed it" from "config supplied it". Fall back to
+        # run_info only when it'd otherwise differ from the post_config
+        # default — anything else risks silently overriding the user.
+        if args.experiment == config["experiment"] and info.get("experiment"):
+            args.experiment = info["experiment"]
+        if args.tracking_uri == config["tracking_uri"] and info.get("tracking_uri"):
+            args.tracking_uri = info["tracking_uri"]
+
     if not args.run_name or not args.eval_dir:
-        console.print("[red][ERROR] --run_name and --eval_dir are required for uploads.[/red]")
+        console.print(
+            "[red][ERROR] --run_name and --eval_dir are required for uploads.[/red]\n"
+            "[dim]  -> Pass --run-info <path/to/.nexus_run.json> to fill run_name automatically.[/dim]"
+        )
         sys.exit(1)
 
-    console.rule("[bold blue]Eval Artifact Uploader[/bold blue]")
-    console.print(f"[dim]Config source: {config['source']}[/dim]")
-    console.print(f"[cyan]MLflow URI:[/cyan] {args.tracking_uri}")
-    console.print(f"[cyan]Experiment:[/cyan] {args.experiment}")
-    console.print(f"[cyan]Run Name  :[/cyan] {args.run_name}\n")
-
-    eval_dir = Path(args.eval_dir).expanduser().resolve()
-    files = scan_eval_dir(eval_dir)
-    preview_files(eval_dir, files)
-
-    eval_id = args.eval_id or time.strftime("%Y%m%d_%H%M%S")
-    artifact_path = f"eval/{eval_id}"
-    console.print(f"[cyan]Will upload to:[/cyan] artifacts/{artifact_path}/\n")
-
-    metrics = parse_kv_list(args.metrics, "metric")
-    tags = namespace_tags(parse_kv_list(args.tags, "tag"))
-
-    # Resolve the target run *before* the dry-run early-exit so misspelled
-    # run_names are caught up front rather than after a real upload attempt.
-    mlflow.set_tracking_uri(args.tracking_uri)
-    client = MlflowClient(tracking_uri=args.tracking_uri)
-    resolved = resolve_run(client, args.experiment, args.run_name)
-    run_id = resolved["run_id"]
-    console.print(f"[cyan]Resolved run_id:[/cyan] {run_id}\n")
-
-    if args.dry_run:
-        console.print("[bold yellow]--dry_run mode: skipping upload.[/bold yellow]")
-        if metrics:
-            console.print(
-                f"[cyan]Would log metrics:[/cyan] { {f'eval/{k}': v for k, v in metrics.items()} }"
-            )
-        if tags:
-            console.print(f"[cyan]Would set tags:[/cyan] {tags}")
-        return
-
-    # Confirm before mutating the existing run.
-    console.print("Upload to MLflow? [bold](y/n)[/bold]: ", end="")
-    answer = input().strip().lower()
-    if answer != "y":
-        console.print("[yellow]Upload cancelled.[/yellow]")
-        return
-
-    # Build index.html unless suppressed or one already exists in eval_dir.
-    has_user_index = any(rel.name == "index.html" for rel, _ in files)
-    index_html: Optional[str] = None
-    if not args.no_index and not has_user_index:
-        index_html = build_index_html(args.run_name, eval_id, files)
-        console.print("[dim]Auto-generating index.html for in-UI playback.[/dim]")
-    elif has_user_index:
-        console.print("[dim]eval_dir already contains index.html — leaving it alone.[/dim]")
-
-    upload_artifacts(client, run_id, eval_dir, artifact_path, files, index_html)
-
-    # Log scalar eval metrics on the parent run, namespaced under eval/.
-    # Step is the unix timestamp so multiple eval bundles plot in order.
-    if metrics:
-        ts_step = int(time.time())
-        for k, v in metrics.items():
-            f = coerce_metric(v)
-            if f is None:
-                console.print(f"[yellow][WARN] Skipping non-numeric metric: {k}={v}[/yellow]")
-                continue
-            client.log_metric(run_id, f"eval/{k}", f, step=ts_step)
-
-    # Always stamp eval.last_id so consumers can find the latest bundle.
-    persistent_tags = {"eval.last_id": eval_id, **tags}
-    for k, v in persistent_tags.items():
-        client.set_tag(run_id, k, v)
-
-    console.print(f"\n[bold green]✓ Eval upload complete![/bold green]")
-    console.print(f"  Run ID        : [yellow]{run_id}[/yellow]")
-    console.print(f"  Artifact path : artifacts/{artifact_path}/")
-    if index_html is not None:
-        console.print(
-            f"  UI playback   : open the run in MLflow → Artifacts → {artifact_path}/index.html"
-        )
-
-    save_upload(
-        make_eval_record(
-            run_id=run_id,
-            eval_dir=str(eval_dir),
-            eval_id=eval_id,
-            experiment=resolved["experiment_name"],
-            run_name=args.run_name,
-            tracking_uri=args.tracking_uri,
-            artifact_path=artifact_path,
-            files=[str(rel) for rel, _ in files],
-            metrics=metrics,
-            tags=tags,
-        )
+    upload_eval(
+        run_name=args.run_name,
+        eval_dir=args.eval_dir,
+        experiment=args.experiment,
+        tracking_uri=args.tracking_uri,
+        eval_id=args.eval_id,
+        metrics=parse_kv_list(args.metrics, "metric"),
+        metrics_from=args.metrics_from,
+        tags=parse_kv_list(args.tags, "tag"),
+        generate_index=not args.no_index,
+        dry_run=args.dry_run,
+        confirm=True,
+        config_path=args.config,
     )
 
 

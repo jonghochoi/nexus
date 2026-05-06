@@ -422,8 +422,10 @@ The script also synthesizes an `index.html` next to any `.mp4` it finds. MLflow 
 | `--tracking_uri URL` | MLflow server (default: from config) |
 | `--config PATH` | Alternate config file path |
 | `--metrics k=v ...` | Scalar eval metrics to log on the run (e.g. `success_rate=0.87`); each becomes `eval/<key>` |
+| `--metrics-from PATH` | JSON file whose numeric scalars are auto-promoted to `eval/<key>` (dotted-key flatten for nested dicts) — handy when the eval tool already writes a `metrics.json`; merged with `--metrics`, the latter wins on conflict |
 | `--tags k=v ...` | Tags to set on the run (prefixed with `eval.` if not already, e.g. `eval.observer_commit=abc123`) |
 | `--no-index` | Don't auto-generate `index.html` (use when you've shipped your own) |
+| `--run-info PATH` | Path to a `.nexus_run.json` sidecar (or its parent dir) written by `make_logger()` — fills `--run_name` / `--experiment` / `--tracking_uri` when those flags are absent |
 | `--dry_run` | List what would be uploaded, then exit |
 
 Recommended `eval_dir` layout:
@@ -438,6 +440,46 @@ eval_outputs/baseline_v1/
 ```
 
 After upload, the MLflow run gains an `eval/<eval_id>/` artifact folder containing all of the above plus the auto-generated `index.html`. The same run can accept multiple eval bundles over time — each goes into its own `eval/<eval_id>/` subdir, so they never collide.
+
+### ── Driving from another tool — Python API + `.nexus_run.json`
+
+When an external evaluator (e.g. an in-house play script, a third-party report generator) sits between training and upload, the trainer's run identity needs to flow through it. Two pieces help:
+
+1. **`.nexus_run.json` sidecar.** When you call `make_logger()` with a `tb_dir`, nexus writes `<tb_dir>/.nexus_run.json` with `{run_name, run_id, experiment, tracking_uri, ...}`. The eval/upload step can recover the run identity without re-deriving it from training configs.
+
+   ```python
+   from nexus.logger.run_info import read_run_info
+   info = read_run_info(output_dir)   # accepts dir or file path
+   ```
+
+2. **Python API.** `upload_eval.py` exposes a non-interactive `upload_eval(...)` function that the eval glue can call in-process — no subprocess, no `y/n` prompt:
+
+   ```python
+   from upload_eval import upload_eval
+
+   eval_id = upload_eval(
+       run_name=info["run_name"],
+       experiment=info["experiment"],
+       tracking_uri=info["tracking_uri"],
+       eval_dir=output_dir / "eval",
+       metrics={"success_rate": 0.87, "energy_J_mean": 1.32},
+       metrics_from=output_dir / "eval" / "metrics.json",
+       tags={"observer_commit": "abc123"},
+   )
+   ```
+
+   `metrics` (caller-flattened scalars) and `metrics_from` (auto-flatten a JSON file) are merged; the explicit `metrics` dict wins on conflict. The function is generic — it knows nothing about any specific eval tool's output layout, so the caller is responsible for handing it a populated `eval_dir` and (optionally) a `metrics.json` to promote.
+
+CLI equivalent for shell-only glue:
+
+```bash
+python post_upload/upload_eval.py \
+    --run-info     /path/to/output/.nexus_run.json \
+    --eval_dir     /path/to/output/eval \
+    --metrics-from /path/to/output/eval/<run>/metrics.json
+```
+
+`--run-info` fills `--run_name` / `--experiment` / `--tracking_uri` when they aren't passed explicitly; explicit flags always win.
 
 ---
 
