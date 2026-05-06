@@ -169,7 +169,7 @@ Consequences:
 
 - **TOC links to H2 sections** — no leading hyphen (H2 headers start with a letter, no leading space after stripping).
   ```markdown
-  [Step 1 — Verify](#step-1--verify-install-on-the-gpu-node)
+  [Step 2 — Verify](#step-2--verify-install-on-the-gpu-node)
   ```
 - **TOC links to H3/H4 sections** — include the leading hyphen:
   ```markdown

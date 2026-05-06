@@ -13,9 +13,10 @@
 #   --local_uri <uri>  Override local MLflow URI for experiment discovery
 #                      (default: http://127.0.0.1:5100; also read from --config)
 #
-# Cron example (as root or dedicated sync account):
-#   */5 * * * * bash /opt/nexus/scheduled_sync/sync_mlflow_all.sh \
-#       >> /var/log/nexus_sync.log 2>&1
+# Cron example (register under the operator's user account, NOT root —
+# `crontab -e`. $HOME expands to the operator's home at run time):
+#   */5 * * * * bash $HOME/nexus/scheduled_sync/sync_mlflow_all.sh \
+#       >> $HOME/.nexus/sync.log 2>&1
 #
 # Exit codes:
 #   0 — all experiments synced (or no experiments found)

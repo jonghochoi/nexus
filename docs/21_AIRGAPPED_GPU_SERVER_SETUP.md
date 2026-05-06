@@ -2,7 +2,7 @@
 
 > **Purpose:** Bring up a GPU server that has no internet access. Download Python packages on an internet-connected machine, transfer them via SCP, and install offline.
 >
-> This guide is for **operators** standing up a new GPU node. Once the GPU node smoke test passes (Step 1 below), wire the cron sync via [`12_SCHEDULED_SYNC.md`](12_SCHEDULED_SYNC.md).
+> This guide is for **operators** standing up a new GPU node. Once the GPU node smoke test passes (Step 2 below), wire the cron sync via [`12_SCHEDULED_SYNC.md`](12_SCHEDULED_SYNC.md).
 
 ---
 
@@ -10,11 +10,11 @@
 
 - [TL;DR](#tldr)
 - [Prerequisites](#prerequisites)
-- [Step 0 — Verify install on local PC first](#step-0--verify-install-on-local-pc-first-recommended)
+- [Step 1 — Transfer & install offline](#step-1--transfer--install-offline)
   - [Method selection criteria](#-method-selection-criteria)
   - [Method A — pip wheel offline transfer](#-method-a--pip-wheel-offline-transfer-no-docker-required-recommended)
   - [Method B — Docker image transfer](#-method-b--docker-image-transfer-when-docker-is-available)
-- [Step 1 — Verify install on the GPU node](#step-1--verify-install-on-the-gpu-node)
+- [Step 2 — Verify install on the GPU node](#step-2--verify-install-on-the-gpu-node)
 - [Troubleshooting](#troubleshooting)
 - [Next steps](#next-steps)
 
@@ -27,7 +27,8 @@
 export GPU_PY=3.12 GPU_PLATFORM=manylinux2014_x86_64
 pip download --platform "$GPU_PLATFORM" --python-version "$GPU_PY" \
     --only-binary=:all: -d ./nexus_wheels \
-    virtualenv mlflow==2.13.0 tbparse==0.0.8 tensorboard==2.16.2 tensorboardX pandas rich
+    virtualenv setuptools==69.5.1 mlflow==2.13.0 tbparse==0.0.8 \
+    tensorboard==2.16.2 tensorboardX pandas rich
 
 # Transfer to the GPU server
 scp -r nexus_wheels nexus user@gpu-server:~/
@@ -36,10 +37,12 @@ scp -r nexus_wheels nexus user@gpu-server:~/
 cd ~/nexus
 pip install --no-index --find-links ~/nexus_wheels --break-system-packages virtualenv
 python3 -m virtualenv ~/.nexus/venv && source ~/.nexus/venv/bin/activate
+pip install --force-reinstall --no-index --find-links ~/nexus_wheels setuptools==69.5.1
+pip install --upgrade pip
 pip install --no-index --find-links ~/nexus_wheels mlflow==2.13.0 tbparse==0.0.8 \
     tensorboard==2.16.2 tensorboardX pandas rich
 
-# Verify (Step 1)
+# Verify (Step 2)
 python tests/smoke_test.py
 ```
 
@@ -54,62 +57,17 @@ python tests/smoke_test.py
 |---|---|
 | Internet-connected machine (your local PC) | Used to download wheels / build Docker image |
 | GPU server SSH access (key-based) | Target node — receives the transferred bundle |
-| GPU server's Python version + arch | You will pin downloads against this — see Method A, A.1 |
+| GPU server's Python version + arch | You will pin downloads against this — see [Method A → Download wheel files](#-on-local-machine--download-wheel-files) |
 
 The GPU server needs **outgoing SSH** to your local PC only for the initial transfer. After that it operates fully air-gapped except for cron-triggered SCP/SSH to the central NEXUS server (covered in [`12_SCHEDULED_SYNC.md`](12_SCHEDULED_SYNC.md)).
 
----
-
-## Step 0 — Verify install on local PC first *(recommended)*
-
-> **Why:** Confirm that NEXUS itself works on a familiar machine before pinning wheels for an offline target. If the smoke test fails locally, it will fail on the GPU node too — debug it once on your laptop.
-
-### ── Clone the repository
-
-```bash
-git clone https://github.com/jonghochoi/nexus.git
-cd nexus
-```
-
-### ── Verify Python version
-
-```bash
-python3 --version
-```
-
-Must be `Python 3.8` or higher. 3.10 or 3.11 is recommended.
-
-### ── Install environment
-
-```bash
-bash setup.sh
-source ~/.nexus/activate.sh   # or: nexus-activate (if you ran setup.sh --alias)
-```
-
-The venv lives at `~/.nexus/venv` — **outside** the repo — so replacing or re-cloning nexus sources does not wipe it.
-
-### ── Verify installation
-
-```bash
-python -c "import mlflow; print('mlflow:', mlflow.__version__)"
-python -c "import tbparse; print('tbparse OK')"
-python -c "from nexus.logger import make_logger; print('logger OK')"
-```
-
-If all three lines output without errors, the package install is sound.
-
-### ── Start local MLflow + run smoke test
-
-```bash
-bash scheduled_sync/start_local_mlflow.sh   # boots :5100
-python tests/smoke_test.py                  # all items must report [PASS]
-```
-
-The smoke test creates real runs under the `nexus_smoke_test` experiment on `http://localhost:5100`. Open the UI in a browser to confirm the runs are visible.
-
-✅ **Step 0 done when:** `python tests/smoke_test.py` shows `All tests passed!` and `nexus_smoke_test` runs are visible in the local MLflow UI. Now you know the package itself works — proceed to one of the offline methods below.
+> 💡 **First time using NEXUS?** Before pinning wheels for an offline target, confirm the package itself works on any internet-connected machine — `bash setup.sh && bash scheduled_sync/start_local_mlflow.sh && python tests/smoke_test.py`. If smoke test fails there, it will fail on the GPU node too. See [`README.md`](../README.md) → Quick Start and [`11_LOGGER_SETUP.md`](11_LOGGER_SETUP.md) for the package-level walkthrough.
 
 ---
+
+## Step 1 — Transfer & install offline
+
+> **Purpose:** Get nexus onto the GPU node when there is no direct internet access. Pick **Method A** (pip wheels) or **Method B** (Docker image) using the table below — both produce a working install at `~/.nexus/venv`.
 
 ### ── Method selection criteria
 
@@ -119,8 +77,6 @@ The smoke test creates real runs under the `nexus_smoke_test` experiment on `htt
 | No Docker on GPU server, local machine is macOS/Windows | Method A (platform must be specified) |
 | Docker is installed on GPU server | Method B |
 | Entire team needs to share the same environment | Method B |
-
----
 
 ### ── Method A — pip wheel offline transfer *(no Docker required, recommended)*
 
@@ -158,6 +114,7 @@ pip download \
     --only-binary=:all: \
     -d ./nexus_wheels \
     virtualenv \
+    setuptools==69.5.1 \
     mlflow==2.13.0 \
     tbparse==0.0.8 \
     tensorboard==2.16.2 \
@@ -165,6 +122,8 @@ pip download \
     pandas \
     rich
 ```
+
+> 💡 `setuptools==69.5.1` is pinned because setuptools 70+ removed `pkg_resources`, which `tbparse` still imports. See [Troubleshooting](#-modulenotfounderror-no-module-named-pkg_resources) if you skip it and hit the import error.
 
 #### ── On local machine — Transfer nexus code + wheel files to GPU server
 
@@ -217,8 +176,6 @@ pip install \
 ```
 
 > **Why `virtualenv`:** On Ubuntu/Debian, the `pythonX.Y-venv` package (e.g. `python3.12-venv`) ships via apt and cannot be transferred as a pip wheel. `virtualenv` is a pip package that can be transferred offline as a wheel, and its usage is identical to venv.
-
----
 
 ### ── Method B — Docker image transfer *(when Docker is available)*
 
@@ -289,7 +246,7 @@ Run all subsequent commands inside the container.
 
 ---
 
-## Step 1 — Verify install on the GPU node
+## Step 2 — Verify install on the GPU node
 
 > **Purpose:** Confirm the offline install actually works before wiring cron sync. Run all commands while SSH-connected to the GPU server.
 
@@ -323,7 +280,7 @@ bash scheduled_sync/start_local_mlflow.sh
 python tests/smoke_test.py
 ```
 
-All items must show `[PASS]`, same as on the local PC.
+All items must show `[PASS]`. The smoke test creates real runs under the `nexus_smoke_test` experiment on `http://127.0.0.1:5100` — open the UI via the SSH tunnel above to confirm the runs are visible.
 
 ### ── Integrated test with actual training code (optional)
 
@@ -350,14 +307,14 @@ self.writer = make_logger(
 
 After training starts, verify metrics accumulate in real time in the MLflow UI (`http://localhost:5100`) via SSH tunneling.
 
-### ── Step 1 checklist
+### ── Step 2 checklist
 
 - [ ] `import mlflow` succeeds on the GPU server
 - [ ] `bash scheduled_sync/start_local_mlflow.sh` runs without errors and the UI is reachable via SSH tunnel
 - [ ] All `[PASS]` in `python tests/smoke_test.py`
 - [ ] *(Optional)* Live metrics confirmed in the MLflow UI after a short training run
 
-Once Step 1 passes, proceed to [`12_SCHEDULED_SYNC.md`](12_SCHEDULED_SYNC.md) to wire the cron sync to the central NEXUS server.
+Once Step 2 passes, proceed to [`12_SCHEDULED_SYNC.md`](12_SCHEDULED_SYNC.md) to wire the cron sync to the central NEXUS server.
 
 ---
 
@@ -375,19 +332,16 @@ After creating and activating a virtual environment (e.g. `python3 -m virtualenv
 
 ### ── `ModuleNotFoundError: No module named 'pkg_resources'`
 
-Starting from setuptools version 70+, `pkg_resources` has been removed from wheels. Switch to the last stable version that includes `pkg_resources` (69.5.1):
+Hits when the `setuptools==69.5.1` pin from [Method A](#-method-a--pip-wheel-offline-transfer-no-docker-required-recommended) was skipped — setuptools 70+ removed `pkg_resources`, which `tbparse` still imports. Re-download the pin and force-reinstall:
 
 ```bash
-# On local machine: download pinned version (uses GPU_PY / GPU_PLATFORM from A.1)
+# On local machine — append to existing wheels dir
 pip download --platform "${GPU_PLATFORM}" --python-version "${GPU_PY}" \
     --only-binary=:all: -d ./nexus_wheels "setuptools==69.5.1"
-
 scp nexus_wheels/setuptools-69.5.1*.whl user@gpu-server:~/nexus_wheels/
 
-# On GPU server: force reinstall
+# On GPU server
 pip install --force-reinstall --no-index --find-links ~/nexus_wheels "setuptools==69.5.1"
-
-# Verify
 python -c "import pkg_resources; print('OK')"
 ```
 
@@ -396,7 +350,7 @@ python -c "import pkg_resources; print('OK')"
 Some packages don't have binary wheels and require source compilation. Separate individual packages instead of using `--only-binary=:all:`:
 
 ```bash
-# Packages with binary wheels (uses GPU_PY / GPU_PLATFORM from A.1)
+# Packages with binary wheels (uses GPU_PY / GPU_PLATFORM exported in Method A)
 pip download --platform "${GPU_PLATFORM}" --python-version "${GPU_PY}" \
     --only-binary=:all: -d ./nexus_wheels \
     mlflow==2.13.0 pandas rich virtualenv
@@ -463,7 +417,7 @@ Almost always this means the local MLflow at `:5100` is not running, since dual 
 
 ## Next steps
 
-After Step 1 passes:
+After Step 2 passes:
 
 1. **Wire cron sync to central server** → [`12_SCHEDULED_SYNC.md`](12_SCHEDULED_SYNC.md)
 2. **Pipeline B alternative** (post-upload, no live sync) → [`13_POST_UPLOAD.md`](13_POST_UPLOAD.md)
