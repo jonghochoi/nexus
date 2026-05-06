@@ -175,10 +175,10 @@ The default pulls **`mlflow-skinny`** — `MlflowClient` and the tracking / enti
 | **10** | [`docs/10_ARCHITECTURE.md`](docs/10_ARCHITECTURE.md) | Full system design and component map |
 | **11** | [`docs/11_LOGGER_SETUP.md`](docs/11_LOGGER_SETUP.md) | Pipeline A — logger integration step-by-step diff |
 | **12** | [`docs/12_SCHEDULED_SYNC.md`](docs/12_SCHEDULED_SYNC.md) | Pipeline A — cron sync wiring (config, validate, multi-user, verification checklist) |
-| **13** | [`docs/13_POST_UPLOAD.md`](docs/13_POST_UPLOAD.md) | Pipeline B — `upload_tb` / `verify_tb` / `upload_eval` CLIs: config, interactive, history, `sim_run_id`, eval artifact attach |
+| **13** | [`docs/13_POST_UPLOAD.md`](docs/13_POST_UPLOAD.md) | Pipeline B — `upload_tb` / `verify_tb` CLIs: config, interactive, history, `sim_run_id` |
 | **20** | [`docs/20_MLFLOW_SERVER_SETUP.md`](docs/20_MLFLOW_SERVER_SETUP.md) | Operator — central MLflow server install (Step 0 includes local PC verification) |
 | **21** | [`docs/21_AIRGAPPED_GPU_SERVER_SETUP.md`](docs/21_AIRGAPPED_GPU_SERVER_SETUP.md) | Operator — GPU node offline bring-up (Step 1 transfer & install via Method A or B, Step 2 smoke-test verification) |
-| **30** | [`docs/30_ADVANCED_FEATURES.md`](docs/30_ADVANCED_FEATURES.md) | Opt-in — SweepLogger, RL metrics, Model Registry, system metrics, git tracking |
+| **30** | [`docs/30_ADVANCED_FEATURES.md`](docs/30_ADVANCED_FEATURES.md) | Opt-in — SweepLogger, EvalLogger, Model Registry, system metrics, git tracking |
 | **31** | [`docs/31_CHART_SETTINGS_GUIDE.md`](docs/31_CHART_SETTINGS_GUIDE.md) | Opt-in — persist MLflow chart/column settings across browser sessions |
 | **ko** | [`docs/ko/`](docs/ko/) | 한글 온보딩 트랙 — `01_INTRO.md` (동기/FAQ), `02_EXPERIMENT_STANDARD.md` (운영 표준) |
 | — | [`brand.py`](brand.py) | ASCII art, sigils, and color constants |

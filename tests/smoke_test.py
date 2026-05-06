@@ -89,8 +89,9 @@ def check_imports() -> bool:
         from nexus.logger.sweep_logger import SweepLogger  # noqa: F401
         from nexus.logger.model_registry import ModelRegistry  # noqa: F401
         from nexus.logger.system_metrics import SystemMetricsLogger  # noqa: F401
+        from nexus.logger.eval_logger import EvalLogger  # noqa: F401
 
-        ok("nexus.logger advanced — SweepLogger, ModelRegistry, SystemMetricsLogger")
+        ok("nexus.logger advanced — SweepLogger, ModelRegistry, SystemMetricsLogger, EvalLogger")
     except ImportError as e:
         fail(f"nexus.logger advanced — {e}")
         all_ok = False
@@ -658,6 +659,97 @@ def test_sweep_logger(tracking_uri: str) -> bool:
         return False
 
 
+def test_eval_logger(tracking_uri: str) -> bool:
+    """9. EvalLogger — attach eval artifacts to an existing run"""
+    section("9. EvalLogger (Eval Artifact Upload)")
+    try:
+        import json
+        import tempfile
+        from pathlib import Path
+
+        from nexus.logger.eval_logger import EvalLogger
+        from nexus.logger import MLflowLogger
+        from mlflow.tracking import MlflowClient
+
+        client = MlflowClient(tracking_uri=tracking_uri)
+        run_name = f"smoke_eval_{int(time.time())}"
+
+        # ── 9a. Create a target run ───────────────────────────────────────────
+        parent = MLflowLogger(
+            run_name=run_name,
+            tracking_uri=tracking_uri,
+            experiment_name="nexus_smoke_test",
+            tags={"researcher": "smoke_test"},
+        )
+        parent.add_scalar("train/reward", 42.0, 1)
+        parent.close()
+        ok(f"Target run created: {run_name}")
+
+        # ── 9b. Build a minimal eval_dir in a tempdir ─────────────────────────
+        with tempfile.TemporaryDirectory() as tmp:
+            eval_dir = Path(tmp) / "eval_out"
+            eval_dir.mkdir()
+            (eval_dir / "report.md").write_text("# Smoke test eval\nAll good.", encoding="utf-8")
+            (eval_dir / "metrics.json").write_text(
+                json.dumps({"success_rate": 0.87, "nested": {"speed": 1.2}}), encoding="utf-8"
+            )
+
+            # ── 9c. Upload via EvalLogger ─────────────────────────────────────
+            ev = EvalLogger(
+                run_name=run_name,
+                tracking_uri=tracking_uri,
+                experiment=("nexus_smoke_test"),
+                verbose=False,
+            )
+            eval_id = ev.upload(
+                eval_dir=eval_dir,
+                eval_id="smoke",
+                metrics={"explicit_metric": 0.99},
+                metrics_from=eval_dir / "metrics.json",
+                tags={"observer": "smoke"},
+                generate_index=True,
+            )
+
+        if eval_id != "smoke":
+            fail(f"Expected eval_id='smoke', got {eval_id!r}")
+            return False
+        ok("upload() returned correct eval_id")
+
+        # ── 9d. Verify tags and metrics were set on the run ───────────────────
+        exp_obj = client.get_experiment_by_name("nexus_smoke_test")
+        runs = client.search_runs(
+            experiment_ids=[exp_obj.experiment_id],
+            filter_string=f"tags.mlflow.runName = '{run_name}'",
+        )
+        run_data = runs[0].data
+
+        if run_data.tags.get("eval.last_id") != "smoke":
+            fail(f"eval.last_id tag not set correctly: {run_data.tags.get('eval.last_id')!r}")
+            return False
+        ok("eval.last_id tag verified")
+
+        if run_data.tags.get("eval.observer") != "smoke":
+            fail(f"eval.observer tag not set: {run_data.tags.get('eval.observer')!r}")
+            return False
+        ok("eval.observer tag verified")
+
+        metric_keys = {m for m in run_data.metrics}
+        expected_metrics = {"eval/explicit_metric", "eval/success_rate", "eval/nested.speed"}
+        missing = expected_metrics - metric_keys
+        if missing:
+            fail(f"Missing metrics on run: {missing}")
+            return False
+        ok(f"Metrics verified: {sorted(expected_metrics)}")
+
+        return True
+    except Exception as e:
+        fail(f"EvalLogger test failed: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return False
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 
@@ -699,6 +791,7 @@ def main() -> None:
         results["omegaconf_flatten"] = test_omegaconf_flatten(args.tracking_uri)
         results["scheduled_sync"] = test_scheduled_sync_roundtrip(args.tracking_uri)
         results["sweep_logger"] = test_sweep_logger(args.tracking_uri)
+        results["eval_logger"] = test_eval_logger(args.tracking_uri)
 
     # ── Summary ───────────────────────────────────────────────────────────────
     section("Summary")
@@ -712,6 +805,7 @@ def main() -> None:
         "omegaconf_flatten": "OmegaConf DictConfig flatten",
         "scheduled_sync": "scheduled_sync round-trip (export -> import)",
         "sweep_logger": "SweepLogger (parent-child runs)",
+        "eval_logger": "EvalLogger (eval artifact upload)",
     }
     all_passed = True
     for key, label in labels.items():

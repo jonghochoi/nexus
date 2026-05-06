@@ -13,6 +13,7 @@ Advanced features (explicit import required):
     from nexus.logger.sweep_logger   import SweepLogger
     from nexus.logger.model_registry import ModelRegistry
     from nexus.logger.system_metrics import SystemMetricsLogger
+    from nexus.logger.eval_logger    import EvalLogger
 
     See docs/30_ADVANCED_FEATURES.md for usage guide.
 """
