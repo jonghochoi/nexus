@@ -1,6 +1,6 @@
 # 🧪 Advanced Features
 
-> **Purpose:** Opt-in extensions to the core `make_logger()` workflow — hyperparameter sweeps, RL-specific diagnostics, MLflow Model Registry helpers, background system metrics, automatic git tracking, persistent chart settings, and the advanced smoke-test mode.
+> **Purpose:** Opt-in extensions to the core `make_logger()` workflow — hyperparameter sweeps, post-training eval artifact uploads, RL-specific diagnostics, MLflow Model Registry helpers, background system metrics, automatic git tracking, persistent chart settings, and the advanced smoke-test mode.
 >
 > The standard workflow (Pipeline A or B) requires **no knowledge of anything in this doc**. Come back when the basics feel natural and you want to add one of these features.
 
@@ -11,10 +11,11 @@
 - [Import pattern](#import-pattern)
 - [1. SweepLogger — hyperparameter sweep management](#1-sweeplogger--hyperparameter-sweep-management)
 - [2. Model Registry](#2-model-registry)
-- [3. SystemMetricsLogger — background resource logging](#3-systemmetricslogger--background-resource-logging)
-- [4. Git commit tracking](#4-git-commit-tracking)
-- [5. Chart settings — persistent column layout](#5-chart-settings--persistent-column-layout)
-- [6. Smoke test — advanced mode](#6-smoke-test--advanced-mode)
+- [3. EvalLogger — post-training eval artifact upload](#3-evallogger--post-training-eval-artifact-upload)
+- [4. SystemMetricsLogger — background resource logging](#4-systemmetricslogger--background-resource-logging)
+- [5. Git commit tracking](#5-git-commit-tracking)
+- [6. Chart settings — persistent column layout](#6-chart-settings--persistent-column-layout)
+- [7. Smoke test — advanced mode](#7-smoke-test--advanced-mode)
 - [Next steps](#next-steps)
 
 ---
@@ -30,6 +31,7 @@ from nexus.logger import make_logger, MLflowLogger, DualLogger
 # Advanced — explicit import required
 from nexus.logger.sweep_logger   import SweepLogger
 from nexus.logger.model_registry import ModelRegistry
+from nexus.logger.eval_logger    import EvalLogger
 from nexus.logger.system_metrics import SystemMetricsLogger
 ```
 
@@ -187,7 +189,123 @@ registry.set_sim_to_real_link(
 
 ---
 
-## 3. SystemMetricsLogger — background resource logging
+## 3. EvalLogger — post-training eval artifact upload
+
+Attaches post-training evaluation outputs (mp4 rollouts, GIF previews, reports, score JSONs) to an existing MLflow run as artifacts under `eval/<eval_id>/`. The run is resolved by `run_name` — the same identity key used by `MLflowLogger` and Pipeline B.
+
+`EvalLogger` is designed for the external-repo case: the training repo already uses `make_logger()`, which writes a `.nexus_run.json` sidecar into the output directory. The eval step reads that sidecar to recover run identity without re-passing config.
+
+### ── Recommended eval_dir layout
+
+`EvalLogger` walks `eval_dir` recursively and uploads everything it finds. A flat layout is fine; subdirectories are preserved under `eval/<eval_id>/` on the server.
+
+```
+eval_outputs/<run_name>/
+├── rollout.mp4            ← full-resolution video — auto-embedded in index.html
+├── rollout_preview.gif    ← short preview — also rendered inline by MLflow
+├── report.md              ← human-readable summary
+├── metrics.json           ← machine-readable scores (auto-promoted via --metrics-from)
+└── success_rate.png       ← any other plots
+```
+
+After upload the MLflow run gains an `eval/<eval_id>/` artifact folder with all of the above plus the auto-generated `index.html`. The `eval.last_id` tag on the run is always stamped with the most recent eval_id so downstream consumers can find the latest bundle without scanning artifacts.
+
+### ── Basic usage
+
+```python
+from nexus.logger.eval_logger import EvalLogger
+
+# make_logger() writes .nexus_run.json into output_dir during training.
+# Pass the same output_dir here to pick up run_name / experiment / tracking_uri.
+ev = EvalLogger.from_run_info(output_dir)
+
+eval_id = ev.upload(
+    eval_dir=output_dir / "eval",
+    metrics={"success_rate": 0.87, "mean_return": 132.4},
+    metrics_from=output_dir / "eval" / "metrics.json",   # auto-flatten JSON scalars
+    tags={"observer_commit": "abc123"},
+)
+# → artifacts/eval/<eval_id>/ on the MLflow run
+```
+
+The same run can receive multiple eval bundles over time — each lands in its own `eval/<eval_id>/` subdir so they never collide.
+
+### ── Explicit construction
+
+When the `.nexus_run.json` sidecar is not available (e.g. the run was created by Pipeline B's `upload_tb.py`), pass all three params directly:
+
+```python
+ev = EvalLogger(
+    run_name="ppo_v3_seed0",
+    tracking_uri="http://nexus-server:5000",
+    experiment="robot_hand_rl",
+)
+ev.upload(eval_dir="./eval_outputs/ppo_v3_seed0/")
+```
+
+### ── Overriding tracking_uri for relay architectures
+
+When training logs to a local relay (`127.0.0.1:5100`) but eval artifacts should land on the central server, pass `tracking_uri` explicitly to `from_run_info()`:
+
+```python
+ev = EvalLogger.from_run_info(
+    output_dir,
+    tracking_uri="http://nexus-server:5000",   # override the sidecar's local URI
+)
+```
+
+### ── Auto-generated index.html
+
+MLflow 2.13's artifact viewer renders HTML inline but not `.mp4`. `EvalLogger` auto-generates an `index.html` next to any video it finds, embedding it in a `<video controls>` tag. Open `eval/<eval_id>/index.html` in the Artifacts pane to play rollouts in-browser.
+
+Suppress with `generate_index=False` if your eval tool already ships its own page:
+
+```python
+ev.upload(eval_dir=..., generate_index=False)
+```
+
+### ── Silent / programmatic mode
+
+Pass `verbose=False` to suppress all console output — useful when `EvalLogger` is called from a training script rather than interactively:
+
+```python
+ev = EvalLogger.from_run_info(output_dir, verbose=False)
+ev.upload(eval_dir=..., metrics={"sr": 0.9})
+```
+
+### ── metrics_from — auto-promote a JSON file
+
+If the eval tool writes a `metrics.json`, pass the path to `metrics_from` and `EvalLogger` flattens it automatically (dotted-key for nested dicts). Explicit `metrics` dict wins on key conflict:
+
+```python
+ev.upload(
+    eval_dir=...,
+    metrics_from="eval/metrics.json",          # {"locomotion": {"speed": 1.2}} → eval/locomotion.speed
+    metrics={"success_rate": 0.87},            # explicit key wins if present in JSON too
+)
+```
+
+### ── eval_id — stable name vs. timestamp
+
+`eval_id` defaults to a `YYYYmmdd_HHMMSS` timestamp, producing a new subdir on every call. Pass a fixed string to overwrite a previous bundle (e.g. during iterative debugging) or to give the folder a human-readable name:
+
+```python
+ev.upload(eval_dir=..., eval_id="checkpoint_500")
+# → artifacts/eval/checkpoint_500/
+```
+
+### ── dry_run — preview without uploading
+
+Pass `dry_run=True` to resolve the run and list what would be uploaded without touching MLflow:
+
+```python
+eval_id = ev.upload(eval_dir=..., metrics={"sr": 0.87}, dry_run=True)
+# Prints file list and metric preview; no artifacts or metrics written
+```
+
+---
+
+## 4. SystemMetricsLogger — background resource logging
 
 Spawns a daemon thread that periodically logs CPU, RAM, and GPU metrics to MLflow without blocking training.
 
@@ -270,7 +388,7 @@ If you don't need per-GPU memory/utilisation in MLflow at all, simply omit `gpu_
 
 ---
 
-## 4. Git commit tracking
+## 5. Git commit tracking
 
 `MLflowLogger` automatically captures the git state of the training code at run start. No extra code is needed — it is on by default.
 
@@ -306,7 +424,7 @@ logger = make_logger(mode="mlflow", ..., track_git=False)
 
 ---
 
-## 5. Chart settings — persistent column layout
+## 6. Chart settings — persistent column layout
 
 MLflow stores the runs-table column visibility (which tags, params, and metrics are shown) in the **browser's localStorage**. This means the layout resets whenever you open a fresh browser or switch machines.
 
@@ -330,7 +448,7 @@ The bookmarklet fetches the stored settings from the MLflow API and writes them 
 
 ---
 
-## 6. Smoke test — advanced mode
+## 7. Smoke test — advanced mode
 
 The smoke test (`tests/smoke_test.py`) runs only core tests by default. Pass `--advanced` to also validate the features described in this document.
 
@@ -338,8 +456,9 @@ The smoke test (`tests/smoke_test.py`) runs only core tests by default. Pass `--
 python tests/smoke_test.py --advanced
 # Tests 1–5: core (always run)
 # Test 6: OmegaConf DictConfig flatten
-# Test 7: SweepLogger parent-child runs
-# Test 8: scheduled_sync round-trip
+# Test 7: scheduled_sync round-trip
+# Test 8: SweepLogger parent-child runs
+# Test 9: EvalLogger artifact upload
 ```
 
 ---

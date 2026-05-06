@@ -30,7 +30,12 @@ Pipeline B CLI smoke (no MLflow upload):
 cd post_upload && python upload_tb.py --tb_dir <path> --dry_run
 python upload_tb.py --history                   # show ~/.nexus/history.json
 python verify_tb.py --from-last                 # re-verify the last upload
-python upload_eval.py --run_name <name> --eval_dir <path>   # attach eval artifacts (mp4, report) to an existing run
+```
+
+Eval artifact upload (Python API — no CLI):
+
+```python
+from nexus.logger.eval_logger import EvalLogger   # attach eval artifacts (mp4, report) to an existing run
 ```
 
 ## High-level architecture
@@ -58,7 +63,7 @@ Back-fills completed tfevents and attaches post-hoc eval artifacts. Full walkthr
 - **Tag precedence** (7-level chain) — single source of truth is `docs/13_POST_UPLOAD.md` §2; keep that table authoritative if you change the order.
 - **Auto-verify** — `run_verify()` runs unconditionally after upload unless `--no_verify`; exits `2` on failure (so CI can branch on it) but still records the upload in history.
 - **Eval artifacts** go under `eval/<eval_id>/` — never `checkpoints/`, to preserve `best.pth`/`last.pth` policy.
-- **History** (`~/.nexus/history.json`, capped at `HISTORY_LIMIT=20`) carries a `script` field (`"upload_tb"` / `"upload_eval"`); `--repeat-last` and `--from-last` filter by `script="upload_tb"` so they never resurrect an eval record.
+- **History** (`~/.nexus/history.json`, capped at `HISTORY_LIMIT=20`) — records `upload_tb` invocations only; `--repeat-last` and `--from-last` filter on `script="upload_tb"`.
 - **`sys.path.insert`** in each script — injects the parent dir so sibling modules (`config`, `history`, `verify_tb`) import correctly from any working directory.
 
 ### Cross-cutting conventions
@@ -112,7 +117,7 @@ Several concepts are reflected in multiple places. Change one without auditing t
 - [ ] `tests/smoke_test.py` — add a case under `--advanced`
 
 **New Pipeline B CLI flag**
-- [ ] `post_upload/upload_tb.py::parse_args()` (or `upload_eval.py::parse_args()` for eval-side flags)
+- [ ] `post_upload/upload_tb.py::parse_args()`
 - [ ] `README.md` → "Pipeline B" flag table
 - [ ] `docs/13_POST_UPLOAD.md` — deeper notes
 

@@ -169,12 +169,12 @@ nexus/
 │       ├── git_utils.py            # Git commit/dirty-state capture (auto-called at run start)
 │       ├── sweep_logger.py         # [Advanced] HP sweep parent run
 │       ├── model_registry.py       # [Advanced] Model Registry operations
-│       └── system_metrics.py       # [Advanced] Background CPU/GPU logging
+│       ├── system_metrics.py       # [Advanced] Background CPU/GPU logging
+│       └── eval_logger.py          # [Advanced] Post-training eval artifact upload
 │
 ├── post_upload/                    # Pipeline B — upload after training
 │   ├── upload_tb.py                # Full tfevents → MLflow batch upload
-│   ├── verify_tb.py                # Numeric validation vs. TB source
-│   └── upload_eval.py              # Attach evaluation artifacts (mp4 / report) to a run
+│   └── verify_tb.py                # Numeric validation vs. TB source
 │
 ├── scheduled_sync/                 # Pipeline A — sync while training runs (air-gapped SCP)
 │   ├── start_local_mlflow.sh       # [GPU Server] start local MLflow server
@@ -197,7 +197,7 @@ nexus/
 │   ├── 10_ARCHITECTURE.md          # ← You are here. System design & component map
 │   ├── 11_LOGGER_SETUP.md          # Pipeline A — logger integration (step-by-step diff)
 │   ├── 12_SCHEDULED_SYNC.md        # Pipeline A — cron sync wiring (config, validate, multi-user)
-│   ├── 13_POST_UPLOAD.md           # Pipeline B — upload_tb / verify_tb / upload_eval CLIs in depth
+│   ├── 13_POST_UPLOAD.md           # Pipeline B — upload_tb / verify_tb CLIs
 │   ├── 20_MLFLOW_SERVER_SETUP.md   # Operator — central MLflow server install (incl. local PC verify)
 │   ├── 21_AIRGAPPED_GPU_SERVER_SETUP.md  # Operator — GPU node offline bring-up (pip wheel / Docker, incl. verify)
 │   ├── 30_ADVANCED_FEATURES.md     # Opt-in — SweepLogger, RL metrics, Model Registry
@@ -232,7 +232,7 @@ The next section maps each runtime component (factory, loggers, sync scripts) to
 | `import_delta.py` | `scheduled_sync/` | ⬆️ Unpacks bundle, logs metrics + uploads artifacts to central MLflow |
 | `upload_tb.py` | `post_upload/` | 📤 Manual full upload after training |
 | `verify_tb.py` | `post_upload/` | ✅ Validates upload against TB source |
-| `upload_eval.py` | `post_upload/` | 🎬 Attaches eval artifacts (mp4/report) to an existing run |
+| `eval_logger.py` | `nexus/logger/` | 🎬 `EvalLogger` — attaches eval artifacts (mp4/report) to an existing run |
 
 ---
 
