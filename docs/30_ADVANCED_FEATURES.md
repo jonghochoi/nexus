@@ -228,7 +228,7 @@ GPU collection is **off by default**. Pass `gpu_index=N` to enable it. The chose
 
 There is no auto-detection. On multi-GPU hosts, frameworks like PyTorch routinely create a small stray CUDA context on GPU 0 (during default-device initialisation, `torch.cuda.device_count()` calls, or library imports) before the actual training tensors move to `cuda:N`. Any PID-based scan would then attribute metrics to the wrong device, so the caller must specify the index explicitly.
 
-#### ── How to pick `gpu_index`
+#### ▸ How to pick `gpu_index`
 
 The value is interpreted exactly as `nvidia-smi -i=N` interprets it — i.e. an **NVML index**, not a CUDA device index. The two differ when `CUDA_VISIBLE_DEVICES` is in use:
 
@@ -240,7 +240,7 @@ The value is interpreted exactly as `nvidia-smi -i=N` interprets it — i.e. an 
 
 > ⚠️ `CUDA_VISIBLE_DEVICES` does **not** remap NVML/`nvidia-smi` indices — it only restricts what the CUDA runtime exposes. NVML still uses physical indices, so the value you pass to `SystemMetricsLogger` must be the **physical** index even when your training code references `cuda:0`. The container case is different because `NVIDIA_VISIBLE_DEVICES` (NVIDIA Container Toolkit) does isolate the NVML view.
 
-#### ── Recommended pattern
+#### ▸ Recommended pattern
 
 For unambiguous attribution on multi-GPU hosts, prefer `CUDA_VISIBLE_DEVICES=N` over hard-coding `torch.device("cuda:N")` in code — the former prevents the framework from creating stray contexts on other GPUs, and the same value works for both the runtime and the metrics logger:
 

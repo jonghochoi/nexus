@@ -84,7 +84,7 @@ This method works without Docker and transfers only Python packages, so the bund
 
 > ⚠️ **Wheels must match the GPU server's Python, not your local Python.** The OS / Python version on your local PC and the GPU server almost always differ. The `--python-version` flag below refers to the **target (GPU server) Python**, not your local one. Your local Python only needs to be new enough to run `pip download` (any 3.8+ is fine).
 
-#### ── On local machine — Download wheel files
+#### ▸ On local machine — Download wheel files
 
 **Check the GPU server's Python version and architecture first:**
 
@@ -125,7 +125,7 @@ pip download \
 
 > 💡 `setuptools==69.5.1` is pinned because setuptools 70+ removed `pkg_resources`, which `tbparse` still imports. See [Troubleshooting](#-modulenotfounderror-no-module-named-pkg_resources) if you skip it and hit the import error.
 
-#### ── On local machine — Transfer nexus code + wheel files to GPU server
+#### ▸ On local machine — Transfer nexus code + wheel files to GPU server
 
 ```bash
 # Transfer nexus_wheels folder and nexus code.
@@ -137,7 +137,7 @@ scp -r nexus        user@gpu-server:~/
 
 > If SSH uses a non-standard port, add the `-P port_number` option. Example: `scp -P 22222 -r nexus_wheels user@gpu-server:~/`
 
-#### ── On GPU server — Offline installation
+#### ▸ On GPU server — Offline installation
 
 After SSH-ing into the GPU server. `~` below automatically expands to the current login user's home directory, so these commands work regardless of your username.
 
@@ -181,7 +181,7 @@ pip install \
 
 If Docker is installed on the GPU server, this method is the most reliable.
 
-#### ── On local machine — Write Dockerfile
+#### ▸ On local machine — Write Dockerfile
 
 Create the following `Dockerfile` in the `nexus/` folder. The base image's Python version is self-contained inside the container — it does **not** need to match the GPU server's system Python. Pick any 3.10+ tag that your code is tested on (`python:3.10-slim`, `python:3.11-slim`, `python:3.12-slim`, etc.).
 
@@ -205,7 +205,7 @@ COPY . /nexus/
 CMD ["bash"]
 ```
 
-#### ── On local machine — Build and save image
+#### ▸ On local machine — Build and save image
 
 ```bash
 cd nexus/
@@ -222,13 +222,13 @@ ls -lh nexus-env.tar.gz
 
 > Image size is typically 500MB–1GB.
 
-#### ── Transfer image to GPU server
+#### ▸ Transfer image to GPU server
 
 ```bash
 scp nexus-env.tar.gz user@gpu-server:~/
 ```
 
-#### ── On GPU server — Load and run image
+#### ▸ On GPU server — Load and run image
 
 ```bash
 # Load image (from the SSH-logged-in user's home directory)

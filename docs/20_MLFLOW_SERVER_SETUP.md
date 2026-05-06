@@ -660,7 +660,7 @@ sudo journalctl -u nexus-mlflow -f
 sudo journalctl -u nexus-mlflow --since today
 ```
 
-#### Register the commands above as bash aliases
+#### ▸ Register the commands above as bash aliases
 
 Run the following block once on the MLflow server. It appends a set of `mlflow-*` aliases to `~/.bashrc` so the commands above can be invoked with a short name.
 
