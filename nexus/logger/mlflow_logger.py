@@ -34,6 +34,7 @@ from mlflow.entities import Metric
 from mlflow.tracking import MlflowClient
 
 from .git_utils import get_git_info, get_git_patch
+from .run_info import write_run_info
 
 _BATCH_SIZE = 1000  # MLflow hard limit per log_batch() call
 
@@ -59,9 +60,11 @@ class MLflowLogger:
         parent_run_id: Optional[str] = None,
         track_git: bool = True,  # set False if not inside a git repo or to suppress git tags
         max_param_depth: Optional[int] = None,  # None = flatten fully; 1 = top-level scalars only
+        run_info_dir: Optional[str] = None,  # write .nexus_run.json sidecar here (skip if None)
     ):
         self.run_name = run_name
         self.tracking_uri = tracking_uri
+        self.experiment_name = experiment_name
         self._parent_run_id = parent_run_id
 
         self._buffer: dict[int, dict[str, float]] = defaultdict(dict)
@@ -77,6 +80,18 @@ class MLflowLogger:
             merged_tags.update(get_git_info())
         self._run_id = self._get_or_create_run(experiment_name, merged_tags)
         self._track_git = track_git
+
+        # Write a .nexus_run.json sidecar so a downstream eval / upload step
+        # can recover (run_name, experiment, tracking_uri) from the trainer's
+        # output directory without re-deriving them from configs.
+        if run_info_dir:
+            write_run_info(
+                run_info_dir,
+                run_name=run_name,
+                run_id=self._run_id,
+                experiment=experiment_name,
+                tracking_uri=tracking_uri,
+            )
 
         if params:
             self._log_params(params, max_depth=max_param_depth)
