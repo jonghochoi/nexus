@@ -55,6 +55,8 @@ class DualLogger:
         max_param_depth: Optional[int] = None,
     ):
         self._tb = TBLogger(log_dir=tb_dir)
+        # tb_dir doubles as the natural location for the .nexus_run.json
+        # sidecar — downstream eval scripts already know that path.
         self._mlflow = MLflowLogger(
             run_name=run_name,
             tracking_uri=tracking_uri,
@@ -65,6 +67,7 @@ class DualLogger:
             tags=tags,
             parent_run_id=parent_run_id,
             max_param_depth=max_param_depth,
+            run_info_dir=tb_dir,
         )
         print("[DualLogger] Active: TensorBoard + MLflow")
 
@@ -127,7 +130,9 @@ def make_logger(
       "tensorboard" → TensorBoard only (legacy, no changes to existing code)
 
     `tb_dir` is the TensorBoard log directory. It is required for
-    `mode="dual"` and `mode="tensorboard"`, and ignored for `mode="mlflow"`.
+    `mode="dual"` and `mode="tensorboard"`. For `mode="mlflow"` it is
+    optional — if given, a ``.nexus_run.json`` sidecar is written there so
+    a downstream eval / upload step can recover the run identity.
 
     `agent_params` and `env_params` are logged as MLflow params with an
     "agent." / "env." prefix respectively, and each is also serialized to
@@ -175,6 +180,7 @@ def make_logger(
             tags=tags,
             parent_run_id=parent_run_id,
             max_param_depth=max_param_depth,
+            run_info_dir=tb_dir,
         )
     elif mode == "tensorboard":
         if tb_dir is None:
