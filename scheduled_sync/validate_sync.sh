@@ -56,6 +56,17 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# ── Activate venv if present (prefer shared ~/.nexus/venv, fall back to ./venv)
+# Mirrors sync_mlflow_to_server.sh / sync_mlflow_all.sh — operators should not
+# have to remember `source ~/.nexus/activate.sh` before running pre-flight.
+if [ -f "${HOME}/.nexus/venv/bin/activate" ]; then
+    # shellcheck disable=SC1091
+    source "${HOME}/.nexus/venv/bin/activate"
+elif [ -f "venv/bin/activate" ]; then
+    # shellcheck disable=SC1091
+    source venv/bin/activate
+fi
+
 # Same config resolution as sync_mlflow_to_server.sh: explicit --config
 # disables auto-discovery; otherwise /etc/nexus/sync_config.json is used.
 SYSTEM_CONFIG="/etc/nexus/sync_config.json"
@@ -299,8 +310,8 @@ else
     echo "  All checks passed. Suggested cron line (edit interval as needed):"
 fi
 echo "════════════════════════════════════════════════════════════"
-echo "*/5 * * * * bash ${SCRIPT_DIR}/sync_mlflow_all.sh >> /var/log/nexus_sync.log 2>&1"
+echo "*/5 * * * * bash ${SCRIPT_DIR}/sync_mlflow_all.sh >> \$HOME/.nexus/sync.log 2>&1"
 echo ""
-echo "  Register as root or under a dedicated sync service account:"
-echo "    sudo crontab -e"
+echo "  Register under your user account (NOT root):"
+echo "    crontab -e"
 exit 0

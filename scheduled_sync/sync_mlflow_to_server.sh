@@ -47,9 +47,10 @@
 #   4 — SCP transfer failed after retries
 #   5 — remote import (ssh import_delta.py) failed
 #
-# Cron example (via sync_mlflow_all.sh — recommended):
-#   */5 * * * * bash /path/to/nexus/scheduled_sync/sync_mlflow_all.sh \
-#       >> /var/log/nexus_sync.log 2>&1
+# Cron example (via sync_mlflow_all.sh, registered under the operator's
+# own user account — `crontab -e`, NOT `sudo crontab -e`):
+#   */5 * * * * bash $HOME/nexus/scheduled_sync/sync_mlflow_all.sh \
+#       >> $HOME/.nexus/sync.log 2>&1
 # ============================================================
 
 set -euo pipefail

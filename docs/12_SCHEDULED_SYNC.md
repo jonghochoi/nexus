@@ -39,17 +39,28 @@
 > 🔧 **Operator**
 
 ```bash
-# One-time setup (as root or a dedicated sync account)
+# Local MLflow on the GPU server must be running first — it's the source the
+# sync exports from. If you've just set up the node (per doc 21) it's already
+# up; otherwise:
+bash scheduled_sync/start_local_mlflow.sh   # boots :5100
+
+# One-time setup — the config lives under /etc/nexus/ so it can be read by any
+# user, but only sudo can write to it (cron only reads).
 sudo mkdir -p /etc/nexus
 sudo cp scheduled_sync/sync_config.example.json /etc/nexus/sync_config.json
 sudo $EDITOR /etc/nexus/sync_config.json   # set remote, remote_nexus_dir, remote_python, ssh_key
 
 # Pre-flight check — verifies SSH, inbox, dry-run, and prints a cron line
+# (validate_sync.sh and the sync scripts self-activate ~/.nexus/venv, so no
+# manual `nexus-activate` is required before invoking them)
 bash scheduled_sync/validate_sync.sh
 
-# Register ONE cron — syncs ALL team members' experiments automatically
-sudo crontab -e
-# */5 * * * * bash /opt/nexus/scheduled_sync/sync_mlflow_all.sh >> /var/log/nexus_sync.log 2>&1
+# Register ONE cron under the operator's user account (NOT root) — syncs ALL
+# team members' experiments automatically. $HOME expands at run time, so the
+# same line works regardless of where the operator cloned nexus, as long as
+# they followed doc 21's `~/nexus` convention.
+crontab -e
+# */5 * * * * bash $HOME/nexus/scheduled_sync/sync_mlflow_all.sh >> $HOME/.nexus/sync.log 2>&1
 ```
 
 `sync_mlflow_all.sh` auto-discovers every non-Default experiment on local MLflow each cron tick. Team members can use any experiment name they like — no coordination required.
@@ -94,7 +105,7 @@ sudo crontab -e
 >
 > 1. `validate_sync.sh` — pre-flight check (SSH, permissions, dry-run)
 > 2. `sync_mlflow_all.sh` — manual run to confirm real data transfer end-to-end
-> 3. `crontab -e` (as root) — register the cron job
+> 3. `crontab -e` (under the operator's user account, not root) — register the cron job
 > 4. **Start training** — cron must be registered first so sync begins from step 0
 >
 > Registering cron after training has already started causes no data loss (the state file tracks the full history), but any metrics logged before cron was registered will be uploaded in bulk on the next cron run rather than incrementally.
@@ -162,12 +173,16 @@ On success, the run will appear in the NEXUS server's MLflow UI. Each imported r
 
 > 🔧 **Operator**
 
+Register under the operator's **own user account** — not root. cron sets `HOME` automatically for each user's crontab, so `$HOME` in the line below expands at run time to the operator's home and the same line works regardless of where they cloned nexus (as long as they followed doc 21's `~/nexus` convention). Do NOT use `~` in cron entries — most cron implementations don't perform tilde expansion.
+
 ```bash
-sudo crontab -e
-# Add the following line (runs every 5 minutes).
-*/5 * * * * bash /opt/nexus/scheduled_sync/sync_mlflow_all.sh \
-    >> /var/log/nexus_sync.log 2>&1
+crontab -e
+# Add the following line (runs every 5 minutes):
+*/5 * * * * bash $HOME/nexus/scheduled_sync/sync_mlflow_all.sh \
+    >> $HOME/.nexus/sync.log 2>&1
 ```
+
+> 💡 If your nexus clone is somewhere other than `~/nexus`, replace `$HOME/nexus` with the absolute path (e.g. `/srv/work/nexus`). `validate_sync.sh` prints the exact path it resolved — copy from there to avoid typos.
 
 Need a per-key override (e.g. a specific `local_uri`)? Add the matching CLI flag — flags win over the config file.
 
@@ -216,10 +231,10 @@ After `validate_sync.sh` passes, run through this checklist before declaring the
 - [ ] `bash scheduled_sync/validate_sync.sh` reports "All checks passed"
 - [ ] `bash scheduled_sync/sync_mlflow_all.sh` manual run succeeded
 - [ ] Synced runs visible in central NEXUS MLflow UI
-- [ ] Cron line registered under root/sync account (`sudo crontab -l` shows the entry)
+- [ ] Cron line registered under the operator's user account (`crontab -l` shows the entry — no `sudo`)
 - [ ] No other user's crontab contains `sync_mlflow_to_server` or `sync_mlflow_all`
 - [ ] Each imported run carries `nexus.lastSyncTime` and `nexus.syncedFromHost` tags
-- [ ] Auto-run confirmed after one cron interval (`tail /var/log/nexus_sync.log`)
+- [ ] Auto-run confirmed after one cron interval (`tail ~/.nexus/sync.log`)
 
 > ⚠️ **Single-cron invariant** — a second cron from any user on the same server creates a competing state file and causes duplicate metric points at identical steps on the central server. Canonical: [`00_PRINCIPLES.md#single-cron`](00_PRINCIPLES.md#-single-cron).
 
@@ -233,7 +248,7 @@ After cron is registered, sync runs unattended. The three places to check whethe
 
 ### ── Where the log lives
 
-`/var/log/nexus_sync.log` is the stdout/stderr of the sync script, redirected by the cron line. Cron itself does not rotate this file — it grows by ~1–2 lines per "no new data" tick and ~10 lines per real upload. Rotate it manually if it ever bothers you (`mv /var/log/nexus_sync.log /var/log/nexus_sync.log.old`); the next cron tick will re-create it.
+`~/.nexus/sync.log` (the operator's home — cron expands `$HOME` automatically) is the stdout/stderr of the sync script, redirected by the cron line. Cron itself does not rotate this file — it grows by ~1–2 lines per "no new data" tick and ~10 lines per real upload. Rotate it manually if it ever bothers you (`mv ~/.nexus/sync.log ~/.nexus/sync.log.old`); the next cron tick will re-create it.
 
 ### ── Healthy output — the two normal shapes
 
@@ -270,14 +285,14 @@ This is **not** an error — `export_delta.py` exits `2`, the wrapper catches it
 
 ```bash
 # Most recent tick — was it OK or an error?
-tail -n 20 /var/log/nexus_sync.log
+tail -n 20 ~/.nexus/sync.log
 
 # Last successful upload
-grep "DONE.*Delta sync complete" /var/log/nexus_sync.log | tail -n 1
+grep "DONE.*Delta sync complete" ~/.nexus/sync.log | tail -n 1
 
 # All errors in the last 24 hours
 awk -v cutoff="$(date -d '24 hours ago' '+%Y-%m-%d %H:%M:%S')" \
-    '/^\[20[0-9][0-9]-/{ts=substr($0,2,19)} ts>=cutoff && /\[ERROR\]/' /var/log/nexus_sync.log
+    '/^\[20[0-9][0-9]-/{ts=substr($0,2,19)} ts>=cutoff && /\[ERROR\]/' ~/.nexus/sync.log
 
 # Is anything stuck in flight right now?
 pgrep -a -f "sync_mlflow_to_server|sync_mlflow_all|export_delta"
@@ -331,13 +346,13 @@ Every run imported by `import_delta.py` is stamped with two tags:
 ### ── Remove the cron entry (required)
 
 ```bash
-sudo crontab -e
+crontab -e   # operator's user crontab — no sudo
 ```
 
 Delete or comment out the sync line, then confirm:
 
 ```bash
-sudo crontab -l   # the sync line must not appear
+crontab -l   # the sync line must not appear
 ```
 
 ### ── Kill any in-flight sync process (if needed)
