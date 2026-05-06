@@ -33,6 +33,8 @@ import mlflow.entities
 from mlflow.entities import Metric
 from mlflow.tracking import MlflowClient
 
+from ..brand import CYAN, RESET
+from ..brand import log as brand_log
 from .git_utils import get_git_info, get_git_patch
 from .run_info import write_run_info
 
@@ -107,12 +109,10 @@ class MLflowLogger:
 
         atexit.register(self.close)
 
-        print(
-            f"[MLflowLogger] Run started.\n"
-            f"  Run ID     : {self._run_id}\n"
-            f"  Experiment : {experiment_name}\n"
-            f"  MLflow URI : {tracking_uri}"
-        )
+        print(brand_log("MLflowLogger run started.", "ok"))
+        print(f"  {CYAN}Run ID    :{RESET} {self._run_id}")
+        print(f"  {CYAN}Experiment:{RESET} {experiment_name}")
+        print(f"  {CYAN}MLflow URI:{RESET} {tracking_uri}")
 
     # ── Public interface (SummaryWriter-compatible) ──────────────────────────
 
@@ -153,7 +153,7 @@ class MLflowLogger:
 
     def log_artifact(self, local_path: str, artifact_path: Optional[str] = None) -> None:
         if not os.path.exists(local_path):
-            print(f"[MLflowLogger] Skipping artifact (not found): {local_path}")
+            print(brand_log(f"MLflowLogger skipping artifact (not found): {local_path}", "warn"))
             return
         self._client.log_artifact(self._run_id, local_path, artifact_path)
 
@@ -166,7 +166,7 @@ class MLflowLogger:
         if kind not in ("best", "last"):
             raise ValueError(f"kind must be 'best' or 'last', got: {kind!r}")
         if not os.path.exists(local_path):
-            print(f"[MLflowLogger] Skipping checkpoint (not found): {local_path}")
+            print(brand_log(f"MLflowLogger skipping checkpoint (not found): {local_path}", "warn"))
             return
         ext = os.path.splitext(local_path)[1] or ".pth"
         with tempfile.TemporaryDirectory() as tmp:
@@ -204,7 +204,7 @@ class MLflowLogger:
         for step in sorted(self._buffer.keys()):
             self._flush(step)
         self._client.set_terminated(self._run_id, status="FINISHED")
-        print(f"[MLflowLogger] Run finalized: {self._run_id}")
+        print(brand_log(f"MLflowLogger run finalized: {self._run_id}", "ok"))
 
     # ── Internal helpers ─────────────────────────────────────────────────────
 
@@ -235,7 +235,7 @@ class MLflowLogger:
             run_id = existing[0].info.run_id
             self._client.update_run(run_id, status="RUNNING")
             self._client.set_tags(run_id, base_tags)
-            print(f"[MLflowLogger] Resuming run: {run_id}")
+            print(brand_log(f"MLflowLogger resuming run: {run_id}", "info"))
             return run_id
         run = self._client.create_run(
             experiment_id=exp.experiment_id, run_name=self.run_name, tags=base_tags
@@ -256,7 +256,9 @@ class MLflowLogger:
             with open(html_path, "w") as f:
                 f.write(self._render_diff_html(patch))
             self._client.log_artifact(self._run_id, html_path, "git")
-        print("[MLflowLogger] Dirty working tree detected — git patch saved to artifacts/git/")
+        print(
+            brand_log("MLflowLogger dirty working tree — git patch saved to artifacts/git/", "info")
+        )
 
     @staticmethod
     def _render_diff_html(patch: str) -> str:

@@ -9,6 +9,8 @@ from __future__ import annotations
 from typing import Optional
 from tensorboardX import SummaryWriter
 
+from ..brand import log as brand_log
+
 
 class TBLogger:
     """
@@ -19,7 +21,7 @@ class TBLogger:
     def __init__(self, log_dir: str):
         self.log_dir = log_dir
         self._writer = SummaryWriter(log_dir=log_dir)
-        print(f"[TBLogger] Writing to: {log_dir}")
+        print(brand_log(f"TBLogger writing to {log_dir}", "info"))
 
     def add_scalar(self, tag: str, scalar_value: float, global_step: int) -> None:
         self._writer.add_scalar(tag, scalar_value, global_step)

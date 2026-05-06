@@ -27,6 +27,7 @@ No changes needed anywhere else in the trainer.
 from __future__ import annotations
 from typing import Optional
 
+from ..brand import log as brand_log
 from .tb_logger import TBLogger
 from .mlflow_logger import MLflowLogger
 
@@ -69,7 +70,7 @@ class DualLogger:
             max_param_depth=max_param_depth,
             run_info_dir=tb_dir,
         )
-        print("[DualLogger] Active: TensorBoard + MLflow")
+        print(brand_log("DualLogger active: TensorBoard + MLflow", "ok"))
 
     # ── Public interface (SummaryWriter-compatible) ──────────────────────────
 

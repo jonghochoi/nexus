@@ -60,10 +60,10 @@ from typing import Optional, Union
 
 import mlflow
 from mlflow.tracking import MlflowClient
-from rich.console import Console
-from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
-from rich.table import Table
 
+from ..brand import CYAN, DIM, RESET
+from ..brand import log as brand_log
+from ..brand import rule as brand_rule
 from .run_info import read_run_info
 
 _log = logging.getLogger(__name__)
@@ -161,14 +161,13 @@ class EvalLogger:
         run_name      — MLflow run name (matched via ``tags.mlflow.runName``).
         tracking_uri  — MLflow server URI (e.g. ``http://nexus-server:5000``).
         experiment    — Experiment name that owns the run.
-        verbose       — Print rich progress output (default True). Set False for
-                        silent in-process use.
+        verbose       — Print brand-styled progress output (default True). Set
+                        False for silent in-process use.
         """
         self.run_name = run_name
         self.tracking_uri = tracking_uri
         self.experiment = experiment
         self._verbose = verbose
-        self._console = Console() if verbose else None
 
     # ── Constructors ─────────────────────────────────────────────────────────
 
@@ -234,11 +233,10 @@ class EvalLogger:
         str — the ``eval_id`` used (useful when letting it default to a timestamp).
         """
         if self._verbose:
-            assert self._console is not None
-            self._console.rule("[bold blue]Eval Artifact Upload[/bold blue]")
-            self._console.print(f"[cyan]MLflow URI :[/cyan] {self.tracking_uri}")
-            self._console.print(f"[cyan]Experiment :[/cyan] {self.experiment}")
-            self._console.print(f"[cyan]Run name   :[/cyan] {self.run_name}\n")
+            print(brand_rule("Eval Artifact Upload"))
+            print(f"{CYAN}MLflow URI :{RESET} {self.tracking_uri}")
+            print(f"{CYAN}Experiment :{RESET} {self.experiment}")
+            print(f"{CYAN}Run name   :{RESET} {self.run_name}\n")
 
         eval_dir_path = Path(eval_dir).expanduser().resolve()
         files = self._scan_dir(eval_dir_path)
@@ -248,8 +246,7 @@ class EvalLogger:
         resolved_id = eval_id or time.strftime("%Y%m%d_%H%M%S")
         artifact_path = f"eval/{resolved_id}"
         if self._verbose:
-            assert self._console is not None
-            self._console.print(f"[cyan]Artifact path:[/cyan] {artifact_path}/\n")
+            print(f"{CYAN}Artifact path:{RESET} {artifact_path}/\n")
 
         # Merge metrics_from (floor) with explicit metrics dict (wins on conflict).
         merged_metrics: dict = {}
@@ -264,18 +261,16 @@ class EvalLogger:
         client = MlflowClient(tracking_uri=self.tracking_uri)
         run_id = self._resolve_run(client)
         if self._verbose:
-            assert self._console is not None
-            self._console.print(f"[cyan]Resolved run_id:[/cyan] {run_id}\n")
+            print(f"{CYAN}Resolved run_id:{RESET} {run_id}\n")
 
         if dry_run:
             if self._verbose:
-                assert self._console is not None
-                self._console.print("[bold yellow]dry_run=True — skipping upload.[/bold yellow]")
+                print(brand_log("dry_run=True — skipping upload.", "warn"))
                 if merged_metrics:
                     preview = {f"eval/{k}": v for k, v in merged_metrics.items()}
-                    self._console.print(f"[cyan]Would log metrics:[/cyan] {preview}")
+                    print(f"{CYAN}Would log metrics:{RESET} {preview}")
                 if namespaced_tags:
-                    self._console.print(f"[cyan]Would set tags:[/cyan] {namespaced_tags}")
+                    print(f"{CYAN}Would set tags:{RESET} {namespaced_tags}")
             return resolved_id
 
         # Build index.html unless suppressed or the eval_dir already ships one.
@@ -284,13 +279,9 @@ class EvalLogger:
         if generate_index and not has_user_index:
             index_html = self._build_index_html(resolved_id, files)
             if self._verbose:
-                assert self._console is not None
-                self._console.print("[dim]Auto-generating index.html for in-UI playback.[/dim]")
+                print(f"{DIM}Auto-generating index.html for in-UI playback.{RESET}")
         elif has_user_index and self._verbose:
-            assert self._console is not None
-            self._console.print(
-                "[dim]eval_dir already contains index.html — skipping auto-gen.[/dim]"
-            )
+            print(f"{DIM}eval_dir already contains index.html — skipping auto-gen.{RESET}")
 
         self._upload_artifacts(client, run_id, eval_dir_path, artifact_path, files, index_html)
 
@@ -312,14 +303,12 @@ class EvalLogger:
             client.set_tag(run_id, k, v)
 
         if self._verbose:
-            assert self._console is not None
-            self._console.print("\n[bold green]✓ Eval upload complete![/bold green]")
-            self._console.print(f"  Run ID        : [yellow]{run_id}[/yellow]")
-            self._console.print(f"  Artifact path : artifacts/{artifact_path}/")
+            print()
+            print(brand_log("Eval upload complete!", "ok"))
+            print(f"  Run ID        : {run_id}")
+            print(f"  Artifact path : artifacts/{artifact_path}/")
             if index_html is not None:
-                self._console.print(
-                    f"  UI playback   : open run → Artifacts → {artifact_path}/index.html"
-                )
+                print(f"  UI playback   : open run → Artifacts → {artifact_path}/index.html")
 
         return resolved_id
 
@@ -374,25 +363,22 @@ class EvalLogger:
         return files
 
     def _preview_files(self, eval_dir: Path, files: list) -> None:
-        assert self._console is not None
-        table = Table(title=f"[bold]Files in {eval_dir}[/bold]", header_style="bold magenta")
-        table.add_column("Relative Path", style="cyan", min_width=30)
-        table.add_column("Size", justify="right")
-        table.add_column("Embed?", justify="center", style="dim")
-
+        print(f"\n{CYAN}Files in {eval_dir}{RESET}")
+        print(f"  {'Relative Path':<40} {'Size':>10}  Embed?")
+        print(f"  {'-' * 40} {'-' * 10}  {'-' * 6}")
         for rel, size in files:
             ext = rel.suffix.lower()
             if ext in _VIDEO_EXTS:
-                embed = "[green]video[/green]"
+                embed = "video"
             elif ext in _IMAGE_EXTS:
-                embed = "[green]image[/green]"
+                embed = "image"
             else:
                 embed = "link"
-            table.add_row(str(rel), _fmt_size(size), embed)
+            print(f"  {str(rel):<40} {_fmt_size(size):>10}  {embed}")
 
-        self._console.print(table)
         total = sum(s for _, s in files)
-        self._console.print(f"\n[green]Total: {len(files)} files, {_fmt_size(total)}[/green]\n")
+        print(brand_log(f"Total: {len(files)} files, {_fmt_size(total)}", "ok"))
+        print()
 
     def _build_index_html(self, eval_id: str, files: list) -> str:
         """Render a minimal index.html that embeds videos/images and links files.
@@ -465,41 +451,9 @@ class EvalLogger:
         total = len(files) + (1 if index_html else 0)
 
         if self._verbose:
-            assert self._console is not None
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TextColumn("{task.completed}/{task.total} files"),
-                console=self._console,
-            ) as progress:
-                task = progress.add_task(
-                    f"Uploading {total} file(s) to {artifact_path}/", total=total
-                )
-                self._do_upload(
-                    client,
-                    run_id,
-                    eval_dir,
-                    artifact_path,
-                    files,
-                    index_html,
-                    progress=progress,
-                    task=task,
-                )
-        else:
-            self._do_upload(client, run_id, eval_dir, artifact_path, files, index_html)
+            print(f"{CYAN}Uploading {total} file(s) to {artifact_path}/{RESET}")
 
-    def _do_upload(
-        self,
-        client: MlflowClient,
-        run_id: str,
-        eval_dir: Path,
-        artifact_path: str,
-        files: list,
-        index_html: Optional[str],
-        progress=None,
-        task=None,
-    ) -> None:
+        i = 0
         for rel, _ in files:
             local = eval_dir / rel
             # Preserve subdirectories within artifact_path/.
@@ -509,13 +463,15 @@ class EvalLogger:
                 else f"{artifact_path}/{rel.parent.as_posix()}"
             )
             client.log_artifact(run_id, str(local), sub)
-            if progress is not None:
-                progress.advance(task)
+            i += 1
+            if self._verbose:
+                print(f"  [{i}/{total}] {rel}")
 
         if index_html is not None:
             with tempfile.TemporaryDirectory() as tmp:
                 tmp_path = Path(tmp) / "index.html"
                 tmp_path.write_text(index_html, encoding="utf-8")
                 client.log_artifact(run_id, str(tmp_path), artifact_path)
-            if progress is not None:
-                progress.advance(task)
+            i += 1
+            if self._verbose:
+                print(f"  [{i}/{total}] index.html (auto-generated)")

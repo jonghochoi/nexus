@@ -13,7 +13,6 @@ description = "Unified RL logging package: MLflow + TensorBoard"
 dependencies = [
     "mlflow-skinny>=2.0,<3",
     "tensorboardX",
-    "rich>=12.0",
 ]
 requires-python = ">=3.10"
 

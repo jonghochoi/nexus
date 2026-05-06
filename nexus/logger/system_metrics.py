@@ -15,6 +15,8 @@ import subprocess
 import threading
 from typing import TYPE_CHECKING, Optional
 
+from ..brand import log as brand_log
+
 if TYPE_CHECKING:
     from .mlflow_logger import MLflowLogger
 
@@ -149,6 +151,9 @@ class SystemMetricsLogger:
                 if metrics:
                     self._logger.log_metrics_now(metrics, step)
             except Exception as e:
-                print(f"[SystemMetricsLogger] Collection error (step {step}): {e}", flush=True)
+                print(
+                    brand_log(f"SystemMetricsLogger collection error (step {step}): {e}", "error"),
+                    flush=True,
+                )
             step += 1
             self._stop_event.wait(timeout=self._interval)

@@ -92,9 +92,11 @@ All intra-package imports use the relative form (`from .git_utils import ...`, `
 
 `apply_chart_settings.py` persists MLflow column / chart configuration as **experiment tags** (`nexus.chart_settings`, `nexus.chart_settings_version`) so they outlast browser sessions and are shared across the team. The browser-side restoration is a generated JS bookmarklet (printed by `python chart_settings/apply_chart_settings.py bookmarklet`) that fetches the tag and writes the MLflow 2.x localStorage keys. CLI subcommands: `apply`, `show`, `bookmarklet`. User-facing guide: `docs/31_CHART_SETTINGS_GUIDE.md`.
 
-### `brand.py` (CLI output utilities)
+### `nexus/brand.py` (output styling utilities)
 
-Shared ANSI styling module imported by CLI scripts across the repo. Exports `SIGIL` (`[NXS]` in bold cyan), `BANNER`, `FLOW`, `VERSION_STRING`, `print_banner()`, `print_flow()`, `rule()`, and `log()`. Import directly from the repo root: `from brand import print_banner, SIGIL, log`. Has no imports from `nexus.*` and no MLflow dependency — safe to import in any context.
+Shared ANSI styling module — lives **inside the `nexus` package** so it ships with `pip install nexus-logger` and can be imported by `nexus/logger/*` modules via the relative form (`from ..brand import log, rule, SIGIL`). Exports `SIGIL` (`[NXS]` in bold cyan), `BANNER`, `FLOW`, `VERSION_STRING`, `print_banner()`, `print_flow()`, `rule()`, and `log()`. External callers use `from nexus.brand import …`. Has no imports from `nexus.logger.*` and no MLflow dependency — safe to import in any context.
+
+**Library output convention** — all `nexus/logger/*.py` modules emit user-facing output via `from ..brand import log as brand_log, …` and plain `print()` (NOT `rich`). `rich` is reserved for the genuine CLI scripts in `post_upload/` (`upload_tb.py`, `verify_tb.py`, and the shared `history.py`); it is intentionally absent from `pyproject.toml` dependencies so training-node installs stay lean. When adding a new logger module, follow the same pattern — `print(brand_log(msg, level))` for status lines, `f"{CYAN}label:{RESET} {value}"` for key/value pairs, `brand.rule(title)` for section headers.
 
 ## When adding new features
 
@@ -111,6 +113,7 @@ Several concepts are reflected in multiple places. Change one without auditing t
 - [ ] `nexus/logger/tb_logger.py` — decide whether `TBLogger` needs a stub (required if you want `mode="tensorboard"` to stay viable; see package layout note above)
 - [ ] `README.md` → "Logger Modes" table
 - [ ] `tests/smoke_test.py` — add a core test case
+- [ ] User-facing output uses `from ..brand import log as brand_log, …` (no `rich`, no plain `[ModuleName] …` print — see Library output convention above)
 
 **New opt-in / advanced logger feature** (not re-exported from `__init__`)
 - [ ] `docs/30_ADVANCED_FEATURES.md` — document the new feature
