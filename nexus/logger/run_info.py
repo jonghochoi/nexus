@@ -36,6 +36,8 @@ import time
 from pathlib import Path
 from typing import Union
 
+from ..brand import log as brand_log
+
 RUN_INFO_FILENAME = ".nexus_run.json"
 SCHEMA_VERSION = 1
 
@@ -109,7 +111,10 @@ def read_run_info(path_or_dir: Union[str, Path]) -> dict:
         # Forward-compat — newer writer, older reader. Don't fail; the
         # required keys above are the contract.
         print(
-            f"[nexus.run_info] {p} has schema_version={version}, "
-            f"this reader supports {SCHEMA_VERSION} — extra keys ignored."
+            brand_log(
+                f"run_info {p} has schema_version={version}, "
+                f"this reader supports {SCHEMA_VERSION} — extra keys ignored.",
+                "warn",
+            )
         )
     return data

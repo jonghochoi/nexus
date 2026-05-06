@@ -15,6 +15,9 @@ from typing import Optional
 import mlflow.entities
 from mlflow.tracking import MlflowClient
 
+from ..brand import CYAN, RESET
+from ..brand import log as brand_log
+
 
 class SweepLogger:
     """Creates and manages a parent run for a hyperparameter sweep.
@@ -71,12 +74,10 @@ class SweepLogger:
             for i in range(0, len(items), 100):
                 self._client.log_batch(run_id=self._run_id, params=items[i : i + 100])
 
-        print(
-            f"[SweepLogger] Sweep run created.\n"
-            f"  Run ID   : {self._run_id}\n"
-            f"  Sweep    : {sweep_name}\n"
-            f"  MLflow   : {tracking_uri}"
-        )
+        print(brand_log("SweepLogger sweep run created.", "ok"))
+        print(f"  {CYAN}Run ID :{RESET} {self._run_id}")
+        print(f"  {CYAN}Sweep  :{RESET} {sweep_name}")
+        print(f"  {CYAN}MLflow :{RESET} {tracking_uri}")
 
     # ── Context manager ──────────────────────────────────────────────────────
 
@@ -130,4 +131,4 @@ class SweepLogger:
             return
         self._closed = True
         self._client.set_terminated(self._run_id, status=status)
-        print(f"[SweepLogger] Sweep finalized ({status}): {self._run_id}")
+        print(brand_log(f"SweepLogger sweep finalized ({status}): {self._run_id}", "ok"))

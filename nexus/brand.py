@@ -31,7 +31,7 @@ Project story:
     En Taro Adun.
 
 Usage:
-    from brand import print_banner, SIGIL
+    from nexus.brand import print_banner, SIGIL
 
     print_banner()
     print(f"{SIGIL} Upload complete")
