@@ -26,6 +26,12 @@ class ModelRegistry:
 
     def __init__(self, tracking_uri: str = "http://127.0.0.1:5100"):
         self._tracking_uri = tracking_uri
+        # Pin the *global* tracking URI as well as the client's, so that
+        # MLflow operations that resolve proxy artifact URIs (e.g.
+        # `list_artifacts`, `register_model`) — which consult
+        # `mlflow.get_tracking_uri()` rather than the client — do not fall
+        # back to the default `file://` scheme.
+        mlflow.set_tracking_uri(tracking_uri)
         self._client = MlflowClient(tracking_uri=tracking_uri)
 
     def get_production_model(self, model_name: str) -> Optional[dict]:
@@ -142,8 +148,6 @@ class ModelRegistry:
         if stage == "Production" and archive_existing_production:
             self.archive_old_production(model_name)
 
-        # mlflow.register_model uses the global tracking URI — pin it for the call.
-        mlflow.set_tracking_uri(self._tracking_uri)
         mv = mlflow.register_model(source, model_name)
 
         if description:
