@@ -101,16 +101,6 @@ class DualLogger:
         self._mlflow.log_checkpoint(local_path, kind)
         # TensorBoard does not support checkpoints — skipped silently
 
-    # ── Model Registry surface (forwarded to MLflow only) ────────────────────
-
-    def register_checkpoint(
-        self, model_name: str, kind: str = "best", description: Optional[str] = None
-    ) -> str:
-        return self._mlflow.register_checkpoint(model_name, kind, description)
-
-    def promote_model(self, model_name: str, version: str, stage: str) -> None:
-        self._mlflow.promote_model(model_name, version, stage)
-
     def close(self) -> None:
         self._tb.close()
         self._mlflow.close()
