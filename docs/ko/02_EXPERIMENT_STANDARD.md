@@ -287,6 +287,24 @@ last.pth  →  30일 경과 후 팀 합의 하에 삭제 가능.
 
 > 💡 `best.pth`와 `last.pth`는 갱신 시 덮어쓰기됩니다. 중간 체크포인트를 보존하고 싶으면 로컬 `nn_dir/` 디렉토리를 활용하세요.
 
+### ── 체크포인트 모델 등록 (선택)
+
+학습이 끝나고 `scheduled_sync`가 `best.pth`를 중앙으로 옮기면, **추론 평가 후 선택적으로** 해당 체크포인트를 중앙 MLflow Model Registry 버전으로 등록할 수 있습니다. 등록은 학습 중 자동 액션이 아니라 사람이 "이 run은 production 후보다"라고 결정한 시점에 한 번 호출하는 **post-hoc 액션**입니다. `scheduled_sync`는 Model Registry 행을 전파하지 않으므로, 학습 코드 안에서 `register_checkpoint()`를 부르면 GPU 측 로컬 서버(`5100`)에만 등록되고 중앙에 반영되지 않습니다.
+
+```bash
+cd post_upload
+python register_model.py \
+    --tracking_uri http://nexus-server:5000 \
+    --experiment <experiment 이름> \
+    --run_name <run 이름> \
+    --kind best \
+    --model_name <모델 이름> \
+    --description "평가 결과: success rate 87%" \
+    --stage Staging
+```
+
+자세한 흐름·플래그·트러블슈팅은 [`13_POST_UPLOAD.md` Step 8](../13_POST_UPLOAD.md#step-8--register_modelpy--register-a-checkpoint-as-a-model-version)을 참조하세요.
+
 ### ── 디스크 사용량 모니터링
 
 ```bash

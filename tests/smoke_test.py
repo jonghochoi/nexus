@@ -750,6 +750,97 @@ def test_eval_logger(tracking_uri: str) -> bool:
         return False
 
 
+def test_post_register(tracking_uri: str) -> bool:
+    """10. ModelRegistry.register_from_run_name — post-hoc registration"""
+    section("10. Post-hoc Model Registry registration")
+    try:
+        import tempfile
+        from pathlib import Path
+
+        from mlflow.tracking import MlflowClient
+        from nexus.logger import MLflowLogger
+        from nexus.logger.model_registry import ModelRegistry
+
+        client = MlflowClient(tracking_uri=tracking_uri)
+        run_name = f"post_register_{int(time.time())}"
+        model_name = f"nexus_smoke_post_register_{int(time.time())}"
+
+        # ── 10a. Create source run + upload a fake best.pth ───────────────────
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            ckpt_src = tmp_path / "scratch.pth"
+            ckpt_src.write_bytes(b"fake-checkpoint-bytes")
+
+            logger = MLflowLogger(
+                run_name=run_name,
+                tracking_uri=tracking_uri,
+                experiment_name="nexus_smoke_test",
+                tags={"researcher": "smoke_test"},
+            )
+            logger.log_checkpoint(str(ckpt_src), kind="best")
+            logger.close()
+        ok(f"Source run created: {run_name}")
+
+        # ── 10b. resolve_checkpoint_source — pre-flight without registering ──
+        registry = ModelRegistry(tracking_uri=tracking_uri)
+        resolved = registry.resolve_checkpoint_source(
+            experiment="nexus_smoke_test", run_name=run_name, kind="best"
+        )
+        if not resolved["source"].endswith("/checkpoints/best.pth"):
+            fail(f"Unexpected source URI: {resolved['source']!r}")
+            return False
+        ok(f"resolve_checkpoint_source returned {resolved['source']}")
+
+        # Missing-artifact path raises FileNotFoundError
+        try:
+            registry.resolve_checkpoint_source(
+                experiment="nexus_smoke_test", run_name=run_name, kind="last"
+            )
+            fail("resolve_checkpoint_source should have raised for missing 'last'")
+            return False
+        except FileNotFoundError:
+            ok("resolve_checkpoint_source raises on missing artifact")
+
+        # ── 10c. register_from_run_name — actually register + Staging ────────
+        result = registry.register_from_run_name(
+            experiment="nexus_smoke_test",
+            run_name=run_name,
+            model_name=model_name,
+            kind="best",
+            description="smoke test post-hoc registration",
+            stage="Staging",
+        )
+        if not result["version"]:
+            fail(f"register_from_run_name returned empty version: {result!r}")
+            return False
+        ok(f"register_from_run_name returned version {result['version']}")
+
+        # ── 10d. Verify on the server ────────────────────────────────────────
+        mv = client.get_model_version(model_name, result["version"])
+        if mv.current_stage != "Staging":
+            fail(f"Expected stage 'Staging', got {mv.current_stage!r}")
+            return False
+        ok("New version is in Staging")
+
+        if mv.tags.get("nexus.sourceRunName") != run_name:
+            fail(f"nexus.sourceRunName tag missing or wrong: {mv.tags!r}")
+            return False
+        ok("nexus.sourceRunName tag stamped")
+
+        if mv.description != "smoke test post-hoc registration":
+            fail(f"description mismatch: {mv.description!r}")
+            return False
+        ok("description applied")
+
+        return True
+    except Exception as e:
+        fail(f"Post-hoc registration test failed: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return False
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 
@@ -792,6 +883,7 @@ def main() -> None:
         results["scheduled_sync"] = test_scheduled_sync_roundtrip(args.tracking_uri)
         results["sweep_logger"] = test_sweep_logger(args.tracking_uri)
         results["eval_logger"] = test_eval_logger(args.tracking_uri)
+        results["post_register"] = test_post_register(args.tracking_uri)
 
     # ── Summary ───────────────────────────────────────────────────────────────
     section("Summary")
@@ -806,6 +898,7 @@ def main() -> None:
         "scheduled_sync": "scheduled_sync round-trip (export -> import)",
         "sweep_logger": "SweepLogger (parent-child runs)",
         "eval_logger": "EvalLogger (eval artifact upload)",
+        "post_register": "Model Registry post-hoc registration (register_from_run_name)",
     }
     all_passed = True
     for key, label in labels.items():

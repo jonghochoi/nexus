@@ -17,6 +17,7 @@
 - [Step 5 — Real-robot evaluation — `sim_run_id` auto-detection](#step-5--real-robot-evaluation--sim_run_id-auto-detection)
 - [Step 6 — All CLI flags at a glance](#step-6--all-cli-flags-at-a-glance)
 - [Step 7 — Workflows](#step-7--workflows)
+- [Step 8 — `register_model.py` — register a checkpoint as a model version](#step-8--register_modelpy--register-a-checkpoint-as-a-model-version)
 - [Troubleshooting](#troubleshooting)
 - [Next steps](#next-steps)
 
@@ -660,6 +661,76 @@ python post_upload/upload_tb.py \
 
 ---
 
+## Step 8 — `register_model.py` — register a checkpoint as a model version
+
+> **Purpose:** Register a specific run's `checkpoints/best.pth` (or `last.pth`) as a Model Registry version on the central MLflow server, **after** training has finished and `scheduled_sync` has propagated the run.
+
+The intended flow is *evaluate first, register second*: train many runs, run inference / qualitative checks against the synced central artifacts, then register only the run(s) worth promoting. The CLI does not run on the air-gapped GPU node — invoke it from any host that can reach central MLflow (inference node, operator desktop).
+
+### ── Prerequisites
+
+- The run already exists on central MLflow (visible in the UI). Pipeline A users: wait for the next `scheduled_sync` cycle if the run is fresh.
+- `checkpoints/<kind>.pth` artifact is uploaded to that run. This requires the trainer to have called `MLflowLogger.log_checkpoint(path, kind="best")` (or `"last"`) at least once. *(Canonical policy: `docs/00_PRINCIPLES.md#checkpoint-policy`.)*
+- `~/.nexus/post_config.json` `tracking_uri` points at central MLflow, or pass `--tracking_uri` explicitly.
+
+### ── Usage
+
+```bash
+cd post_upload
+python register_model.py \
+    --tracking_uri http://nexus-server:5000 \
+    --experiment shadow_hand_rl \
+    --run_name exp_v3_seed42 \
+    --kind best \
+    --model_name shadow_hand_ppo \
+    --description "PPO v3 — success rate 87% on real hand" \
+    --stage Staging
+```
+
+Result: a new `shadow_hand_ppo` version on central with `current_stage = Staging`, pointing at `runs:/<run_id>/checkpoints/best.pth`. The version is tagged with `nexus.sourceRunName=<run_name>` so operators can correlate it back to the source run without dereferencing run_id.
+
+### ── Flags
+
+| Flag | Required | Notes |
+|---|---|---|
+| `--tracking_uri` | ✅ unless set in `~/.nexus/post_config.json` | Typically the central server. *No silent fallback to `127.0.0.1:5000`* — the script aborts if neither CLI flag nor config provides it. |
+| `--experiment` | ✅ | The experiment that owns the source run. **CLI-only — does not inherit from the config file**, since `experiment` is per-task and changes between invocations. |
+| `--run_name` | ✅ | Stable run identity (NEXUS convention). |
+| `--model_name` | ✅ | Model Registry name. Created on first call. |
+| `--kind` | default `best` | `best` or `last`. |
+| `--description` | strongly recommended | Free-text rationale (eval result, hardware tested on, …). |
+| `--stage` | optional | `Staging` / `Production` / `Archived`. Skipped if omitted. |
+| `--archive_existing_production` | optional | With `--stage Production`, archives current Production versions first. Use to keep exactly one Production version. |
+| `--dry_run` | | Resolve run + artifact, print preflight, *do not register*. |
+| `--history` | | Print recent `register_model` invocations from `~/.nexus/history.json` and exit. |
+
+### ── Idempotency
+
+`register_model.py` creates a **new version on every successful invocation**. This matches MLflow's `register_model()` behavior and keeps the registry as an append-only audit trail. If you want exactly one Production version, use `--stage Production --archive_existing_production`.
+
+### ── Python API equivalent
+
+`register_model.py` is a thin CLI over `nexus.logger.model_registry.ModelRegistry.register_from_run_name`. From a notebook or eval script:
+
+```python
+from nexus.logger.model_registry import ModelRegistry
+
+registry = ModelRegistry(tracking_uri="http://nexus-server:5000")
+result = registry.register_from_run_name(
+    experiment="shadow_hand_rl",
+    run_name="exp_v3_seed42",
+    model_name="shadow_hand_ppo",
+    kind="best",
+    description="PPO v3 — success rate 87% on real hand",
+    stage="Staging",
+)
+print(result)   # {"version": "4", "run_id": "...", "source": "runs:/.../checkpoints/best.pth", "stage": "Staging"}
+```
+
+For pre-flight without registering (e.g. validating a list of candidate runs), use `registry.resolve_checkpoint_source(experiment, run_name, kind)`.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Cause / Fix |
@@ -670,6 +741,10 @@ python post_upload/upload_tb.py \
 | `[WARN] --repeat-last: no previous upload in history.` | Empty `~/.nexus/history.json`. Do one manual upload first, then `--repeat-last` works. |
 | Auto-verify prints `✗ Verification failed` | Tag list, counts, or values diverge. Compare via MLflow UI + `verify_tb.py --from-last` to inspect which tags/steps differ. |
 | `[yellow]run_meta.json sim_run_id (X) overrides carried-over value (Y)` | `--repeat-last` had a different sim_run_id than the tb_dir's run_meta.json. The file's value wins (ground truth for this dir). If the file is wrong, delete it or override with `--tags sim_run_id=...`. |
+| `register_model.py: Run not found ... If this is a GPU-side run, verify scheduled_sync has uploaded it.` | The run exists on the GPU node's local MLflow but not yet on central. Wait for the next sync cycle (default 5 min); `validate_sync.sh` if you suspect cron is not running. |
+| `register_model.py: Run ... has no 'checkpoints/best.pth' artifact.` | Trainer never called `log_checkpoint(kind="best")`, or `last` was uploaded but `best` was not. Check the run's artifacts in the MLflow UI to confirm what's actually stored. |
+| `register_model.py: Missing required: --tracking_uri (no ~/.nexus/post_config.json found ...)` | The CLI does not silently default to `127.0.0.1:5000`. Pass `--tracking_uri http://nexus-server:5000` explicitly, or create `~/.nexus/post_config.json` with the team's central URI so it applies automatically. |
+| `register_model.py: Missing required: --experiment` | `--experiment` is intentionally CLI-only — it is per-task and changes between invocations. Pass it explicitly every time. |
 
 ---
 
