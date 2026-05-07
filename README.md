@@ -22,7 +22,8 @@
 > ### 📖 New here? Read this first.
 >
 > Every team-agreed rule and engineering invariant lives on **one page**: [`docs/00_PRINCIPLES.md`](docs/00_PRINCIPLES.md) — *5 min, English*.
-> 🇰🇷 한글 온보딩 트랙은 [`docs/ko/`](docs/ko/)에서 시작하세요. 6개 필수 태그, `sim_run_id` 의무, 실패 Run 보존 등 모든 규칙이 정리되어 있습니다.
+>
+> 한글 온보딩 트랙은 [`docs/ko/`](docs/ko/)에서 시작하세요.
 
 ---
 
@@ -109,7 +110,7 @@ The default pulls **`mlflow-skinny`** — `MlflowClient` and the tracking / enti
 
 ## Two ways to use NEXUS
 
-|   | 🅰️ **Pipeline A** — Live logging | 🅱️ **Pipeline B** — Post-upload |
+|   | **Pipeline A** — Live logging | **Pipeline B** — Post-upload |
 |---|---|---|
 | **When** | New trainer / monitor a live run | Upload a completed tfevents in one shot, or register a checkpoint as a model after evaluation |
 | **Trainer code** | 3-line change: `SummaryWriter` → `make_logger` | Untouched |
@@ -141,9 +142,9 @@ The default pulls **`mlflow-skinny`** — `MlflowClient` and the tracking / enti
 
 | When | Where to look |
 |---|---|
-| ⚡ During training | Local server `localhost:5100` — instant, no internet needed |
-| 👥 Team review / run comparison | Central server `:5000` |
-| 🔌 Network outage | No data loss — local server buffers everything until sync resumes |
+| During training | Local server `localhost:5100` — instant, no internet needed |
+| Team review / run comparison | Central server `:5000` |
+| Network outage | No data loss — local server buffers everything until sync resumes |
 
 ---
 
@@ -180,24 +181,6 @@ The default pulls **`mlflow-skinny`** — `MlflowClient` and the tracking / enti
 | **21** | [`docs/21_AIRGAPPED_GPU_SERVER_SETUP.md`](docs/21_AIRGAPPED_GPU_SERVER_SETUP.md) | Operator — GPU node offline bring-up (Step 1 transfer & install via Method A or B, Step 2 smoke-test verification) |
 | **30** | [`docs/30_ADVANCED_FEATURES.md`](docs/30_ADVANCED_FEATURES.md) | Opt-in — SweepLogger, EvalLogger, Model Registry, system metrics, git tracking |
 | **31** | [`docs/31_CHART_SETTINGS_GUIDE.md`](docs/31_CHART_SETTINGS_GUIDE.md) | Opt-in — persist MLflow chart/column settings across browser sessions |
+| **32** | [`docs/32_EVAL_ARTIFACT_INGESTION.md`](docs/32_EVAL_ARTIFACT_INGESTION.md) | Opt-in — hand off an external evaluator's outputs to the central run via `EvalLogger` (sidecar contract, naming policy, glue script) |
 | **ko** | [`docs/ko/`](docs/ko/) | 한글 온보딩 트랙 — `01_INTRO.md` (동기/FAQ), `02_EXPERIMENT_STANDARD.md` (운영 표준) |
 | — | [`brand.py`](brand.py) | ASCII art, sigils, and color constants |
-
----
-
-## Dependencies
-
-| Package | Version |
-|---|---|
-| `mlflow` | `2.13.0` |
-| `tbparse` | `0.0.8` |
-| `tensorboard` | `2.16.2` |
-| `tensorboardX` | latest |
-| `pandas` | latest |
-| `rich` | latest |
-
-```bash
-bash setup.sh             # installs all dependencies into ~/.nexus/venv
-bash setup.sh --alias     # same, plus register `nexus-activate` in ~/.bashrc
-bash setup.sh --reinstall # wipe and recreate ~/.nexus/venv (after source overwrite)
-```
