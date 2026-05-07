@@ -107,7 +107,7 @@ If the table appears, parsing is working correctly. Verify that metric names and
 After reviewing the dry-run contents, proceed with the actual upload. Make sure `~/.nexus/post_config.json` exists (see [Step 1](#-step-1--nexuspost_configjson--team-fixed-values) below). For local-testing MLflow (`:5100`), set `"tracking_uri": "http://127.0.0.1:5100"` in the config; the built-in default is `:5000` (central server).
 
 ```bash
-# Short form — config supplies tracking_uri, researcher, hardware, etc.
+# Short form — config supplies tracking_uri, researcher, hand, etc.
 # Missing required tags (researcher/seed/task) are prompted interactively.
 python post_upload/upload_tb.py --tb_dir /path/to/your/logs/run_001
 
@@ -199,7 +199,7 @@ Example:
   "experiment": "robot_hand_rl",
   "tags": {
     "researcher": "kim",
-    "hardware": "robot_22dof"
+    "hand": "robot_22dof"
   }
 }
 ```
@@ -209,7 +209,7 @@ Example:
 | `tracking_uri` | Central MLflow server URL (local testing: `http://127.0.0.1:5100`) |
 | `experiment` | Default experiment name |
 | `tags.researcher` | Your name — per-user, set once and forget |
-| `tags.hardware` | Hardware identifier — team-fixed reproducibility tag |
+| `tags.hand` | Hand identifier — team-fixed reproducibility tag |
 
 Override the config path with `--config /path/to/other.json` (useful for CI or second-machine setups).
 
@@ -225,7 +225,7 @@ Override the config path with `--config /path/to/other.json` (useful for CI or s
 | `experiment` | auto from `--experiment` | Injected automatically — no manual entry needed |
 | `researcher` | `~/.nexus/post_config.json` | Set once per user |
 | `task` | `--tags` or interactive prompt | Per-run |
-| `hardware` | `~/.nexus/post_config.json` | Set once per setup |
+| `hand` | `~/.nexus/post_config.json` | Set once per setup |
 | `sim_run_id` | run_meta.json or `--tags` | **Required** when `experiment=real_robot_eval` (see Step 5) |
 
 ### ── Interactive prompting
@@ -434,7 +434,7 @@ $EDITOR ~/.nexus/post_config.json
   "experiment": "robot_hand_rl",
   "tags": {
     "researcher": "lee",
-    "hardware": "robot_22dof"
+    "hand": "robot_22dof"
   }
 }
 ```
@@ -457,7 +457,7 @@ Discovered tfevents files:
 
 [metric summary table ...]
 
-Tags to upload: {experiment: robot_hand_rl, researcher: lee, task: in_hand_reorientation, hardware: robot_22dof, ...}
+Tags to upload: {experiment: robot_hand_rl, researcher: lee, task: in_hand_reorientation, hand: robot_22dof, ...}
 Upload the above data to MLflow? (y/n): y
 
 [upload progress ...]
@@ -640,7 +640,7 @@ In CI (no TTY) every required tag must be explicit; there's no interactive fallb
         --experiment   robot_hand_rl \
         --run_name     ${RUN_NAME} \
         --tracking_uri ${MLFLOW_URI} \
-        --tags         researcher=ci task=${TASK} hardware=robot_22dof
+        --tags         researcher=ci task=${TASK} hand=robot_22dof
 ```
 
 Exit codes you can branch on:

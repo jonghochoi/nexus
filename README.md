@@ -156,7 +156,7 @@ The default pulls **`mlflow-skinny`** — `MlflowClient` and the tracking / enti
 | `experiment` | `robot_hand_rl` | ✅ *(auto from `--experiment`)* |
 | `researcher` | `kim` | optional |
 | `task` | `in_hand_reorientation` | optional |
-| `hardware` | `robot_22dof` | optional |
+| `hand` | `robot_22dof` | optional |
 | `sim_run_id` | `<upstream_run_id>` | optional *(Sim-to-Real tracing)* |
 | `git_commit` | `54696cb326bb...` | auto *(Pipeline A)* |
 | `git_dirty` | `false` / `true` | auto *(Pipeline A)* |

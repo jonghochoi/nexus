@@ -32,15 +32,3 @@
 | Pipeline A cron sync을 운영하려는 운영자 | [`../12_SCHEDULED_SYNC.md`](../12_SCHEDULED_SYNC.md) *(Verification checklist 포함)* |
 | 옵션 기능을 살펴보려는 사람 | [`../30_ADVANCED_FEATURES.md`](../30_ADVANCED_FEATURES.md), [`../31_CHART_SETTINGS_GUIDE.md`](../31_CHART_SETTINGS_GUIDE.md) |
 
----
-
-## 팀 합의 규칙 *(가장 중요한 4가지)*
-
-자세한 내용은 [`02_EXPERIMENT_STANDARD.md`](02_EXPERIMENT_STANDARD.md)에 있고, 영문 요약은 [`../00_PRINCIPLES.md`](../00_PRINCIPLES.md)에 있습니다. 한 페이지에 다시 정리해두는 이유는, 한글 트랙만 따라가더라도 핵심을 놓치지 않게 하기 위함입니다.
-
-1. **MLflow는 숫자, Confluence는 판단** — 절대 섞지 않습니다.
-2. **4개 필수 태그** — `experiment`, `researcher`, `task`, `hardware`.
-3. **실패한 Run은 절대 삭제하지 않습니다** — `fail_reason` 태그 + Confluence "실패 분석" 작성.
-4. **실험 시작 전에 가설을 먼저** — 사후합리화 방지.
-
-> ⚠️ 공유 GPU 서버에서 작업하는 경우, sync cron을 직접 등록하지 마세요. 운영자가 등록한 단일 cron이 모든 팀원의 run을 자동으로 sync합니다. 상세: [`../12_SCHEDULED_SYNC.md`](../12_SCHEDULED_SYNC.md#team-member-checklist).

@@ -19,7 +19,7 @@ HISTORY_LIMIT = 20
 BUILTIN_DEFAULTS = {
     "tracking_uri": "http://127.0.0.1:5000",
     "experiment": "robot_hand_rl",
-    "tags": {"hardware": "robot_22dof"},
+    "tags": {"hand": "robot_22dof"},
 }
 
 # experiment is auto-injected from the --experiment argument in upload_tb.py.

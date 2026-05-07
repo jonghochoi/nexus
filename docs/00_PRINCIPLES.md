@@ -39,7 +39,7 @@ Every run must carry this tag:
 
 `experiment`
 
-The **single source of truth** is the code: [`post_upload/config.py::required_tags()`](../post_upload/config.py). Additional tags (e.g. `researcher`, `task`, `hardware`, `seed`) are useful metadata but are not enforced.
+The **single source of truth** is the code: [`post_upload/config.py::required_tags()`](../post_upload/config.py). Additional tags (e.g. `researcher`, `task`, `hand`, `seed`) are useful metadata but are not enforced.
 
 ### ── `sim_run_id`
 
