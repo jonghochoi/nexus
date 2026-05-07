@@ -229,6 +229,33 @@ Attaches post-training evaluation outputs (mp4 rollouts, GIF previews, reports, 
 
 `EvalLogger` is designed for the external-repo case: the training repo already uses `make_logger()`, which writes a `.nexus_run.json` sidecar into the output directory. The eval step reads that sidecar to recover run identity without re-passing config.
 
+### ── Why eval uploads target central directly
+
+In a NEXUS deployment a training run lives in two places: the GPU-node-local relay (`http://127.0.0.1:5100`, where `MLflowLogger` writes during training) and the central MLflow (`http://nexus-server:5000`, where `scheduled_sync` mirrors the run on a cron cycle). `EvalLogger.from_run_info()` defaults to **uploading directly to central**, not to the local relay. Three reasons:
+
+1. **Eval bundles are large and one-shot.** A typical eval ships hundreds of MB of mp4/gif rollouts. `scheduled_sync` is tuned for fast metric-delta replication; routing big artifacts through it bloats every sync cycle and delays the next one. A direct upload bypasses that queue entirely.
+2. **Immediate visibility.** Eval is a human-in-the-loop step — you want the result on the team-shared central UI as soon as it finishes, not after the next sync tick (which can be minutes away). Direct upload makes the run appear instantly in the same view everyone else uses.
+3. **Run UUIDs differ between local and central.** The local relay and central server assign their own MLflow run UUIDs, so the `run_id` in the sidecar is local-only. `EvalLogger` resolves the target run by `tags.mlflow.runName` (which is identical on both sides), so a central upload Just Works without needing a UUID translation table.
+
+The trade-off is that the run must already have been synced to central at least once before eval runs (`EvalLogger` will raise `ValueError` if no run with that `run_name` exists on the target server). The intended order is: training finishes → at least one `scheduled_sync` cycle completes → eval runs.
+
+For this default to work, the trainer must let the sidecar know the central URI. Pass `central_tracking_uri="http://nexus-server:5000"` to `make_logger()`:
+
+```python
+self.writer = make_logger(
+    mode="dual",
+    tb_dir=output_dir,
+    run_name=run_name,
+    tracking_uri="http://127.0.0.1:5100",            # local relay (training writes here)
+    central_tracking_uri="http://nexus-server:5000", # NEXUS central (eval reads from sidecar)
+    experiment_name="robot_hand_rl",
+    agent_params=agent_cfg,
+    env_params=env_cfg,
+)
+```
+
+This writes both URIs into `.nexus_run.json`. Sidecars where `central_tracking_uri` is omitted (older trainer, or `make_logger()` called without the argument) will get an instructive error from `from_run_info()` pointing to the migration — see _Resolution order_ below.
+
 ### ── Recommended eval_dir layout
 
 `EvalLogger` walks `eval_dir` recursively and uploads everything it finds. A flat layout is fine; subdirectories are preserved under `eval/<eval_id>/` on the server.
@@ -277,14 +304,24 @@ ev = EvalLogger(
 ev.upload(eval_dir="./eval_outputs/ppo_v3_seed0/")
 ```
 
-### ── Overriding tracking_uri for relay architectures
+### ── Resolution order for tracking_uri
 
-When training logs to a local relay (`127.0.0.1:5100`) but eval artifacts should land on the central server, pass `tracking_uri` explicitly to `from_run_info()`:
+`from_run_info()` picks the destination MLflow URI in this order:
+
+1. **Explicit `tracking_uri=` argument** — wins unconditionally. Use this for one-off overrides (e.g. mirror the same eval bundle to a staging server).
+2. **`target="central"` (default)** → the sidecar's `central_tracking_uri`. Recommended path; see _Why eval uploads target central directly_ above. Raises `ValueError` when the sidecar has no `central_tracking_uri` (i.e. `make_logger()` was called without `central_tracking_uri=`). The error message points to the three migration options.
+3. **`target="local"`** → the sidecar's `tracking_uri` (the GPU-node-local relay). Useful when debugging an in-progress training run before it has been synced to central:
+
+```python
+ev = EvalLogger.from_run_info(output_dir, target="local")  # upload to 127.0.0.1:5100
+```
+
+Or pass an explicit override:
 
 ```python
 ev = EvalLogger.from_run_info(
     output_dir,
-    tracking_uri="http://nexus-server:5000",   # override the sidecar's local URI
+    tracking_uri="http://staging-mlflow:5000",   # one-off override, ignores target
 )
 ```
 

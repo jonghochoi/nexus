@@ -54,6 +54,7 @@ class DualLogger:
         tags: Optional[dict] = None,
         parent_run_id: Optional[str] = None,
         max_param_depth: Optional[int] = None,
+        central_tracking_uri: Optional[str] = None,
     ):
         self._tb = TBLogger(log_dir=tb_dir)
         # tb_dir doubles as the natural location for the .nexus_run.json
@@ -69,6 +70,7 @@ class DualLogger:
             parent_run_id=parent_run_id,
             max_param_depth=max_param_depth,
             run_info_dir=tb_dir,
+            central_tracking_uri=central_tracking_uri,
         )
         print(brand_log("DualLogger active: TensorBoard + MLflow", "ok"))
 
@@ -121,6 +123,7 @@ def make_logger(
     tags: Optional[dict] = None,
     parent_run_id: Optional[str] = None,
     max_param_depth: Optional[int] = None,
+    central_tracking_uri: Optional[str] = None,
 ):
     """
     Factory that returns the right logger based on mode.
@@ -143,6 +146,14 @@ def make_logger(
     `max_param_depth` limits how many levels deep the config is flattened into
     MLflow params (0 = no params; 1 = top-level scalars only; None = fully flatten).
     The full config is always preserved in the JSON artifact regardless of this setting.
+
+    `central_tracking_uri` — the NEXUS central MLflow URI (the destination that
+    `scheduled_sync` ships data to, e.g. ``http://nexus-server:5000``). When
+    provided, it is recorded in the ``.nexus_run.json`` sidecar alongside the
+    local `tracking_uri` so downstream eval glue (`EvalLogger.from_run_info`)
+    can target central directly without consulting an external config file.
+    Has no effect on the trainer's own logging path — training data still
+    flows to the local relay specified by `tracking_uri`.
 
     Example:
         self.writer = make_logger(
@@ -169,6 +180,7 @@ def make_logger(
             tags=tags,
             parent_run_id=parent_run_id,
             max_param_depth=max_param_depth,
+            central_tracking_uri=central_tracking_uri,
         )
     elif mode == "mlflow":
         return MLflowLogger(
@@ -182,6 +194,7 @@ def make_logger(
             parent_run_id=parent_run_id,
             max_param_depth=max_param_depth,
             run_info_dir=tb_dir,
+            central_tracking_uri=central_tracking_uri,
         )
     elif mode == "tensorboard":
         if tb_dir is None:
