@@ -137,8 +137,6 @@ finally:
 
 ## 2. Model Registry
 
-> ⚠️ Model Registry calls (`register_checkpoint`, `promote_model`) require `mode="dual"` or `mode="mlflow"`. `DualLogger` forwards them to its inner `MLflowLogger`; `TBLogger` raises `NotImplementedError` because TensorBoard has no equivalent — silently no-op'ing would return a fake version string and break the next `promote_model` call.
-
 ### ── Registering a checkpoint
 
 After uploading a checkpoint with `log_checkpoint()`, register it in the MLflow Model Registry:
