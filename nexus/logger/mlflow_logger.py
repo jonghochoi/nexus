@@ -63,6 +63,7 @@ class MLflowLogger:
         track_git: bool = True,  # set False if not inside a git repo or to suppress git tags
         max_param_depth: Optional[int] = None,  # None = flatten fully; 1 = top-level scalars only
         run_info_dir: Optional[str] = None,  # write .nexus_run.json sidecar here (skip if None)
+        central_tracking_uri: Optional[str] = None,  # NEXUS central — recorded in sidecar for eval
     ):
         self.run_name = run_name
         self.tracking_uri = tracking_uri
@@ -93,6 +94,7 @@ class MLflowLogger:
                 run_id=self._run_id,
                 experiment=experiment_name,
                 tracking_uri=tracking_uri,
+                central_tracking_uri=central_tracking_uri,
             )
 
         if params:

@@ -10,13 +10,21 @@ configs.
 Schema (versioned):
 
     {
-      "schema_version": 1,
-      "run_name":     "ppo_v17_seed3",
-      "run_id":       "<mlflow_uuid>",
-      "experiment":   "robot_hand_rl",
-      "tracking_uri": "http://127.0.0.1:5100",
-      "created_at":   "2026-05-06T12:34:56Z"
+      "schema_version":       1,
+      "run_name":             "ppo_v17_seed3",
+      "run_id":               "<local mlflow uuid>",
+      "experiment":           "robot_hand_rl",
+      "tracking_uri":         "http://127.0.0.1:5100",
+      "central_tracking_uri": "http://nexus-server:5000",
+      "created_at":           "2026-05-06T12:34:56Z"
     }
+
+``central_tracking_uri`` is optional — null/absent when ``make_logger()`` was
+called without a ``central_tracking_uri`` argument. Readers must handle both
+cases. The required keys are: ``run_name``, ``run_id``, ``experiment``,
+``tracking_uri`` — adding more optional fields does not require a version
+bump; reserve a bump for a genuinely incompatible change (rename, type change,
+removed required field).
 
 Design notes:
   - Atomic write — temp file + ``os.replace`` so a concurrent reader never
@@ -34,7 +42,7 @@ import json
 import os
 import time
 from pathlib import Path
-from typing import Union
+from typing import Optional, Union
 
 from ..brand import log as brand_log
 
@@ -46,9 +54,23 @@ SCHEMA_VERSION = 1
 
 
 def write_run_info(
-    out_dir: Union[str, Path], *, run_name: str, run_id: str, experiment: str, tracking_uri: str
+    out_dir: Union[str, Path],
+    *,
+    run_name: str,
+    run_id: str,
+    experiment: str,
+    tracking_uri: str,
+    central_tracking_uri: Optional[str] = None,
 ) -> Path:
     """Write ``out_dir/.nexus_run.json`` atomically.
+
+    ``tracking_uri`` is the server the trainer is logging to (typically the
+    GPU-node-local ``http://127.0.0.1:5100``). ``central_tracking_uri`` is the
+    NEXUS central MLflow that ``scheduled_sync`` ships data to — recording it
+    in the sidecar lets downstream eval / upload glue land artifacts directly
+    on central without reading an external config. Pass ``None`` (or omit)
+    when the trainer doesn't know the central URI; readers will handle the
+    absence explicitly.
 
     Returns the path that was written. Silently no-ops (returns the would-be
     path) when ``out_dir`` is falsy — callers don't need to guard the call.
@@ -66,6 +88,7 @@ def write_run_info(
         "run_id": run_id,
         "experiment": experiment,
         "tracking_uri": tracking_uri,
+        "central_tracking_uri": central_tracking_uri,
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
 

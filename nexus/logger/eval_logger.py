@@ -177,18 +177,55 @@ class EvalLogger:
         path_or_dir: Union[str, Path],
         *,
         tracking_uri: Optional[str] = None,
+        target: str = "central",
         verbose: bool = True,
     ) -> "EvalLogger":
         """Construct from a ``.nexus_run.json`` sidecar (or its parent directory).
 
-        ``tracking_uri`` overrides the value stored in the sidecar — useful when
-        the training run was logged to a local relay (``127.0.0.1:5100``) but
-        eval artifacts should land on the central server (``nexus-server:5000``).
+        Resolution order for the MLflow URI eval artifacts will land on:
+
+        1. Explicit ``tracking_uri`` argument — wins unconditionally. Use this
+           when the sidecar's URIs are stale or you want a one-off override.
+        2. ``target="central"`` (default) → sidecar's ``central_tracking_uri``.
+           This is the recommended path in a NEXUS deployment — eval results
+           land on the team-shared central MLflow with no waiting for the next
+           ``scheduled_sync`` cycle, and large mp4/gif bundles don't bloat the
+           sync queue. Raises ``ValueError`` if the sidecar has no
+           ``central_tracking_uri`` (i.e. ``make_logger()`` was called without
+           ``central_tracking_uri=``); the error message points to the
+           migration path.
+        3. ``target="local"`` → sidecar's ``tracking_uri`` (the GPU-node-local
+           relay the trainer logged to). Use this for debugging an in-progress
+           training run before it has been synced to central.
+
+        Run identity is always resolved by ``run_name`` via
+        ``tags.mlflow.runName`` — the local and central run UUIDs differ but
+        the run name is identical on both servers, so the local-only ``run_id``
+        in the sidecar is not consulted by this code path.
         """
         info = read_run_info(path_or_dir)
+
+        if tracking_uri is not None:
+            resolved_uri = tracking_uri
+        elif target == "central":
+            central = info.get("central_tracking_uri")
+            if not central:
+                raise ValueError(
+                    f"{path_or_dir}/.nexus_run.json has no central_tracking_uri — "
+                    "either upgrade the trainer to pass make_logger(central_tracking_uri=...), "
+                    'pass tracking_uri="http://<central>:5000" explicitly to from_run_info(), '
+                    'or call from_run_info(..., target="local") to use the sidecar\'s '
+                    "local tracking_uri."
+                )
+            resolved_uri = central
+        elif target == "local":
+            resolved_uri = info["tracking_uri"]
+        else:
+            raise ValueError(f"target must be 'central' or 'local', got: {target!r}")
+
         return cls(
             run_name=info["run_name"],
-            tracking_uri=tracking_uri or info["tracking_uri"],
+            tracking_uri=resolved_uri,
             experiment=info["experiment"],
             verbose=verbose,
         )
