@@ -87,6 +87,8 @@ Detail: [`12_SCHEDULED_SYNC.md` Step 5](12_SCHEDULED_SYNC.md#step-5--multi-user-
 
 `MLflowLogger.log_checkpoint(path, kind)` enforces `kind ∈ {"best", "last"}` and renames on upload. Both are overwritten in place — intermediate checkpoints (`ep_100_*.pth`) belong on local disk, not in MLflow. Detail: [`10_ARCHITECTURE.md`](10_ARCHITECTURE.md), [`nexus/logger/mlflow_logger.py`](../nexus/logger/mlflow_logger.py).
 
+Promoting a checkpoint to a **central Model Registry version** is a *post-training* action, not part of the training loop — `scheduled_sync` does not propagate registry rows. Use [`post_upload/register_model.py`](13_POST_UPLOAD.md#step-8--register_modelpy--register-a-checkpoint-as-a-model-version) or [`30_ADVANCED_FEATURES.md` §2](30_ADVANCED_FEATURES.md#2-model-registry).
+
 ### ── State file
 
 > The file at `~/.nexus/sync_state/{experiment}.json` is the **source of truth** for "what has been synced."

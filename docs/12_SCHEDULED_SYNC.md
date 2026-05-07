@@ -217,6 +217,7 @@ The local state file (`~/.nexus/sync_state/{experiment}.json`) records two thing
 | **Survives reboot** | The state file lives in `~/.nexus/`, which persists across reboots (unlike `/tmp`). |
 | **Deletion forces full re-sync** | Removing the file makes the next cron run treat every run as "never synced" and re-ship every metric and artifact. Use this if state diverges from what's on the central server. |
 | **Artifact sync policy** | Paths under `checkpoints/` are re-synced every cycle (since `best.pth` / `last.pth` are overwritten in place during training). Every other artifact is synced once and recorded in `__artifacts__` so subsequent cycles skip it. The predicate is `export_delta.is_always_sync()`. |
+| **Model Registry rows** | **Not synced.** `RegisteredModel` and `ModelVersion` entries created on the GPU-side local server (`5100`) do **not** propagate to central (`5000`). To register a checkpoint as a central Model Registry version, run [`post_upload/register_model.py`](13_POST_UPLOAD.md#step-8--register_modelpy--register-a-checkpoint-as-a-model-version) after sync completes. |
 | **Exit codes (cron-friendly)** | `0` = data transferred · `1` = configuration error · `2` = no new data (wrapper skips SCP and exits cleanly). |
 
 ---

@@ -82,6 +82,8 @@ def train(self) -> None:
 
 `log_checkpoint(path, kind)` renames the file on upload so MLflow always stores exactly two checkpoint files: `checkpoints/best.pth` and `checkpoints/last.pth`. Each call silently overwrites the previous version for that kind.
 
+> 💡 `log_checkpoint()` uploads to whatever tracking URI the logger is pointed at — typically the GPU-side local server (`5100`). After training, `scheduled_sync` propagates the artifact to central, but **not** the Model Registry row. To promote a run's checkpoint to a central Model Registry version *after* evaluation, use [`post_upload/register_model.py`](13_POST_UPLOAD.md#step-8--register_modelpy--register-a-checkpoint-as-a-model-version) — calling `register_checkpoint()` inside the training loop is **not** the standard NEXUS path.
+
 ---
 
 ## Switching Modes

@@ -168,13 +168,16 @@ nexus/
 │       ├── tb_logger.py            # TensorBoard wrapper (legacy compat)
 │       ├── git_utils.py            # Git commit/dirty-state capture (auto-called at run start)
 │       ├── sweep_logger.py         # [Advanced] HP sweep parent run
-│       ├── model_registry.py       # [Advanced] Model Registry operations
+│       ├── model_registry.py       # [Advanced] Model Registry helpers (post-hoc `register_from_run_name`)
 │       ├── system_metrics.py       # [Advanced] Background CPU/GPU logging
 │       └── eval_logger.py          # [Advanced] Post-training eval artifact upload
 │
 ├── post_upload/                    # Pipeline B — upload after training
 │   ├── upload_tb.py                # Full tfevents → MLflow batch upload
-│   └── verify_tb.py                # Numeric validation vs. TB source
+│   ├── verify_tb.py                # Numeric validation vs. TB source
+│   ├── register_model.py           # Post-hoc Model Registry version registration
+│   ├── config.py                   # Loads ~/.nexus/post_config.json + builtin defaults
+│   └── history.py                  # Append-only ~/.nexus/history.json (capped at HISTORY_LIMIT)
 │
 ├── scheduled_sync/                 # Pipeline A — sync while training runs (air-gapped SCP)
 │   ├── start_local_mlflow.sh       # [GPU Server] start local MLflow server
@@ -232,6 +235,7 @@ The next section maps each runtime component (factory, loggers, sync scripts) to
 | `import_delta.py` | `scheduled_sync/` | ⬆️ Unpacks bundle, logs metrics + uploads artifacts to central MLflow |
 | `upload_tb.py` | `post_upload/` | 📤 Manual full upload after training |
 | `verify_tb.py` | `post_upload/` | ✅ Validates upload against TB source |
+| `register_model.py` | `post_upload/` | 🔐 Post-hoc — registers a run's `checkpoints/<kind>.pth` as a Model Registry version on central |
 | `eval_logger.py` | `nexus/logger/` | 🎬 `EvalLogger` — attaches eval artifacts (mp4/report) to an existing run |
 
 ---
