@@ -44,5 +44,23 @@ class TBLogger:
     def log_checkpoint(self, local_path: str, kind: str) -> None:
         pass  # TensorBoard does not support checkpoint artifacts
 
+    # ── Model Registry surface (MLflow-only) ─────────────────────────────────
+    # Stubs raise loudly rather than silently no-op'ing — register_checkpoint
+    # returns a model version that promote_model consumes, so a fake "" return
+    # would silently break the next call. If you hit this in tensorboard mode,
+    # switch to mode="dual" or mode="mlflow".
+
+    def register_checkpoint(
+        self, model_name: str, kind: str = "best", description: Optional[str] = None
+    ) -> str:
+        raise NotImplementedError(
+            "register_checkpoint requires MLflow — use mode='dual' or mode='mlflow'"
+        )
+
+    def promote_model(self, model_name: str, version: str, stage: str) -> None:
+        raise NotImplementedError(
+            "promote_model requires MLflow — use mode='dual' or mode='mlflow'"
+        )
+
     def close(self) -> None:
         self._writer.close()
