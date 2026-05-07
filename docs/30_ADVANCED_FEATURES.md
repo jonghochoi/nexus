@@ -137,9 +137,18 @@ finally:
 
 ## 2. Model Registry
 
-### ── Registering a checkpoint
+> **Where to register, and when** — Model Registry entries write to whatever tracking URI the caller is configured for, and `scheduled_sync` does **not** propagate registry rows. Two distinct paths exist; pick the right one for your workflow:
+>
+> | Use case | API | Server it writes to |
+> |---|---|---|
+> | Single-machine workflow / smoke test (logger and registry on the same MLflow) | `MLflowLogger.register_checkpoint()` (in-loop) | The logger's `tracking_uri` |
+> | Multi-node NEXUS deployment — register *after* training on central | `post_upload/register_model.py` CLI **or** `ModelRegistry.register_from_run_name()` | Central MLflow |
+>
+> In a GPU-server / central-server topology, calling `register_checkpoint()` from a `DualLogger` puts the version on the *local* `5100` server only — it will **not** sync to central. The recommended workflow there is: train (with `log_checkpoint()`) → wait for `scheduled_sync` → evaluate the synced runs → run `post_upload/register_model.py` against central for the runs you choose to promote.
 
-After uploading a checkpoint with `log_checkpoint()`, register it in the MLflow Model Registry:
+### ── In-loop registration (single-machine / smoke test)
+
+After uploading a checkpoint with `log_checkpoint()`, register it on the *same* server the logger is writing to:
 
 ```python
 logger.log_checkpoint("/path/to/best.pth", kind="best")
@@ -149,18 +158,43 @@ version = logger.register_checkpoint(
     kind="best",
     description="PPO v3 — in-hand reorientation, seed 42",
 )
-print(f"Registered as version {version}")
+logger.promote_model("shadow_hand_ppo", version=version, stage="Production")
 ```
 
-### ── Promoting a model to Production
+This API is on `MLflowLogger`. It is intentionally **not** forwarded by `DualLogger` — the asymmetry between local and central registries makes the in-loop call ambiguous in a NEXUS deployment, so the central path below is the default.
+
+### ── Post-hoc registration on central (typical NEXUS flow)
+
+After training is finished and `scheduled_sync` has copied the run to central, register from any host that can reach central MLflow:
+
+```bash
+python post_upload/register_model.py \
+    --tracking_uri http://nexus-server:5000 \
+    --experiment shadow_hand_rl \
+    --run_name exp_v3_seed42 \
+    --kind best \
+    --model_name shadow_hand_ppo \
+    --description "PPO v3 — 87% success on real hand" \
+    --stage Staging
+```
+
+Or from Python (notebook, eval script):
 
 ```python
-logger.promote_model(
+from nexus.logger.model_registry import ModelRegistry
+
+registry = ModelRegistry(tracking_uri="http://nexus-server:5000")
+result = registry.register_from_run_name(
+    experiment="shadow_hand_rl",
+    run_name="exp_v3_seed42",
     model_name="shadow_hand_ppo",
-    version=version,
-    stage="Production",   # "Staging" | "Production" | "Archived"
+    kind="best",
+    description="PPO v3 — 87% success on real hand",
+    stage="Staging",
 )
 ```
+
+The new version is stamped with `nexus.sourceRunName=<run_name>` so the registry entry is traceable back to the source run. See [`docs/13_POST_UPLOAD.md`](13_POST_UPLOAD.md#step-8--register_modelpy--register-a-checkpoint-as-a-model-version) for the full CLI reference.
 
 ### ── `ModelRegistry` — querying the registry
 

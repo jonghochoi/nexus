@@ -56,15 +56,16 @@ Used when training code is modified to call `make_logger()`. Full data-flow is i
 
 ### Pipeline B — `post_upload/` (one-shot, no trainer changes)
 
-Back-fills completed tfevents and attaches post-hoc eval artifacts. Full walkthrough in `docs/13_POST_UPLOAD.md`. Key behaviors that affect code changes:
+Back-fills completed tfevents, attaches post-hoc eval artifacts, and registers selected runs as Model Registry versions. Full walkthrough in `docs/13_POST_UPLOAD.md`. Key behaviors that affect code changes:
 
 - **Multi-run protection** — aborts if tfevents span more than one parent directory (would cause step collisions). Always upload one run dir at a time.
 - **Vectorized metric building** — build `Metric` entities via vectorized zip over numpy arrays, not `iterrows` (~50x faster); the file comments call this out.
 - **Tag precedence** (7-level chain) — single source of truth is `docs/13_POST_UPLOAD.md` §2; keep that table authoritative if you change the order.
 - **Auto-verify** — `run_verify()` runs unconditionally after upload unless `--no_verify`; exits `2` on failure (so CI can branch on it) but still records the upload in history.
 - **Eval artifacts** go under `eval/<eval_id>/` — never `checkpoints/`, to preserve `best.pth`/`last.pth` policy.
-- **History** (`~/.nexus/history.json`, capped at `HISTORY_LIMIT=20`) — records `upload_tb` invocations only; `--repeat-last` and `--from-last` filter on `script="upload_tb"`.
-- **`sys.path.insert`** in each script — injects the parent dir so sibling modules (`config`, `history`, `verify_tb`) import correctly from any working directory.
+- **Model Registry registration is post-hoc, not in-loop** — `scheduled_sync` does not propagate registry rows. Registering on the GPU-side local server (`MLflowLogger.register_checkpoint()` / `DualLogger`) writes only to local `5100`. The canonical NEXUS path is to evaluate runs after sync, then register selected runs against central via `post_upload/register_model.py` or `ModelRegistry.register_from_run_name()`. The CLI tags new versions with `nexus.sourceRunName=<run_name>` for back-traceability.
+- **History** (`~/.nexus/history.json`, capped at `HISTORY_LIMIT=20`) — records both `script="upload_tb"` and `script="register_model"`; `--repeat-last` / `--from-last` filter on `script="upload_tb"`, `register_model.py --history` filters on `script="register_model"`.
+- **`sys.path.insert`** in each script — injects the parent dir so sibling modules (`config`, `history`, `verify_tb`) import correctly from any working directory. `register_model.py` additionally inserts the *repo root* so `nexus.logger.model_registry` resolves without a `pip install`.
 
 ### Cross-cutting conventions
 
