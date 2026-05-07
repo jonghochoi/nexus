@@ -58,7 +58,7 @@ Define which columns and charts you want for each experiment:
   "experiments": {
     "robot_hand_rl": {
       "visible_columns": {
-        "tags":    ["experiment", "researcher", "task", "hardware"],
+        "tags":    ["experiment", "researcher", "task", "hand"],
         "params":  [],
         "metrics": ["train/reward_mean", "eval/reward_mean", "rl/success_rate"]
       },
@@ -134,7 +134,7 @@ Sample output:
 MLflow server: http://nexus-server:5000
 
   experiment: robot_hand_rl  (v1.0)
-    tag columns   : researcher, task, seed, hardware
+    tag columns   : researcher, task, seed, hand
     params        : (none)
     metric columns: train/reward_mean, eval/reward_mean, rl/success_rate
     chart 1: Training Reward — train/reward_mean

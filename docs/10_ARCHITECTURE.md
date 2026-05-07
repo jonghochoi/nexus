@@ -197,7 +197,7 @@ nexus/
 │
 ├── docs/                           # Filename prefix conveys reading order (00 → 30)
 │   ├── 00_PRINCIPLES.md            # Canonical team-agreed rules + engineering invariants
-│   ├── 10_ARCHITECTURE.md          # ← You are here. System design & component map
+│   ├── 10_ARCHITECTURE.md          # ← You are here. System design
 │   ├── 11_LOGGER_SETUP.md          # Pipeline A — logger integration (step-by-step diff)
 │   ├── 12_SCHEDULED_SYNC.md        # Pipeline A — cron sync wiring (config, validate, multi-user)
 │   ├── 13_POST_UPLOAD.md           # Pipeline B — upload_tb / verify_tb CLIs
@@ -215,31 +215,6 @@ nexus/
 └── github_init.sh
 ```
 
-The next section maps each runtime component (factory, loggers, sync scripts) to its on-disk location, with one-line role descriptions.
-
----
-
-## Component Map
-
-| Component | Location | Purpose |
-|---|---|---|
-| `make_logger()` | `nexus/logger/` | 🏭 Factory: returns DualLogger / MLflowLogger / TBLogger |
-| `DualLogger` | `nexus/logger/dual_logger.py` | 🔀 Forwards calls to TB + MLflow simultaneously |
-| `MLflowLogger` | `nexus/logger/mlflow_logger.py` | 📊 Buffers + flushes to local MLflow via `log_batch()` |
-| `TBLogger` | `nexus/logger/tb_logger.py` | 📈 Thin `SummaryWriter` wrapper |
-| `start_local_mlflow.sh` | `scheduled_sync/` | 🚀 Starts local MLflow on GPU Server (loopback) |
-| `sync_mlflow_all.sh` | `scheduled_sync/` | 🗂️ Cron entry point — discovers all experiments, calls per-experiment sync |
-| `sync_mlflow_to_server.sh` | `scheduled_sync/` | 🔄 Per-experiment: delta export → SCP → import |
-| `validate_sync.sh` | `scheduled_sync/` | 🔍 Pre-flight checker: SSH, inbox, experiment, dry-run |
-| `export_delta.py` | `scheduled_sync/` | 📦 Serializes new metrics + artifacts into tar.gz bundle |
-| `import_delta.py` | `scheduled_sync/` | ⬆️ Unpacks bundle, logs metrics + uploads artifacts to central MLflow |
-| `upload_tb.py` | `post_upload/` | 📤 Manual full upload after training |
-| `verify_tb.py` | `post_upload/` | ✅ Validates upload against TB source |
-| `register_model.py` | `post_upload/` | 🔐 Post-hoc — registers a run's `checkpoints/<kind>.pth` as a Model Registry version on central |
-| `eval_logger.py` | `nexus/logger/` | 🎬 `EvalLogger` — attaches eval artifacts (mp4/report) to an existing run |
-
----
-
 ## MLflow Run Lifecycle *(Pipeline A)*
 
 ```
@@ -249,7 +224,7 @@ Training starts
 make_logger(mode="dual") called
     ├─ TBLogger:     creates tfevents file
     └─ MLflowLogger: creates MLflow run (or resumes if run_name exists)
-           │ tags:   researcher, seed, task, hardware, isaac_lab_version
+           │ tags:   researcher, seed, task, hand, isaac_lab_version
            │ params: all agent_cfg hyperparameters (logged once at start)
     │
     ▼ (each epoch)
@@ -295,7 +270,7 @@ Run: "ShadowHand_seed42_20240315_143022"
 │   ├── experiment             "robot_hand_rl"
 │   ├── researcher             "jongho"
 │   ├── task                   "ShadowHandOver"
-│   └── hardware               "robot_22dof"
+│   └── hand                   "robot_22dof"
 │
 ├── Metrics (logged every step)
 │   ├── losses/actor_loss      [step 0..N]
@@ -338,7 +313,7 @@ By keeping only two checkpoints instead of stacking every epoch, storage waste i
 MLflow Central Server
 ├── Experiment: "robot_hand_rl"
 │   ├── Run: "ppo_baseline_v1"           ← Pipeline A
-│   │   ├── Tags:      researcher, seed, task, hardware, isaac_lab_version
+│   │   ├── Tags:      researcher, seed, task, hand, isaac_lab_version
 │   │   ├── Params:    lr, gamma, e_clip, batch_size, ...
 │   │   ├── Metrics:   losses/*, performance/*, info/*, episode_rewards/*
 │   │   └── Artifacts: checkpoints/best.pth, checkpoints/ep_100_...pth

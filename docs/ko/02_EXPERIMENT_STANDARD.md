@@ -49,7 +49,7 @@
 |---|---|
 | 📈 **Metrics (시계열)** | `losses/actor_loss`, `performance/RLTrainFPS`, `info/kl` |
 | ⚙️ **하이퍼파라미터** | `lr`, `gamma`, `e_clip`, reward weights |
-| 🏷️ **Run Tags** | `experiment` (필수), `researcher`, `task`, `hardware` (권장) |
+| 🏷️ **Run Tags** | `experiment` (필수), `researcher`, `task`, `hand` (권장) |
 | 💾 **Artifacts** | `best.pth`, `last.pth` |
 | ℹ️ **Run 메타데이터** | 시작 시각, 소요 시간, 사용 GPU, status |
 | 🔗 **Sim-to-Real 연결** | Real 평가 Run의 `sim_run_id` tag |
@@ -196,7 +196,7 @@ final_real           ← 버전이 없음
 |---|---|---|
 | `researcher` | 실험 수행자 | `kim` |
 | `task` | 태스크 이름 | `in_hand_reorientation` |
-| `hardware` | 사용 하드웨어 식별자 | `robot_22dof` |
+| `hand` | 사용 하드웨어 식별자 | `robot_22dof` |
 | `method` | 핵심 방법론 | `ppo`, `tactile`, `contact` |
 | `status` | 실험 진행 상태 (자동 갱신) | `running` → `done` / `failed` |
 
@@ -446,7 +446,7 @@ self.writer = make_logger(
 - [ ] Experiment 이름 결정 (기존 목록에서 선택 또는 팀 합의)
 - [ ] Run 이름 규칙 확인 (`<연구자>_<방법론>_<핵심변수>_<버전>`)
 - [ ] `experiment` Tag 확인 (`--experiment` 인자로 자동 주입됨)
-- [ ] 권장 Tags 설정 여부 확인 (`researcher`, `task`, `hardware`, `method`)
+- [ ] 권장 Tags 설정 여부 확인 (`researcher`, `task`, `hand`, `method`)
 - [ ] 로컬 MLflow 서버 실행 확인 (`bash start_local_mlflow.sh`)
 
 ### ── 실험 완료 후

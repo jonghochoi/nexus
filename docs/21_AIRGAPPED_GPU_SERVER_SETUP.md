@@ -300,7 +300,7 @@ self.writer = make_logger(
     tags={
         "researcher": os.environ.get("USER", "unknown"),
         "task":       agent_cfg.get("task", "unknown"),
-        "hardware":   "robot_22dof",
+        "hand":       "robot_22dof",
     },
 )
 ```

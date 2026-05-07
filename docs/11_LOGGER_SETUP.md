@@ -46,7 +46,7 @@ self.writer = make_logger(
     tags={
         "researcher": os.environ.get("USER", "unknown"),
         "task":       agent_cfg.get("task", "unknown"),
-        "hardware":   "robot_22dof",
+        "hand":       "robot_22dof",
     },
 )
 ```
@@ -118,7 +118,7 @@ This starts a local MLflow server on `127.0.0.1:5100`. All GPU processes on the 
 | Data | When | MLflow path |
 |---|---|---|
 | Hyperparameters (`agent_cfg`) | Run start | Parameters tab |
-| Tags (experiment, researcher, task, hardware …) | Run start | Tags tab |
+| Tags (experiment, researcher, task, hand …) | Run start | Tags tab |
 | `git_commit`, `git_dirty` tags | Run start | Tags tab |
 | `git_patch.html` | Run start *(dirty tree only)* | `git/git_patch.html` |
 | Metrics (loss, FPS, reward …) | Every step | Metrics tab |
@@ -147,7 +147,7 @@ This starts a local MLflow server on `127.0.0.1:5100`. All GPU processes on the 
 +            tags={
 +                "researcher": os.environ.get("USER", "unknown"),
 +                "task":       agent_cfg.get("task", "unknown"),
-+                "hardware":   "robot_22dof",
++                "hand":       "robot_22dof",
 +            },
 +        )
 
