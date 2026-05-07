@@ -750,6 +750,79 @@ def test_eval_logger(tracking_uri: str) -> bool:
         return False
 
 
+def test_model_registry_forwarding(tracking_uri: str) -> bool:
+    """10. Model Registry — DualLogger forwards, TBLogger raises"""
+    section("10. Model Registry Forwarding (DualLogger / TBLogger)")
+    try:
+        import tempfile
+        from pathlib import Path
+
+        from mlflow.tracking import MlflowClient
+        from nexus.logger import make_logger
+        from nexus.logger.tb_logger import TBLogger
+
+        # ── 10a. TBLogger raises NotImplementedError ──────────────────────────
+        with tempfile.TemporaryDirectory() as tmp:
+            tb = TBLogger(log_dir=tmp)
+            try:
+                tb.register_checkpoint("nexus_smoke_checkpoint", kind="best")
+                fail("TBLogger.register_checkpoint did not raise")
+                return False
+            except NotImplementedError:
+                ok("TBLogger.register_checkpoint raises NotImplementedError")
+            try:
+                tb.promote_model("nexus_smoke_checkpoint", "1", "Staging")
+                fail("TBLogger.promote_model did not raise")
+                return False
+            except NotImplementedError:
+                ok("TBLogger.promote_model raises NotImplementedError")
+            tb.close()
+
+        # ── 10b. DualLogger forwards to MLflow Model Registry ─────────────────
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            ckpt_src = tmp_path / "scratch.pth"
+            ckpt_src.write_bytes(b"fake-checkpoint-bytes")
+
+            run_name = f"registry_forward_{int(time.time())}"
+            logger = make_logger(
+                mode="dual",
+                tb_dir=tmp,
+                run_name=run_name,
+                tracking_uri=tracking_uri,
+                experiment_name="nexus_smoke_test",
+                tags={"researcher": "smoke_test"},
+            )
+            logger.log_checkpoint(str(ckpt_src), kind="best")
+            version = logger.register_checkpoint(
+                model_name="nexus_smoke_checkpoint",
+                kind="best",
+                description="smoke test forwarding",
+            )
+            logger.promote_model("nexus_smoke_checkpoint", version, "Staging")
+            logger.close()
+
+        if not version:
+            fail(f"register_checkpoint returned empty version: {version!r}")
+            return False
+        ok(f"DualLogger.register_checkpoint returned version {version}")
+
+        client = MlflowClient(tracking_uri=tracking_uri)
+        mv = client.get_model_version("nexus_smoke_checkpoint", version)
+        if mv.current_stage != "Staging":
+            fail(f"Expected stage 'Staging', got {mv.current_stage!r}")
+            return False
+        ok("DualLogger.promote_model transitioned to Staging")
+
+        return True
+    except Exception as e:
+        fail(f"Model Registry forwarding test failed: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return False
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 
@@ -792,6 +865,7 @@ def main() -> None:
         results["scheduled_sync"] = test_scheduled_sync_roundtrip(args.tracking_uri)
         results["sweep_logger"] = test_sweep_logger(args.tracking_uri)
         results["eval_logger"] = test_eval_logger(args.tracking_uri)
+        results["model_registry"] = test_model_registry_forwarding(args.tracking_uri)
 
     # ── Summary ───────────────────────────────────────────────────────────────
     section("Summary")
@@ -806,6 +880,7 @@ def main() -> None:
         "scheduled_sync": "scheduled_sync round-trip (export -> import)",
         "sweep_logger": "SweepLogger (parent-child runs)",
         "eval_logger": "EvalLogger (eval artifact upload)",
+        "model_registry": "Model Registry forwarding (DualLogger / TBLogger)",
     }
     all_passed = True
     for key, label in labels.items():
