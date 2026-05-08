@@ -212,10 +212,25 @@ echo "[$TIMESTAMP] MLflow delta sync: $EXPERIMENT"
 # ── Concurrent instance detection ────────────────────────────────────────────
 # A second sync process means another cron was accidentally registered — which
 # creates a competing state file and causes duplicate metric points.
-CONFLICT_PIDS=$(pgrep -f "sync_mlflow_to_server" 2>/dev/null | grep -v "^$$" || true)
-if [[ -n "$CONFLICT_PIDS" ]]; then
-    echo "  [WARN] Another sync_mlflow_to_server process is running:"
-    ps -o pid,user,etime,args -p "$(echo "$CONFLICT_PIDS" | tr '\n' ',')" 2>/dev/null || true
+#
+# Anchor on the canonical `bash …/sync_mlflow_to_server.sh` invocation so we
+# don't flag editors, log tails, or grep searches that happen to mention the
+# script name. Then filter on process group — subshells, pipelines, and the
+# python children spawned by this very script all share our PGID, so a real
+# peer cron (which gets its own session/group) is the only thing left.
+MY_PGID=$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')
+mapfile -t CANDIDATE_PIDS < <(pgrep -f "bash .*sync_mlflow_to_server\.sh" 2>/dev/null || true)
+CONFLICT_PIDS=()
+for pid in "${CANDIDATE_PIDS[@]}"; do
+    [[ -z "$pid" || "$pid" == "$$" ]] && continue
+    other_pgid=$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')
+    [[ -z "$other_pgid" || "$other_pgid" == "$MY_PGID" ]] && continue
+    CONFLICT_PIDS+=("$pid")
+done
+
+if [[ ${#CONFLICT_PIDS[@]} -gt 0 ]]; then
+    echo "  [WARN] Another sync_mlflow_to_server.sh process is running:"
+    ps -o pid,user,etime,args -p "$(IFS=,; echo "${CONFLICT_PIDS[*]}")" 2>/dev/null || true
     echo "         A competing cron creates a duplicate state file → duplicate metric points."
     echo "         Remove the second cron immediately."
 fi
