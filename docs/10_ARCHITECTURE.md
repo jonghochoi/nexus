@@ -215,6 +215,53 @@ nexus/
 └── github_init.sh
 ```
 
+---
+
+## Packaging Boundary
+
+Only `nexus/` (currently containing `nexus.logger`) is shipped as an installable wheel. The other top-level directories — `chart_settings/`, `post_upload/`, `scheduled_sync/` — are intentionally **not** packaged. The boundary is set in `pyproject.toml`:
+
+```toml
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["nexus*"]
+```
+
+`post_upload/` and `scheduled_sync/` don't even carry an `__init__.py`. The split is a deliberate role boundary, not an oversight.
+
+### ── Why `nexus.logger` Is Packaged
+
+`nexus.logger` runs **inside the trainer process** — external trainer repos pull it via `pip install nexus-logger @ git+https://github.com/jonghochoi/nexus.git` and then `from nexus.logger import make_logger`. To be importable from another process's site-packages, it has to live inside the wheel boundary.
+
+### ── Why Operator Tools Are Not Packaged
+
+`post_upload/`, `scheduled_sync/`, and `chart_settings/` are **operator-invoked tools**. They run on the GPU server or on the central MLflow host, never inside the trainer process:
+
+| Tool | Invocation | Where it runs |
+|:---|:---|:---|
+| `chart_settings/apply_chart_settings.py` | `python -m chart_settings.apply_chart_settings ...` | Operator workstation |
+| `post_upload/upload_tb.py`, `verify_tb.py`, `register_model.py` | `python post_upload/upload_tb.py ...` | After-training, manually |
+| `scheduled_sync/*.py` | wrapped by `scheduled_sync/sync_mlflow_to_server.sh` (cron) | GPU server |
+
+Three reasons they stay outside the wheel:
+
+1. **Trainer environments don't need them** — they never run alongside training, so installing them into a trainer's site-packages would only add weight (and would pull in `rich`, full `mlflow`, the tfevents parsing stack, etc., violating the `mlflow-skinny` contract for `nexus-logger`).
+2. **They live next to deployment-specific configs** — `sync_config.example.json` and `post_config.example.json` are meant to be copied and edited per host. Running from a `git clone`d checkout keeps the config and the code together; a `pip install` would split them.
+3. **Heterogeneous invocation** — `python -m`, `python <file>.py`, and `bash <file>.sh` are all in active use. Forcing them through `console_scripts` would require every operator to `pip install -e .` and memorise a new CLI name per tool.
+
+### ── Decision Rule for New Modules
+
+When adding a new module, ask one question first:
+
+- **"Will another Python process `import` this?"** (especially trainer code)
+  → put it under `nexus/<subpkg>/` with an `__init__.py`. The `nexus*` pattern picks it up automatically.
+- **"Will only an operator run this — via CLI, cron, or shell wrapper?"**
+  → put it at the repo top level (sibling to `post_upload/`, `scheduled_sync/`). Don't add an `__init__.py` unless you specifically want `python -m` style invocation.
+
+> 💡 The sibling repo `jonghochoi/observer` follows the **opposite** policy: every subpackage there ships via pip because Observer is consumed both as a CLI **and** as a library by external trainers. Don't copy that layout here without thinking — the role boundary is what keeps `nexus-logger` lean for trainer-node installs.
+
+---
+
 ## MLflow Run Lifecycle *(Pipeline A)*
 
 ```
