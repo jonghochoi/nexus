@@ -25,13 +25,13 @@
 
 ## Team Agreements
 
-These are rules every team member must follow. Detailed walkthroughs (Korean) live in [`ko/02_EXPERIMENT_STANDARD.md`](ko/02_EXPERIMENT_STANDARD.md).
+These are rules every team member must follow. Detailed walkthroughs live in [`01_EXPERIMENT_STANDARD.md`](01_EXPERIMENT_STANDARD.md).
 
 ### ── Tool role separation
 
 > **MLflow stores numbers. Confluence stores judgment. Never mix the two.**
 
-If you write interpretation in MLflow descriptions, the team won't see it. If you paste numbers into Confluence, they go stale the moment a run is rerun. Detailed rationale and templates: [`ko/02_EXPERIMENT_STANDARD.md` § 0](ko/02_EXPERIMENT_STANDARD.md#0-도구-역할-분리-원칙).
+If you write interpretation in MLflow descriptions, the team won't see it. If you paste numbers into Confluence, they go stale the moment a run is rerun. Detailed rationale and templates: [`01_EXPERIMENT_STANDARD.md` § Tool role separation](01_EXPERIMENT_STANDARD.md#tool-role-separation).
 
 ### ── Required tags
 
@@ -47,17 +47,17 @@ Every real-robot eval run **must** carry a `sim_run_id` tag pointing at the upst
 - **Pipeline A** — set the tag in `make_logger(tags={...})`
 - **Pipeline B** — drop a `run_meta.json` next to the tfevents, or pass `--tags sim_run_id=...`. Uploads to `--experiment real_robot_eval` are **blocked** if missing.
 
-Detail: [`ko/02_EXPERIMENT_STANDARD.md` § 8](ko/02_EXPERIMENT_STANDARD.md#8-sim-to-real-연결-규칙), [`13_POST_UPLOAD.md` § 5](13_POST_UPLOAD.md).
+Detail: [`01_EXPERIMENT_STANDARD.md` § Sim-to-Real connection rule](01_EXPERIMENT_STANDARD.md#sim-to-real-connection-rule), [`13_POST_UPLOAD.md` § 5](13_POST_UPLOAD.md).
 
 ### ── Failed run preservation
 
 > **Never delete a failed run.**
 
-Stamp `fail_reason` on it, write the failure analysis in Confluence, and leave the run in MLflow forever. Same-mistake-twice prevention is one of NEXUS's core values. Detail: [`ko/02_EXPERIMENT_STANDARD.md` § 7](ko/02_EXPERIMENT_STANDARD.md#7-failed-run-처리-규칙).
+Stamp `fail_reason` on it, write the failure analysis in Confluence, and leave the run in MLflow forever. Same-mistake-twice prevention is one of NEXUS's core values. Detail: [`01_EXPERIMENT_STANDARD.md` § Failed run policy](01_EXPERIMENT_STANDARD.md#failed-run-policy).
 
 ### ── Hypothesis first
 
-Write the experiment's hypothesis in Confluence **before** launching the run. Writing the hypothesis after seeing results is post-hoc rationalization, not science. Detail: [`ko/02_EXPERIMENT_STANDARD.md` § 6](ko/02_EXPERIMENT_STANDARD.md#6-실험-생명주기).
+Write the experiment's hypothesis in Confluence **before** launching the run. Writing the hypothesis after seeing results is post-hoc rationalization, not science. Detail: [`01_EXPERIMENT_STANDARD.md` § Experiment lifecycle](01_EXPERIMENT_STANDARD.md#experiment-lifecycle).
 
 ---
 
@@ -116,7 +116,7 @@ The default install (`pip install nexus-logger`) pulls `mlflow-skinny` to slot i
 
 | Audience | Next read |
 |---|---|
-| 🇰🇷 Korean team members onboarding | [`ko/README.md`](ko/README.md) — Korean track index |
+| 🇰🇷 Korean team members onboarding | [`nexus_guide.html`](nexus_guide.html) — download and open locally; covers motivation, pipelines, setup, and team rules |
 | 🛠️ Engineer integrating Pipeline A | [`10_ARCHITECTURE.md`](10_ARCHITECTURE.md) → [`11_LOGGER_SETUP.md`](11_LOGGER_SETUP.md) → [`12_SCHEDULED_SYNC.md`](12_SCHEDULED_SYNC.md) |
 | 📤 Engineer using Pipeline B (post-upload) | [`13_POST_UPLOAD.md`](13_POST_UPLOAD.md) |
 | 🖥️ Operator — central server install | [`20_MLFLOW_SERVER_SETUP.md`](20_MLFLOW_SERVER_SETUP.md) (Step 0 covers local-PC verification) |

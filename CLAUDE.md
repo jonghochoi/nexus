@@ -147,7 +147,7 @@ Several concepts are reflected in multiple places. Change one without auditing t
 **Adding a new doc file under `docs/`**
 - [ ] `README.md` → "Further Reading" table — add the new entry with its numeric prefix
 - [ ] CLAUDE.md → "Where to read more" — update if the doc is relevant to code changes
-- [ ] If the doc applies to Korean users, consider adding a corresponding entry in `docs/ko/`
+- [ ] If the doc is relevant to onboarding, consider reflecting it in `docs/nexus_guide.html`
 
 ## Docs Markdown style (`docs/`)
 
@@ -328,4 +328,4 @@ Optional for trivial one-liners; required for any commit that touches more than 
 
 ## Where to read more
 
-`docs/00_PRINCIPLES.md` is the canonical entry point (team-agreed rules + engineering invariants). `docs/10_ARCHITECTURE.md` is the best starting point for data-flow and run-structure before touching code. All docs are indexed in `README.md` → "Further Reading": tracks `10–13` (engineer/user), `20–21` (operator infrastructure), `30–31` (opt-in features — `30_ADVANCED_FEATURES.md`, `31_CHART_SETTINGS_GUIDE.md`). Korean onboarding: `docs/ko/`.
+`docs/00_PRINCIPLES.md` is the canonical entry point (team-agreed rules + engineering invariants). `docs/10_ARCHITECTURE.md` is the best starting point for data-flow and run-structure before touching code. All docs are indexed in `README.md` → "Further Reading": `01` (experiment standard), tracks `10–13` (engineer/user), `20–21` (operator infrastructure), `30–32` (opt-in features). Korean onboarding: `docs/nexus_guide.html` (download and open locally).

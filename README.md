@@ -19,11 +19,18 @@
 
 ---
 
-> ### 📖 New here? Read this first.
+> ### 📖 New here? Start with the onboarding guide.
+>
+> **Korean onboarding (한글 소개서):** [`docs/nexus_guide.html`](docs/nexus_guide.html)
+> — download and open in a browser for a full visual walkthrough of NEXUS.
+>
+> ```bash
+> git clone https://github.com/jonghochoi/nexus.git
+> open nexus/docs/nexus_guide.html   # macOS
+> # xdg-open nexus/docs/nexus_guide.html   # Linux
+> ```
 >
 > Every team-agreed rule and engineering invariant lives on **one page**: [`docs/00_PRINCIPLES.md`](docs/00_PRINCIPLES.md) — *5 min, English*.
->
-> 한글 온보딩 트랙은 [`docs/ko/`](docs/ko/)에서 시작하세요.
 
 ---
 
@@ -168,11 +175,13 @@ The default pulls **`mlflow-skinny`** — `MlflowClient` and the tracking / enti
 
 ## Further Reading
 
-> Filename prefix conveys reading order. **Everyone reads `00_PRINCIPLES.md` first.** Korean team members continue in [`docs/ko/`](docs/ko/); engineers and operators pick up the relevant track below.
+> Filename prefix conveys reading order. **Everyone reads `00_PRINCIPLES.md` first**, then picks up the relevant track below.
 
 | # | Document | Description |
 |:---:|---|---|
+| **HTML** | [`docs/nexus_guide.html`](docs/nexus_guide.html) | **Korean onboarding guide** — download and open locally for a full visual walkthrough |
 | **00** | [`docs/00_PRINCIPLES.md`](docs/00_PRINCIPLES.md) | **Read first.** Team-agreed rules + engineering invariants (single canonical source) |
+| **01** | [`docs/01_EXPERIMENT_STANDARD.md`](docs/01_EXPERIMENT_STANDARD.md) | Experiment naming, tags, lifecycle, failed-run policy, Confluence template |
 | **10** | [`docs/10_ARCHITECTURE.md`](docs/10_ARCHITECTURE.md) | Full system design and component map |
 | **11** | [`docs/11_LOGGER_SETUP.md`](docs/11_LOGGER_SETUP.md) | Pipeline A — logger integration step-by-step diff |
 | **12** | [`docs/12_SCHEDULED_SYNC.md`](docs/12_SCHEDULED_SYNC.md) | Pipeline A — cron sync wiring (config, validate, multi-user, verification checklist) |
@@ -182,5 +191,4 @@ The default pulls **`mlflow-skinny`** — `MlflowClient` and the tracking / enti
 | **30** | [`docs/30_ADVANCED_FEATURES.md`](docs/30_ADVANCED_FEATURES.md) | Opt-in — SweepLogger, EvalLogger, Model Registry, system metrics, git tracking |
 | **31** | [`docs/31_CHART_SETTINGS_GUIDE.md`](docs/31_CHART_SETTINGS_GUIDE.md) | Opt-in — persist MLflow chart/column settings across browser sessions |
 | **32** | [`docs/32_EVAL_ARTIFACT_INGESTION.md`](docs/32_EVAL_ARTIFACT_INGESTION.md) | Opt-in — hand off an external evaluator's outputs to the central run via `EvalLogger` (sidecar contract, naming policy, glue script) |
-| **ko** | [`docs/ko/`](docs/ko/) | 한글 온보딩 트랙 — `01_INTRO.md` (동기/FAQ), `02_EXPERIMENT_STANDARD.md` (운영 표준) |
 | — | [`brand.py`](brand.py) | ASCII art, sigils, and color constants |

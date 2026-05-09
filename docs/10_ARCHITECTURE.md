@@ -195,8 +195,9 @@ nexus/
 ├── tests/
 │   └── smoke_test.py               # End-to-end local validation script
 │
-├── docs/                           # Filename prefix conveys reading order (00 → 30)
+├── docs/                           # Filename prefix conveys reading order (00 → 32)
 │   ├── 00_PRINCIPLES.md            # Canonical team-agreed rules + engineering invariants
+│   ├── 01_EXPERIMENT_STANDARD.md   # Experiment naming, tags, lifecycle, Confluence template
 │   ├── 10_ARCHITECTURE.md          # ← You are here. System design
 │   ├── 11_LOGGER_SETUP.md          # Pipeline A — logger integration (step-by-step diff)
 │   ├── 12_SCHEDULED_SYNC.md        # Pipeline A — cron sync wiring (config, validate, multi-user)
@@ -205,10 +206,7 @@ nexus/
 │   ├── 21_AIRGAPPED_GPU_SERVER_SETUP.md  # Operator — GPU node offline bring-up (pip wheel / Docker, incl. verify)
 │   ├── 30_ADVANCED_FEATURES.md     # Opt-in — SweepLogger, RL metrics, Model Registry
 │   ├── 31_CHART_SETTINGS_GUIDE.md  # Opt-in — persist MLflow chart/column settings
-│   └── ko/                         # 🇰🇷 Korean onboarding & operational policy track
-│       ├── README.md               # Korean track index + reading order
-│       ├── 01_INTRO.md             # 동기·두 파이프라인 개념·FAQ
-│       └── 02_EXPERIMENT_STANDARD.md  # 명명 규칙·태그·라이프사이클·Confluence 템플릿
+│   └── nexus_guide.html            # Korean onboarding guide — download and open locally
 │
 ├── brand.py                        # ASCII art, sigils, color constants
 ├── setup.sh

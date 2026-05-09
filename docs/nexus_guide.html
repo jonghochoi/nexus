@@ -1,0 +1,1409 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NEXUS — Centralized RL Experiment Hub</title>
+  <style>
+    /* ── Reset & base ────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --cyan:      #00c9d4;
+      --cyan-dark: #009ba5;
+      --blue:      #1e6fdc;
+      --blue-soft: #e8f1fd;
+      --green:     #22c55e;
+      --amber:     #f59e0b;
+      --red:       #ef4444;
+      --bg:        #f7f9fc;
+      --surface:   #ffffff;
+      --border:    #e2e8f0;
+      --text:      #1a202c;
+      --text-muted:#6b7280;
+      --code-bg:   #1e2433;
+      --code-text: #e2e8f0;
+      --radius:    10px;
+      --shadow:    0 2px 12px rgba(0,0,0,.08);
+      --nav-h:     60px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      font-size: 15px;
+    }
+
+    /* ── Nav ──────────────────────────────────────────────────────── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(255,255,255,.95);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+      height: var(--nav-h);
+      display: flex; align-items: center;
+    }
+
+    .nav-inner {
+      max-width: 1100px; margin: 0 auto; padding: 0 1.5rem;
+      width: 100%;
+      display: flex; align-items: center; gap: 1rem;
+    }
+
+    .nav-logo {
+      font-weight: 800; font-size: 1.15rem;
+      color: var(--cyan-dark); white-space: nowrap;
+      text-decoration: none;
+    }
+    .nav-logo span { color: var(--text); font-weight: 400; }
+
+    .nav-links {
+      display: flex; gap: .2rem;
+      list-style: none;
+      overflow-x: auto;
+      flex-wrap: nowrap;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .nav-links::-webkit-scrollbar { display: none; }
+
+    .nav-links a {
+      text-decoration: none; color: var(--text-muted);
+      font-size: .82rem; font-weight: 500;
+      padding: .35rem .65rem;
+      border-radius: 6px;
+      white-space: nowrap;
+      transition: color .15s, background .15s;
+    }
+    .nav-links a:hover { color: var(--cyan-dark); background: #f0fbfc; }
+
+    /* ── Hero ─────────────────────────────────────────────────────── */
+    .hero {
+      background: linear-gradient(135deg, #0f1924 0%, #0d2b45 50%, #0b3c5d 100%);
+      color: #fff;
+      padding: 5rem 1.5rem 4rem;
+      text-align: center;
+    }
+
+    .hero-sigil {
+      display: inline-block;
+      background: var(--cyan);
+      color: #000;
+      font-weight: 900;
+      font-size: .9rem;
+      padding: .25rem .75rem;
+      border-radius: 4px;
+      letter-spacing: .08em;
+      margin-bottom: 1.5rem;
+    }
+
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 800;
+      line-height: 1.15;
+      margin-bottom: .75rem;
+    }
+
+    .hero h1 em {
+      font-style: normal;
+      color: var(--cyan);
+    }
+
+    .hero .tagline {
+      font-size: clamp(.95rem, 2.5vw, 1.2rem);
+      color: #a8c4d8;
+      margin-bottom: 2rem;
+      max-width: 600px;
+      margin-left: auto; margin-right: auto;
+    }
+
+    .hero-badges {
+      display: flex; flex-wrap: wrap; gap: .5rem;
+      justify-content: center;
+      margin-bottom: 2.5rem;
+    }
+
+    .badge {
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.2);
+      color: #cde; font-size: .78rem; font-weight: 600;
+      padding: .3rem .8rem; border-radius: 20px;
+    }
+
+    .hero-cta {
+      display: flex; flex-wrap: wrap; gap: .75rem; justify-content: center;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: .65rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 700; font-size: .9rem;
+      text-decoration: none;
+      transition: transform .15s, box-shadow .15s;
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 18px rgba(0,0,0,.2); }
+    .btn-primary { background: var(--cyan); color: #000; }
+    .btn-secondary { background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.3); }
+
+    /* ── Layout ───────────────────────────────────────────────────── */
+    main { max-width: 1100px; margin: 0 auto; padding: 3rem 1.5rem 5rem; }
+
+    section { margin-bottom: 4rem; }
+    section:last-child { margin-bottom: 0; }
+
+    h2 {
+      font-size: 1.6rem; font-weight: 800;
+      margin-bottom: 1.25rem;
+      padding-bottom: .5rem;
+      border-bottom: 2px solid var(--cyan);
+      color: var(--text);
+    }
+
+    h3 {
+      font-size: 1.15rem; font-weight: 700;
+      margin: 1.75rem 0 .75rem;
+      color: var(--text);
+    }
+
+    h3::before { content: '── '; color: var(--cyan-dark); font-weight: 400; }
+
+    p { margin-bottom: .85rem; }
+
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Cards & grids ────────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      box-shadow: var(--shadow);
+    }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1rem;
+    }
+
+    .card-icon { font-size: 1.8rem; margin-bottom: .6rem; }
+    .card h4 { font-size: 1rem; font-weight: 700; margin-bottom: .4rem; }
+    .card p { font-size: .88rem; color: var(--text-muted); margin: 0; }
+
+    /* ── Comparison table ─────────────────────────────────────────── */
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    @media (max-width: 640px) { .compare-grid { grid-template-columns: 1fr; } }
+
+    .compare-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    .compare-header {
+      padding: .75rem 1.2rem;
+      font-weight: 700; font-size: .88rem;
+    }
+    .compare-header.bad  { background: #fff5f5; color: #c53030; }
+    .compare-header.good { background: #f0fff4; color: #276749; }
+
+    .compare-body { padding: .5rem 0; }
+
+    .compare-item {
+      display: flex; align-items: flex-start; gap: .6rem;
+      padding: .5rem 1.2rem;
+      font-size: .87rem;
+    }
+    .compare-item + .compare-item { border-top: 1px solid var(--border); }
+
+    .compare-icon { flex-shrink: 0; margin-top: .1rem; font-size: 1rem; }
+
+    /* ── Tables ───────────────────────────────────────────────────── */
+    .table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      background: var(--surface);
+      font-size: .88rem;
+    }
+
+    thead tr { background: #f1f5f9; }
+
+    th, td {
+      padding: .65rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    th { font-weight: 700; font-size: .82rem; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
+
+    td:first-child { font-weight: 600; }
+
+    .center { text-align: center; }
+
+    /* ── Code ─────────────────────────────────────────────────────── */
+    pre {
+      background: var(--code-bg);
+      color: var(--code-text);
+      border-radius: var(--radius);
+      padding: 1.25rem 1.5rem;
+      overflow-x: auto;
+      font-size: .82rem;
+      line-height: 1.6;
+      margin: .85rem 0;
+    }
+
+    code {
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    }
+
+    p code, li code, td code {
+      background: #f1f5f9;
+      color: #be123c;
+      padding: .1em .4em;
+      border-radius: 4px;
+      font-size: .85em;
+    }
+
+    .code-label {
+      display: inline-block;
+      font-size: .72rem; font-weight: 700;
+      padding: .15rem .6rem;
+      border-radius: 4px 4px 0 0;
+      margin-bottom: -2px;
+    }
+    .code-label.bash   { background: #2d3748; color: #68d391; }
+    .code-label.python { background: #2d3748; color: #f6e05e; }
+    .code-label.diff   { background: #2d3748; color: #fc8181; }
+
+    /* diff colors */
+    .diff-add  { color: #68d391; }
+    .diff-del  { color: #fc8181; }
+
+    /* ── Infra diagram ────────────────────────────────────────────── */
+    .infra-diagram {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    @media (max-width: 720px) {
+      .infra-diagram { grid-template-columns: 1fr; }
+      .infra-arrow { transform: rotate(90deg); }
+    }
+
+    .infra-box {
+      background: var(--surface);
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+    }
+
+    .infra-box.gpu-box { border-color: #6366f1; }
+    .infra-box.nexus-box { border-color: var(--cyan); }
+
+    .infra-title {
+      font-size: .78rem; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .08em; margin-bottom: .75rem;
+    }
+    .infra-title.gpu   { color: #6366f1; }
+    .infra-title.nexus { color: var(--cyan-dark); }
+
+    .infra-item {
+      display: flex; align-items: center; gap: .5rem;
+      font-size: .85rem; padding: .35rem 0;
+    }
+    .infra-item + .infra-item { border-top: 1px solid var(--border); }
+
+    .infra-arrow {
+      text-align: center; color: var(--cyan-dark);
+      font-size: 1.5rem; white-space: nowrap;
+    }
+
+    .infra-arrow small { display: block; font-size: .72rem; color: var(--text-muted); margin-top: .25rem; }
+
+    /* ── Pipeline tabs ────────────────────────────────────────────── */
+    .tab-buttons {
+      display: flex; gap: .5rem; margin-bottom: 1.25rem;
+      flex-wrap: wrap;
+    }
+
+    .tab-btn {
+      padding: .5rem 1.2rem;
+      border-radius: 8px;
+      border: 2px solid var(--border);
+      background: var(--surface);
+      font-weight: 700; font-size: .88rem; cursor: pointer;
+      transition: all .15s;
+      color: var(--text-muted);
+    }
+    .tab-btn:hover { border-color: var(--cyan); color: var(--cyan-dark); }
+    .tab-btn.active { background: var(--cyan); border-color: var(--cyan); color: #000; }
+
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+    /* ── Steps ────────────────────────────────────────────────────── */
+    .steps { counter-reset: step; }
+
+    .step {
+      display: flex; gap: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .step-num {
+      flex-shrink: 0;
+      width: 2rem; height: 2rem;
+      background: var(--cyan);
+      color: #000; font-weight: 900; font-size: .85rem;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      margin-top: .15rem;
+    }
+
+    .step-body h4 { font-size: .95rem; font-weight: 700; margin-bottom: .4rem; }
+    .step-body p  { font-size: .88rem; color: var(--text-muted); margin: 0; }
+
+    /* ── Tags ─────────────────────────────────────────────────────── */
+    .tag-list { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .5rem; }
+
+    .tag {
+      display: inline-flex; align-items: center; gap: .35rem;
+      padding: .3rem .8rem;
+      border-radius: 20px;
+      font-size: .8rem; font-weight: 600;
+    }
+    .tag-required { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+    .tag-optional  { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+    .tag-auto      { background: #ecfdf5; color: #065f46; border: 1px solid #6ee7b7; }
+
+    /* ── Principles list ──────────────────────────────────────────── */
+    .principle-list { display: flex; flex-direction: column; gap: .75rem; }
+
+    .principle {
+      display: flex; gap: 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--cyan);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 1rem 1.25rem;
+    }
+
+    .principle-icon { font-size: 1.4rem; flex-shrink: 0; }
+
+    .principle-title { font-weight: 700; margin-bottom: .25rem; font-size: .95rem; }
+    .principle-desc  { font-size: .85rem; color: var(--text-muted); margin: 0; }
+
+    /* ── Advanced features grid ───────────────────────────────────── */
+    .adv-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1rem;
+    }
+
+    .adv-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.1rem 1.25rem;
+      border-top: 3px solid var(--cyan);
+    }
+
+    .adv-card-icon { font-size: 1.6rem; margin-bottom: .5rem; }
+    .adv-card h4   { font-size: .9rem; font-weight: 700; margin-bottom: .3rem; }
+    .adv-card p    { font-size: .8rem; color: var(--text-muted); margin: 0; }
+
+    /* ── Docs index ───────────────────────────────────────────────── */
+    .docs-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: .75rem;
+    }
+
+    .doc-item {
+      display: flex; gap: .85rem; align-items: flex-start;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: .85rem 1rem;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .doc-item:hover { border-color: var(--cyan); box-shadow: 0 2px 10px rgba(0,201,212,.12); }
+
+    .doc-num {
+      flex-shrink: 0;
+      background: var(--code-bg);
+      color: var(--cyan);
+      font-size: .72rem; font-weight: 800; font-family: monospace;
+      padding: .2rem .5rem;
+      border-radius: 4px;
+      margin-top: .15rem;
+    }
+
+    .doc-title { font-weight: 700; font-size: .88rem; margin-bottom: .2rem; }
+    .doc-desc  { font-size: .8rem; color: var(--text-muted); }
+
+    /* ── Callout ──────────────────────────────────────────────────── */
+    .callout {
+      display: flex; gap: .85rem;
+      padding: 1rem 1.25rem;
+      border-radius: var(--radius);
+      font-size: .88rem;
+      margin: 1rem 0;
+    }
+    .callout-icon { font-size: 1.2rem; flex-shrink: 0; }
+    .callout p { margin: 0; }
+
+    .callout-tip  { background: #f0fdf4; border: 1px solid #86efac; }
+    .callout-warn { background: #fffbeb; border: 1px solid #fcd34d; }
+    .callout-info { background: var(--blue-soft); border: 1px solid #93c5fd; }
+
+    /* ── Footer ───────────────────────────────────────────────────── */
+    footer {
+      background: var(--code-bg);
+      color: #8898aa;
+      text-align: center;
+      padding: 2.5rem 1.5rem;
+      font-size: .83rem;
+    }
+    footer strong { color: var(--cyan); }
+
+    /* ── Responsive ───────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      main { padding: 2rem 1rem 4rem; }
+      h2   { font-size: 1.35rem; }
+      .nav-links { gap: .1rem; }
+    }
+
+    @media (max-width: 500px) {
+      .nav-logo span { display: none; }
+    }
+
+    /* ── Utility ──────────────────────────────────────────────────── */
+    .mt-0   { margin-top: 0 !important; }
+    .mb-sm  { margin-bottom: .5rem; }
+    .text-muted { color: var(--text-muted); font-size: .88rem; }
+    .check { color: var(--green); }
+    .cross { color: var(--red); }
+    .bold  { font-weight: 700; }
+  </style>
+</head>
+<body>
+
+<!-- ── Navigation ──────────────────────────────────────────────────── -->
+<nav>
+  <div class="nav-inner">
+    <a class="nav-logo" href="#top">[NXS] <span>NEXUS</span></a>
+    <ul class="nav-links">
+      <li><a href="#why">왜 NEXUS?</a></li>
+      <li><a href="#infra">인프라</a></li>
+      <li><a href="#pipelines">파이프라인</a></li>
+      <li><a href="#quickstart">빠른 시작</a></li>
+      <li><a href="#logger">Logger 통합</a></li>
+      <li><a href="#post-upload">Post Upload</a></li>
+      <li><a href="#principles">핵심 원칙</a></li>
+      <li><a href="#advanced">고급 기능</a></li>
+      <li><a href="#docs">문서 색인</a></li>
+      <li><a href="#next-steps">역할별 가이드</a></li>
+      <li><a href="#vision">비전</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ── Hero ────────────────────────────────────────────────────────── -->
+<div class="hero" id="top">
+  <div class="hero-sigil">[NXS]</div>
+  <h1>NEXUS<br><em>Centralized RL Experiment Hub</em></h1>
+  <p class="tagline">
+    팀 전체의 실험 데이터를 하나의 MLflow 대시보드로 수렴시키는 중앙 허브.<br>
+    tfevents를 찾아 헤매는 일은 이제 그만.
+  </p>
+  <div class="hero-badges">
+    <span class="badge">Python 3.10+</span>
+    <span class="badge">MLflow 2.13</span>
+    <span class="badge">TensorBoard 2.16</span>
+    <span class="badge">Air-gapped SCP Sync</span>
+    <span class="badge">MIT License</span>
+  </div>
+  <div class="hero-cta">
+    <a href="#quickstart" class="btn btn-primary">빠른 시작 →</a>
+    <a href="#pipelines"  class="btn btn-secondary">두 파이프라인 보기</a>
+  </div>
+</div>
+
+<!-- ── Main content ─────────────────────────────────────────────────── -->
+<main>
+
+  <!-- ── Why NEXUS ─────────────────────────────────────────────────── -->
+  <section id="why">
+    <h2>왜 NEXUS인가?</h2>
+    <p>
+      Dexterous manipulation 연구는 수백 번의 실험을 요구합니다 — reward shaping 탐색, tactile feedback ablation, Sim-to-Real 전이 평가.
+      각 실험의 로그는 개인 머신에 흩어지고, 팀 비교는 고통스럽습니다.
+      <strong>NEXUS는 모든 실험 데이터가 수렴하는 중심점입니다.</strong>
+    </p>
+
+    <div class="compare-grid">
+      <div class="compare-card">
+        <div class="compare-header bad">❌ NEXUS 없이</div>
+        <div class="compare-body">
+          <div class="compare-item">
+            <span class="compare-icon">📁</span>
+            <span>로그가 개인 디렉토리에 흩어짐</span>
+          </div>
+          <div class="compare-item">
+            <span class="compare-icon">💬</span>
+            <span>"tfevents 파일 좀 보내줄 수 있어요?"</span>
+          </div>
+          <div class="compare-item">
+            <span class="compare-icon">🔍</span>
+            <span>하이퍼파라미터가 커밋 히스토리에 묻힘</span>
+          </div>
+          <div class="compare-item">
+            <span class="compare-icon">💥</span>
+            <span>장시간 학습 크래시 → 데이터 손실</span>
+          </div>
+          <div class="compare-item">
+            <span class="compare-icon">🤷</span>
+            <span>팀 결정의 근거가 어디에도 없음</span>
+          </div>
+        </div>
+      </div>
+      <div class="compare-card">
+        <div class="compare-header good">✅ NEXUS와 함께</div>
+        <div class="compare-body">
+          <div class="compare-item">
+            <span class="compare-icon">📊</span>
+            <span>모든 run이 하나의 MLflow UI에서 보임</span>
+          </div>
+          <div class="compare-item">
+            <span class="compare-icon">⚡</span>
+            <span>experiment로 필터, 곡선을 즉시 비교</span>
+          </div>
+          <div class="compare-item">
+            <span class="compare-icon">🗄️</span>
+            <span>하이퍼파라미터가 MLflow params로 영구 저장</span>
+          </div>
+          <div class="compare-item">
+            <span class="compare-icon">🔄</span>
+            <span>증분 sync — 크래시 후에도 데이터 보존</span>
+          </div>
+          <div class="compare-item">
+            <span class="compare-icon">📝</span>
+            <span>Confluence에 모든 결정 근거 연결</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h3>도구 역할 분리</h3>
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">📊</div>
+        <h4>MLflow — 숫자 담당</h4>
+        <p><em>"무슨 수치가 나왔는가?"</em><br>metrics, params, artifacts, checkpoints를 저장합니다. 해석은 쓰지 않습니다.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📝</div>
+        <h4>Confluence — 판단 담당</h4>
+        <p><em>"왜 그 결과가 나왔고, 다음은?"</em><br>가설, 결과 해석, 팀 결론을 기록합니다. 수치를 직접 붙여넣지 않습니다.</p>
+      </div>
+    </div>
+
+    <div class="callout callout-warn" style="margin-top:1rem">
+      <span class="callout-icon">⚠️</span>
+      <p><strong>가장 중요한 원칙:</strong> 두 도구의 역할을 절대로 섞지 않습니다. MLflow에 해석을 쓰거나, Confluence에 수치를 나열하면 둘 다 쓸모없어집니다.</p>
+    </div>
+  </section>
+
+  <!-- ── Infrastructure ──────────────────────────────────────────── -->
+  <section id="infra">
+    <h2>인프라 구성</h2>
+    <p>GPU 서버는 인터넷이 차단되어 있습니다. NEXUS는 <strong>SCP/SSH</strong>만 사용해 이 제약을 우회합니다.</p>
+
+    <div class="infra-diagram">
+      <div class="infra-box gpu-box">
+        <div class="infra-title gpu">🖥️ GPU Server</div>
+        <div class="infra-item">🔒 인터넷 차단 — SCP/SSH only</div>
+        <div class="infra-item">🤖 Isaac Lab / 트레이너</div>
+        <div class="infra-item">📡 Local MLflow :5100 (loopback)</div>
+        <div class="infra-item">🔄 cron sync (5분 간격)</div>
+      </div>
+      <div class="infra-arrow">
+        ──────►<br>
+        <small>SCP/SSH<br>delta bundle</small>
+      </div>
+      <div class="infra-box nexus-box">
+        <div class="infra-title nexus">🌐 NEXUS Server</div>
+        <div class="infra-item">🌍 인터넷 접근 가능</div>
+        <div class="infra-item">📊 MLflow Tracking UI :5000</div>
+        <div class="infra-item">👥 팀 전체 실험 기록</div>
+        <div class="infra-item">🔍 비교 · 분석 · 검색</div>
+      </div>
+    </div>
+
+    <h3>어디서 무엇을 봐야 하나요?</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>상황</th><th>확인 위치</th><th>주소</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>학습 중 실시간 모니터링</td>
+            <td>Local server (GPU 서버 내부)</td>
+            <td><code>localhost:5100</code></td>
+          </tr>
+          <tr>
+            <td>팀 리뷰 / 실험 비교</td>
+            <td>Central server (NEXUS)</td>
+            <td><code>nexus-server:5000</code></td>
+          </tr>
+          <tr>
+            <td>네트워크 장애 중</td>
+            <td>데이터 손실 없음 — 로컬 버퍼링 후 복구 시 sync</td>
+            <td>—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── Pipelines ──────────────────────────────────────────────── -->
+  <section id="pipelines">
+    <h2>두 가지 파이프라인</h2>
+    <p>사용 목적에 따라 둘 중 하나를 선택합니다. 함께 써도 됩니다.</p>
+
+    <div class="tab-buttons">
+      <button class="tab-btn active" onclick="switchTab(event,'pipeline-a')">Pipeline A — 라이브 로깅</button>
+      <button class="tab-btn"       onclick="switchTab(event,'pipeline-b')">Pipeline B — 사후 업로드</button>
+    </div>
+
+    <div class="tab-pane active" id="pipeline-a">
+      <div class="card">
+        <p><strong>학습 코드를 최소 수정해 실시간으로 MLflow에 기록합니다.</strong> 5분마다 자동 sync되어 팀이 학습 중에도 진행 상황을 볼 수 있습니다.</p>
+
+        <div class="table-wrap" style="margin:.85rem 0">
+          <table>
+            <thead><tr><th>단계</th><th>내용</th></tr></thead>
+            <tbody>
+              <tr><td>코드 수정</td><td><code>SummaryWriter</code> → <code>make_logger()</code> (3곳)</td></tr>
+              <tr><td>write_stats()</td><td>변경 없음 — 그대로 사용</td></tr>
+              <tr><td>sync 주기</td><td>cron 5분 간격 자동 실행</td></tr>
+              <tr><td>데이터 보존</td><td>크래시 후 재시작해도 누락 없음</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <pre><code><span style="color:#68d391"># 데이터 흐름</span>
+trainer.write_stats()
+  └── DualLogger.add_scalar()
+        ├── TBLogger  → tfevents (disk)
+        └── MLflowLogger → local MLflow :5100
+                               │
+                   (cron 5min) sync_mlflow_all.sh
+                               │ SCP delta bundle
+                               ▼
+                    Central MLflow :5000</code></pre>
+      </div>
+    </div>
+
+    <div class="tab-pane" id="pipeline-b">
+      <div class="card">
+        <p><strong>학습 코드를 전혀 수정하지 않고 완료된 tfevents를 한 번에 업로드합니다.</strong> 이미 완료된 실험을 백필하거나, 아직 make_logger 통합 전인 경우에 사용합니다.</p>
+
+        <div class="table-wrap" style="margin:.85rem 0">
+          <table>
+            <thead><tr><th>단계</th><th>내용</th></tr></thead>
+            <tbody>
+              <tr><td>코드 수정</td><td>없음 — 기존 트레이너 그대로</td></tr>
+              <tr><td>실행 방식</td><td>수동 one-shot, CLI 명령 한 줄</td></tr>
+              <tr><td>실시간 모니터링</td><td>불가 (학습 완료 후 업로드)</td></tr>
+              <tr><td>자동 검증</td><td>업로드 후 verify_tb.py 자동 실행</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <pre><code><span style="color:#68d391"># 데이터 흐름</span>
+기존 SummaryWriter → tfevents
+                         │ (학습 완료 후 수동 실행)
+                         ▼
+        post_upload/upload_tb.py
+                         │ parse + log_batch()
+                         ▼
+              Central MLflow :5000</code></pre>
+      </div>
+    </div>
+
+    <h3>파이프라인 비교</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th></th><th>Pipeline A — 라이브 로깅</th><th>Pipeline B — 사후 업로드</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>언제</td><td>새 실험 / 학습 중 모니터링</td><td>완료된 실험 백필</td></tr>
+          <tr><td>코드 변경</td><td>3곳 수정 (import + init + train)</td><td>없음</td></tr>
+          <tr><td>실시간 가시성</td><td>✅ 5분 지연 sync</td><td>❌ 학습 후</td></tr>
+          <tr><td>설정 복잡도</td><td>초기 설정 필요 (로컬 MLflow + cron)</td><td>거의 없음</td></tr>
+          <tr><td>자동 검증</td><td>—</td><td>✅ verify_tb.py 자동 실행</td></tr>
+          <tr><td>가이드 문서</td><td>11_LOGGER_SETUP + 12_SCHEDULED_SYNC</td><td>13_POST_UPLOAD</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── Quick Start ─────────────────────────────────────────────── -->
+  <section id="quickstart">
+    <h2>빠른 시작</h2>
+
+    <h3>환경 설치</h3>
+    <div class="code-label bash">bash</div>
+    <pre><code>git clone https://github.com/jonghochoi/nexus.git
+cd nexus
+bash setup.sh --alias          # venv를 ~/.nexus/venv에 설치 + nexus-activate 별칭 등록
+source ~/.bashrc               # 별칭 적용
+nexus-activate                 # 어느 경로/터미널에서든 활성화</code></pre>
+
+    <div class="callout callout-tip">
+      <span class="callout-icon">💡</span>
+      <p>venv는 <code>~/.nexus/venv</code>에 설치됩니다 — 저장소 <strong>외부</strong>이므로 소스 트리를 덮어써도 패키지가 사라지지 않습니다. 재빌드가 필요하면 <code>bash setup.sh --reinstall</code>을 실행하세요.</p>
+    </div>
+
+    <h3>외부 프로젝트에서 패키지로 사용</h3>
+    <div class="code-label bash">bash</div>
+    <pre><code># 트레이너 환경 (기본 — client only, mlflow-skinny)
+pip install "nexus-logger @ git+https://github.com/jonghochoi/nexus.git"
+
+# 중앙 MLflow 서버 호스트 (full mlflow 포함)
+pip install "nexus-logger[server] @ git+https://github.com/jonghochoi/nexus.git"</code></pre>
+
+    <h3>Pipeline B — 완료된 실험 즉시 업로드</h3>
+    <div class="code-label bash">bash</div>
+    <pre><code># 초기 설정 (최초 1회)
+cp post_upload/post_config.example.json ~/.nexus/post_config.json
+$EDITOR ~/.nexus/post_config.json   # tracking_uri + 고정 태그 설정
+
+# 매 업로드
+python post_upload/upload_tb.py \
+    --tb_dir    /path/to/your/logs/run_001 \
+    --experiment robot_hand_rl \
+    --run_name  ppo_baseline_v1 \
+    --tags      researcher=yourname seed=42 task=in_hand_reorientation \
+    --tracking_uri http://&lt;nexus-server&gt;:5000
+# [NXS] Upload complete ✓</code></pre>
+
+    <h3>도입 단계별 플랜</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h4>Phase 1 — 지금 당장 (코드 변경 없음)</h4>
+          <p>완료된 실험부터 Pipeline B로 업로드. 팀이 MLflow UI를 탐색하며 적응합니다.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h4>Phase 2 — 듀얼 로거 도입 (코드 3곳 수정)</h4>
+          <p><code>make_logger(mode="dual")</code>로 교체. 기존 TensorBoard는 그대로 유지되면서 NEXUS에도 실시간 기록됩니다.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h4>Phase 3 — MLflow 중심 전환 (선택)</h4>
+          <p><code>mode="mlflow"</code>로 전환. Confluence + NEXUS가 팀 실험 관리 표준이 됩니다.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Logger Setup ────────────────────────────────────────────── -->
+  <section id="logger">
+    <h2>Pipeline A — Logger 통합</h2>
+    <p>기존 학습 코드의 <strong>3곳</strong>만 수정합니다. <code>write_stats()</code>는 단 한 줄도 바꾸지 않습니다.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>위치</th><th>변경 내용</th><th>수정 라인 수</th></tr></thead>
+        <tbody>
+          <tr><td>import</td><td>SummaryWriter → make_logger</td><td class="center">1</td></tr>
+          <tr><td>__init__()</td><td>writer 초기화 교체</td><td class="center">~15</td></tr>
+          <tr><td>train()</td><td>checkpoint 로깅 + close() 추가</td><td class="center">~10</td></tr>
+          <tr><td>write_stats()</td><td><strong>변경 없음</strong></td><td class="center">0</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Step 1 — import 교체</h3>
+    <div class="code-label diff">diff</div>
+    <pre><code><span class="diff-del">- from tensorboardX import SummaryWriter</span>
+<span class="diff-add">+ from nexus.logger import make_logger</span></code></pre>
+
+    <h3>Step 2 — __init__() 교체</h3>
+    <div class="code-label diff">diff</div>
+    <pre><code><span class="diff-del">- self.writer = SummaryWriter(log_dir=output_dir)</span>
+<span class="diff-add">+ self.writer = make_logger(</span>
+<span class="diff-add">+     mode="dual",                         # "dual" | "mlflow" | "tensorboard"</span>
+<span class="diff-add">+     tb_dir=output_dir,</span>
+<span class="diff-add">+     run_name=os.path.basename(output_dir),</span>
+<span class="diff-add">+     tracking_uri="http://127.0.0.1:5100",</span>
+<span class="diff-add">+     experiment_name=agent_cfg.get("experiment_name", "robot_hand_rl"),</span>
+<span class="diff-add">+     params=agent_cfg,</span>
+<span class="diff-add">+     tags={</span>
+<span class="diff-add">+         "researcher": os.environ.get("USER", "unknown"),</span>
+<span class="diff-add">+         "task":       agent_cfg.get("task", "unknown"),</span>
+<span class="diff-add">+         "hand":       "robot_22dof",</span>
+<span class="diff-add">+     },</span>
+<span class="diff-add">+ )</span></code></pre>
+
+    <h3>Step 3 — checkpoint 로깅 + close()</h3>
+    <div class="code-label python">python</div>
+    <pre><code>def train(self) -> None:
+    best_score = -float("inf")
+
+    for epoch in range(self.max_epochs):
+        # ... 기존 학습 로직 (변경 없음) ...
+
+        # ── checkpoint: last ──────────────────────────────
+        last_path = os.path.join(self.nn_dir, "last.pth")
+        self.save(last_path)
+        self.writer.log_checkpoint(last_path, kind="last")
+
+        # ── checkpoint: best ──────────────────────────────
+        if current_score > best_score:
+            best_score = current_score
+            best_path = os.path.join(self.nn_dir, "best.pth")
+            self.save(best_path)
+            self.writer.log_checkpoint(best_path, kind="best")
+
+    print("max steps achieved")
+    self.writer.close()</code></pre>
+
+    <h3>로거 모드 전환</h3>
+    <p><code>mode</code> 인자만 바꾸면 됩니다. 나머지 코드는 동일합니다.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th class="center">mode</th><th class="center">TensorBoard</th><th class="center">MLflow</th><th>언제 사용</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="center"><code>"dual"</code></td>
+            <td class="center check">✅</td>
+            <td class="center check">✅</td>
+            <td><strong>권장</strong> — 전환 기간, 기존 워크플로우 유지</td>
+          </tr>
+          <tr>
+            <td class="center"><code>"mlflow"</code></td>
+            <td class="center cross">❌</td>
+            <td class="center check">✅</td>
+            <td>팀이 완전히 MLflow로 이전한 후</td>
+          </tr>
+          <tr>
+            <td class="center"><code>"tensorboard"</code></td>
+            <td class="center check">✅</td>
+            <td class="center cross">❌</td>
+            <td>롤백 / MLflow 서버 없을 때</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>MLflow Run에 저장되는 데이터</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>데이터</th><th>시점</th><th>MLflow 위치</th></tr></thead>
+        <tbody>
+          <tr><td>하이퍼파라미터 (agent_cfg)</td><td>run 시작 시</td><td>Parameters 탭</td></tr>
+          <tr><td>태그 (experiment, researcher, task …)</td><td>run 시작 시</td><td>Tags 탭</td></tr>
+          <tr><td>git_commit, git_dirty</td><td>run 시작 시 (자동)</td><td>Tags 탭</td></tr>
+          <tr><td>git_patch.html</td><td>dirty tree일 때 (자동)</td><td>artifacts/git/</td></tr>
+          <tr><td>Metrics (loss, FPS, reward …)</td><td>매 step</td><td>Metrics 탭</td></tr>
+          <tr><td>best.pth</td><td>최고 점수 갱신 시</td><td>checkpoints/best.pth</td></tr>
+          <tr><td>last.pth</td><td>매 epoch 종료 시</td><td>checkpoints/last.pth</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>로컬 MLflow 서버 시작 (사전 조건)</h3>
+    <div class="callout callout-info">
+      <span class="callout-icon">ℹ️</span>
+      <p><code>mode="dual"</code> 또는 <code>"mlflow"</code>로 학습 시작 전, 반드시 로컬 MLflow 서버가 실행 중이어야 합니다.</p>
+    </div>
+    <div class="code-label bash">bash</div>
+    <pre><code># 학습 전 한 번만 실행 (백그라운드 유지)
+bash scheduled_sync/start_local_mlflow.sh</code></pre>
+  </section>
+
+  <!-- ── Post Upload ─────────────────────────────────────────────── -->
+  <section id="post-upload">
+    <h2>Pipeline B — Post Upload</h2>
+    <p>학습 코드를 전혀 수정하지 않고 완료된 tfevents를 MLflow에 업로드합니다.</p>
+
+    <h3>기본 업로드 (TL;DR)</h3>
+    <div class="code-label bash">bash</div>
+    <pre><code># 초기 설정 (최초 1회)
+cp post_upload/post_config.example.json ~/.nexus/post_config.json
+$EDITOR ~/.nexus/post_config.json   # tracking_uri + 고정 태그 입력
+
+# 매 업로드
+python post_upload/upload_tb.py --tb_dir /path/to/run_001
+
+# 같은 설정으로 다른 seed 업로드
+python post_upload/upload_tb.py --tb_dir /path/to/run_002 --repeat-last --tags seed=2
+
+# 업로드 히스토리 확인 / 마지막 업로드 재검증
+python post_upload/upload_tb.py --history
+python post_upload/verify_tb.py --from-last</code></pre>
+
+    <h3>Dry Run — 파싱 미리보기</h3>
+    <div class="code-label bash">bash</div>
+    <pre><code>python post_upload/upload_tb.py \
+    --tb_dir /path/to/run_001 \
+    --dry_run
+# → 실제 업로드 없이 파싱될 metric 수 미리 확인</code></pre>
+
+    <h3>주요 CLI 플래그</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>플래그</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><code>--tb_dir</code></td><td>tfevents 파일이 있는 디렉토리 경로</td></tr>
+          <tr><td><code>--experiment</code></td><td>MLflow experiment 이름</td></tr>
+          <tr><td><code>--run_name</code></td><td>MLflow run 이름</td></tr>
+          <tr><td><code>--tags key=val</code></td><td>추가 태그 (여러 개 가능)</td></tr>
+          <tr><td><code>--tracking_uri</code></td><td>MLflow 서버 주소</td></tr>
+          <tr><td><code>--dry_run</code></td><td>실제 업로드 없이 파싱만 테스트</td></tr>
+          <tr><td><code>--repeat-last</code></td><td>마지막 업로드 설정 재사용</td></tr>
+          <tr><td><code>--no_verify</code></td><td>자동 검증 건너뜀</td></tr>
+          <tr><td><code>--history</code></td><td>최근 업로드 히스토리 출력</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Model Registry 등록</h3>
+    <p>평가 완료 후 선택된 checkpoint를 중앙 Model Registry 버전으로 등록합니다.</p>
+    <div class="code-label bash">bash</div>
+    <pre><code>python post_upload/register_model.py \
+    --run_name  ppo_baseline_v1 \
+    --model_name robot_hand_policy \
+    --tracking_uri http://&lt;nexus-server&gt;:5000</code></pre>
+  </section>
+
+  <!-- ── Recommended Tags ───────────────────────────────────────── -->
+  <section id="tags">
+    <h2>권장 태그</h2>
+    <p>모든 run에 태그를 달아 실험을 쉽게 검색하고 필터링할 수 있습니다.</p>
+    <div class="tag-list" style="margin-bottom:1rem">
+      <span class="tag tag-required">✅ experiment (필수)</span>
+      <span class="tag tag-optional">researcher (선택)</span>
+      <span class="tag tag-optional">task (선택)</span>
+      <span class="tag tag-optional">hand (선택)</span>
+      <span class="tag tag-optional">sim_run_id (선택)</span>
+      <span class="tag tag-auto">🤖 git_commit (자동)</span>
+      <span class="tag tag-auto">🤖 git_dirty (자동)</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>태그</th><th>예시 값</th><th class="center">필수</th><th>비고</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>experiment</code></td>
+            <td><code>robot_hand_rl</code></td>
+            <td class="center check">✅</td>
+            <td><code>--experiment</code> 인자로 자동 설정</td>
+          </tr>
+          <tr>
+            <td><code>researcher</code></td>
+            <td><code>kim</code></td>
+            <td class="center">—</td>
+            <td>강력 권장</td>
+          </tr>
+          <tr>
+            <td><code>task</code></td>
+            <td><code>in_hand_reorientation</code></td>
+            <td class="center">—</td>
+            <td>강력 권장</td>
+          </tr>
+          <tr>
+            <td><code>sim_run_id</code></td>
+            <td><code>&lt;upstream_run_id&gt;</code></td>
+            <td class="center">—</td>
+            <td>real_robot_eval 실험에서는 <strong>필수</strong></td>
+          </tr>
+          <tr>
+            <td><code>git_commit</code></td>
+            <td><code>54696cb326bb...</code></td>
+            <td class="center">—</td>
+            <td>Pipeline A 자동 기록</td>
+          </tr>
+          <tr>
+            <td><code>git_dirty</code></td>
+            <td><code>false</code> / <code>true</code></td>
+            <td class="center">—</td>
+            <td>dirty면 git_patch.html 자동 저장</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── Principles ─────────────────────────────────────────────── -->
+  <section id="principles">
+    <h2>핵심 원칙</h2>
+    <p>팀이 합의한 규칙과 위반 시 시스템이 조용히 망가지는 엔지니어링 불변 조건들입니다.</p>
+
+    <div class="principle-list">
+      <div class="principle">
+        <div class="principle-icon">🔄</div>
+        <div>
+          <div class="principle-title">Single Cron — GPU 서버당 정확히 하나의 cron</div>
+          <p class="principle-desc">공유 GPU 서버에서 두 번째 cron이 등록되면 경쟁 state file이 생겨 중앙 서버에 metric이 중복으로 기록됩니다. <code>sync_mlflow_all.sh</code>가 모든 실험을 자동 발견하므로 개인이 별도 cron을 등록할 필요가 없습니다.</p>
+        </div>
+      </div>
+      <div class="principle">
+        <div class="principle-icon">💾</div>
+        <div>
+          <div class="principle-title">Checkpoint Policy — run당 정확히 두 파일</div>
+          <p class="principle-desc"><code>checkpoints/best.pth</code>와 <code>checkpoints/last.pth</code>만 MLflow에 저장합니다. 중간 checkpoint는 로컬 디스크에만 보관합니다. <code>log_checkpoint(path, kind)</code>가 이를 강제합니다.</p>
+        </div>
+      </div>
+      <div class="principle">
+        <div class="principle-icon">📁</div>
+        <div>
+          <div class="principle-title">State File — sync 위치의 단일 진실 소스</div>
+          <p class="principle-desc"><code>~/.nexus/sync_state/{experiment}.json</code>이 "무엇이 sync됐는가"의 유일한 기준입니다. 삭제하면 다음 cron 실행 시 전체 재sync됩니다. 과거에 사용하던 <code>/tmp</code> 경로는 reboot 시 초기화되므로 사용하지 않습니다.</p>
+        </div>
+      </div>
+      <div class="principle">
+        <div class="principle-icon">🚫</div>
+        <div>
+          <div class="principle-title">Failed Run 보존 — 실패한 run은 절대 삭제하지 않음</div>
+          <p class="principle-desc">실패 run에 <code>fail_reason</code> 태그를 달고 Confluence에 실패 분석을 남긴 뒤 영구 보존합니다. 같은 실수 반복 방지가 NEXUS의 핵심 가치 중 하나입니다.</p>
+        </div>
+      </div>
+      <div class="principle">
+        <div class="principle-icon">🧪</div>
+        <div>
+          <div class="principle-title">Hypothesis First — 가설을 먼저, 실험은 그다음</div>
+          <p class="principle-desc">실험을 시작하기 <strong>전</strong>에 Confluence에 가설을 기록합니다. 결과를 보고 목적을 쓰면 사후합리화가 됩니다.</p>
+        </div>
+      </div>
+      <div class="principle">
+        <div class="principle-icon">🔗</div>
+        <div>
+          <div class="principle-title">sim_run_id — Sim-to-Real 추적의 필수 연결고리</div>
+          <p class="principle-desc">모든 real-robot eval run은 반드시 <code>sim_run_id</code> 태그로 upstream 시뮬레이션 학습 run을 가리켜야 합니다. 없으면 Sim-to-Real 실패 원인 추적이 불가능합니다. <code>real_robot_eval</code> 실험으로의 업로드는 이 태그가 없으면 차단됩니다.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Advanced Features ──────────────────────────────────────── -->
+  <section id="advanced">
+    <h2>고급 기능 (옵션)</h2>
+    <p>기본 워크플로우에 익숙해진 후 필요에 따라 추가하는 기능들입니다. <code>nexus.logger</code>의 기본 export에는 포함되지 않으며, 명시적으로 import해야 합니다.</p>
+
+    <div class="code-label python">python</div>
+    <pre><code># 고급 기능은 서브모듈 경로로 명시적 import
+from nexus.logger.sweep_logger   import SweepLogger
+from nexus.logger.model_registry import ModelRegistry
+from nexus.logger.eval_logger    import EvalLogger
+from nexus.logger.system_metrics import SystemMetricsLogger</code></pre>
+
+    <div class="adv-grid">
+      <div class="adv-card">
+        <div class="adv-card-icon">🔭</div>
+        <h4>SweepLogger</h4>
+        <p>하이퍼파라미터 sweep의 여러 child run을 하나의 parent run 아래 그룹화합니다. Optuna, grid search 등 어느 sweep 도구와도 연동됩니다.</p>
+      </div>
+      <div class="adv-card">
+        <div class="adv-card-icon">📦</div>
+        <h4>Model Registry</h4>
+        <p>평가 완료 후 선택된 checkpoint를 중앙 Model Registry 버전으로 등록합니다. <code>nexus.sourceRunName</code> 태그로 역추적 가능.</p>
+      </div>
+      <div class="adv-card">
+        <div class="adv-card-icon">🎥</div>
+        <h4>EvalLogger</h4>
+        <p>평가 후 mp4, report 등의 artifact를 기존 run에 첨부합니다. 외부 evaluator의 출력을 중앙 run에 연결하는 사이드카 패턴.</p>
+      </div>
+      <div class="adv-card">
+        <div class="adv-card-icon">📈</div>
+        <h4>SystemMetricsLogger</h4>
+        <p>백그라운드 스레드로 CPU, GPU 사용률, 메모리를 30초마다 자동 기록합니다. psutil / nvidia-ml-py 설치 시 활성화.</p>
+      </div>
+      <div class="adv-card">
+        <div class="adv-card-icon">🔖</div>
+        <h4>Git Tracking</h4>
+        <p>run 시작 시 <code>git_commit</code>, <code>git_dirty</code> 자동 기록. dirty tree면 전체 diff를 <code>git_patch.html</code>로 저장.</p>
+      </div>
+      <div class="adv-card">
+        <div class="adv-card-icon">📐</div>
+        <h4>Chart Settings</h4>
+        <p>MLflow UI의 컬럼/차트 설정을 experiment 태그로 영구 저장. 팀 전체가 동일한 레이아웃을 공유합니다.</p>
+      </div>
+    </div>
+
+    <h3>SweepLogger 사용 예</h3>
+    <div class="code-label python">python</div>
+    <pre><code>from nexus.logger.sweep_logger import SweepLogger
+from nexus.logger import make_logger
+
+with SweepLogger(
+    sweep_name="ppo_lr_sweep",
+    tracking_uri="http://127.0.0.1:5100",
+    experiment_name="robot_hand_rl",
+    sweep_params={"lr_range": "[1e-4, 1e-3]", "n_trials": "3"},
+) as sweep:
+    for lr in [1e-4, 3e-4, 1e-3]:
+        logger = make_logger(
+            mode="mlflow",
+            run_name=f"ppo_lr_{lr}",
+            tracking_uri="http://127.0.0.1:5100",
+            experiment_name="robot_hand_rl",
+            params={"lr": lr},
+            parent_run_id=sweep.parent_run_id,   # ← child를 parent에 연결
+        )
+        run_training(logger)
+        logger.close()
+
+    sweep.log_summary(best_params={"lr": 3e-4}, best_metrics={"reward": 95.2})</code></pre>
+  </section>
+
+  <!-- ── Docs Index ─────────────────────────────────────────────── -->
+  <section id="docs">
+    <h2>문서 색인</h2>
+    <p>파일명 숫자 접두사가 읽는 순서를 나타냅니다. <strong>모든 팀원은 <code>00_PRINCIPLES.md</code>를 먼저 읽으세요.</strong></p>
+
+    <div class="docs-grid">
+      <div class="doc-item">
+        <span class="doc-num">00</span>
+        <div>
+          <div class="doc-title">PRINCIPLES</div>
+          <div class="doc-desc">팀 합의 규칙 + 엔지니어링 불변 조건. 모든 문서의 기준점.</div>
+        </div>
+      </div>
+      <div class="doc-item">
+        <span class="doc-num">10</span>
+        <div>
+          <div class="doc-title">ARCHITECTURE</div>
+          <div class="doc-desc">전체 시스템 설계, 데이터 흐름, 컴포넌트 맵.</div>
+        </div>
+      </div>
+      <div class="doc-item">
+        <span class="doc-num">11</span>
+        <div>
+          <div class="doc-title">LOGGER_SETUP</div>
+          <div class="doc-desc">Pipeline A — 로거 통합 step-by-step diff.</div>
+        </div>
+      </div>
+      <div class="doc-item">
+        <span class="doc-num">12</span>
+        <div>
+          <div class="doc-title">SCHEDULED_SYNC</div>
+          <div class="doc-desc">Pipeline A — cron sync 설정, validate, 다중 사용자 환경.</div>
+        </div>
+      </div>
+      <div class="doc-item">
+        <span class="doc-num">13</span>
+        <div>
+          <div class="doc-title">POST_UPLOAD</div>
+          <div class="doc-desc">Pipeline B — upload_tb / verify_tb / register_model CLI.</div>
+        </div>
+      </div>
+      <div class="doc-item">
+        <span class="doc-num">20</span>
+        <div>
+          <div class="doc-title">MLFLOW_SERVER_SETUP</div>
+          <div class="doc-desc">Operator — 중앙 MLflow 서버 설치 (로컬 PC 검증 포함).</div>
+        </div>
+      </div>
+      <div class="doc-item">
+        <span class="doc-num">21</span>
+        <div>
+          <div class="doc-title">AIRGAPPED_GPU_SERVER_SETUP</div>
+          <div class="doc-desc">Operator — 에어갭 GPU 노드 오프라인 설치 (Method A/B).</div>
+        </div>
+      </div>
+      <div class="doc-item">
+        <span class="doc-num">30</span>
+        <div>
+          <div class="doc-title">ADVANCED_FEATURES</div>
+          <div class="doc-desc">SweepLogger, EvalLogger, Model Registry, 시스템 메트릭, git 추적.</div>
+        </div>
+      </div>
+      <div class="doc-item">
+        <span class="doc-num">31</span>
+        <div>
+          <div class="doc-title">CHART_SETTINGS_GUIDE</div>
+          <div class="doc-desc">MLflow 차트/컬럼 설정을 팀 전체에 영구 공유하는 방법.</div>
+        </div>
+      </div>
+      <div class="doc-item">
+        <span class="doc-num">32</span>
+        <div>
+          <div class="doc-title">EVAL_ARTIFACT_INGESTION</div>
+          <div class="doc-desc">외부 evaluator 출력을 EvalLogger로 중앙 run에 연결.</div>
+        </div>
+      </div>
+      <div class="doc-item">
+        <span class="doc-num">01</span>
+        <div>
+          <div class="doc-title">EXPERIMENT_STANDARD</div>
+          <div class="doc-desc">Experiment naming, tags, lifecycle, failed-run policy, Sim-to-Real rule, Confluence template.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Role-based next steps ─────────────────────────────────── -->
+  <section id="next-steps">
+    <h2>역할별 다음 단계</h2>
+    <p>NEXUS 소개를 읽었다면, 역할에 맞는 가이드 문서로 이동하세요.</p>
+
+    <div class="docs-grid">
+      <div class="doc-item">
+        <span class="doc-num">🔧</span>
+        <div>
+          <div class="doc-title">학습 코드를 NEXUS 로거에 연결하려는 사람</div>
+          <div class="doc-desc">
+            <code>10_ARCHITECTURE</code> →
+            <code>11_LOGGER_SETUP</code> →
+            <code>12_SCHEDULED_SYNC</code>
+          </div>
+        </div>
+      </div>
+      <div class="doc-item">
+        <span class="doc-num">📤</span>
+        <div>
+          <div class="doc-title">완료된 tfevents를 사후 업로드하려는 사람</div>
+          <div class="doc-desc"><code>13_POST_UPLOAD</code> — upload_tb / verify_tb / register_model CLI</div>
+        </div>
+      </div>
+      <div class="doc-item">
+        <span class="doc-num">🖥️</span>
+        <div>
+          <div class="doc-title">중앙 MLflow 서버를 구축하려는 운영자</div>
+          <div class="doc-desc"><code>20_MLFLOW_SERVER_SETUP</code> — Step 0에 로컬 PC 검증 포함</div>
+        </div>
+      </div>
+      <div class="doc-item">
+        <span class="doc-num">🔒</span>
+        <div>
+          <div class="doc-title">인터넷 차단된 GPU 노드를 셋업하려는 운영자</div>
+          <div class="doc-desc"><code>21_AIRGAPPED_GPU_SERVER_SETUP</code> — Method A/B 오프라인 설치 + smoke test</div>
+        </div>
+      </div>
+      <div class="doc-item">
+        <span class="doc-num">🔄</span>
+        <div>
+          <div class="doc-title">Pipeline A cron sync을 운영하려는 운영자</div>
+          <div class="doc-desc"><code>12_SCHEDULED_SYNC</code> — config, validate, 다중 사용자 환경, verification checklist</div>
+        </div>
+      </div>
+      <div class="doc-item">
+        <span class="doc-num">⚡</span>
+        <div>
+          <div class="doc-title">옵션 기능을 살펴보려는 사람</div>
+          <div class="doc-desc"><code>30_ADVANCED_FEATURES</code>, <code>31_CHART_SETTINGS_GUIDE</code></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── FAQ ────────────────────────────────────────────────────── -->
+  <section id="faq">
+    <h2>자주 묻는 질문</h2>
+
+    <h3>TensorBoard를 완전히 버려야 하나요?</h3>
+    <p>아닙니다. <code>mode="dual"</code>을 사용하면 TensorBoard와 MLflow를 <strong>동시에</strong> 씁니다. TensorBoard는 로컬 디버깅용으로 여전히 유용합니다.</p>
+
+    <h3>학습 서버가 인터넷이 안 되는데 어떻게 MLflow를 쓰나요?</h3>
+    <p>학습 서버 내부에 로컬 MLflow 서버를 띄웁니다. 학습 코드는 이 <strong>로컬 서버에만</strong> 씁니다 (인터넷 불필요). 이후 주기적으로 SCP를 통해 NEXUS 서버로 동기화합니다.</p>
+
+    <h3>Isaac Sim / Isaac Lab에서 설치 시 주의사항이 있나요?</h3>
+    <p>Omniverse가 <code>mlflow-skinny</code> stub을 포함하므로 설치 후 아래를 추가로 실행하세요:</p>
+    <div class="code-label bash">bash</div>
+    <pre><code>pip install --upgrade --force-reinstall --no-deps "mlflow-skinny>=2.0,<3"</code></pre>
+
+    <h3>실험마다 반드시 Confluence 페이지를 만들어야 하나요?</h3>
+    <p>최소한 MLflow 태그에 <code>researcher</code>, <code>task</code>, <code>seed</code>는 반드시 입력하세요. Confluence 페이지는 팀 논의가 필요한 <strong>실험 그룹 단위</strong>로 작성하면 됩니다.</p>
+
+    <h3>state file을 삭제하면 어떻게 되나요?</h3>
+    <p><code>~/.nexus/sync_state/{experiment}.json</code>을 삭제하면 다음 cron 실행 시 전체 재sync됩니다. 중복 metric point가 생길 수 있으므로 불필요하게 삭제하지 마세요.</p>
+  </section>
+
+  <!-- ── Vision ─────────────────────────────────────────────────── -->
+  <section id="vision">
+    <h2>NEXUS가 기대하는 것</h2>
+    <p>단기적으로는 실험 결과 공유의 불편함이 줄어들 것입니다. 하지만 장기적으로 기대하는 것은 더 큽니다.</p>
+
+    <div class="card" style="margin-bottom:1.25rem">
+      <p style="font-size:1.05rem; line-height:1.8; margin:0">
+        모든 실험이 NEXUS에 쌓이고, 모든 결정의 근거가 Confluence에 남으면 —<br>
+        <strong>우리 팀의 연구 경험이 사라지지 않습니다.</strong><br>
+        팀원이 바뀌어도, 6개월이 지나도, 우리가 어떤 시행착오를 거쳐<br>
+        지금의 방향에 도달했는지 추적할 수 있습니다.
+      </p>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">📅</div>
+        <h4>단기 목표</h4>
+        <p>실험 결과 공유의 불편함 해소. 팀원 누구나 링크 하나로 모든 run을 비교.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🏛️</div>
+        <h4>장기 목표</h4>
+        <p>팀의 연구 경험이 구성원 변화에 관계없이 축적되고 추적 가능한 지식 베이스로 성장.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔬</div>
+        <h4>궁극적 가치</h4>
+        <p>Dexterous Manipulation이라는 어려운 문제를 풀어가는 과정에서, 팀이 쌓은 지식과 경험이 NEXUS에 남아있는 것.</p>
+      </div>
+    </div>
+
+    <pre style="margin-top:1.5rem; text-align:center"><code style="color:#00c9d4">  ●──●──●──●──●   모든 실험이 수렴하는 곳
+        │
+      NEXUS</code></pre>
+  </section>
+
+</main>
+
+<!-- ── Footer ──────────────────────────────────────────────────────── -->
+<footer>
+  <p><strong>[NXS] NEXUS</strong> — Centralized RL Experiment Hub</p>
+  <p style="margin-top:.5rem">
+    Python 3.10+ · MLflow 2.13 · TensorBoard 2.16 · MIT License
+  </p>
+</footer>
+
+<script>
+  function switchTab(e, id) {
+    // 버튼 active
+    e.target.closest('.tab-buttons').querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    e.target.classList.add('active');
+    // 패널 active
+    const section = e.target.closest('section');
+    section.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+    section.querySelector('#' + id).classList.add('active');
+  }
+</script>
+</body>
+</html>
