@@ -899,4 +899,4 @@ After the central server is up and team members can reach the MLflow UI:
 
 - **Bring up GPU nodes (offline)** → [`21_AIRGAPPED_GPU_SERVER_SETUP.md`](21_AIRGAPPED_GPU_SERVER_SETUP.md)
 - **Wire scheduled cron sync from each GPU node** → [`12_SCHEDULED_SYNC.md`](12_SCHEDULED_SYNC.md)
-- **Persist team-wide MLflow chart/column layout** → [`31_CHART_SETTINGS_GUIDE.md`](31_CHART_SETTINGS_GUIDE.md)
+- **Persist team-wide MLflow chart/column layout** → [`31_CHART_SETTINGS.md`](31_CHART_SETTINGS.md)

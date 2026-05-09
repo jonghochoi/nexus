@@ -399,7 +399,7 @@ python chart_settings/apply_chart_settings.py show
 
 The bookmarklet fetches the stored settings from the MLflow API and writes them to localStorage, then reloads the page. Paste it into the browser console (F12 > Console), or save it as a browser bookmark for one-click restore.
 
-→ Full workflow and persistence details: [`31_CHART_SETTINGS_GUIDE.md`](31_CHART_SETTINGS_GUIDE.md)
+→ Full workflow and persistence details: [`31_CHART_SETTINGS.md`](31_CHART_SETTINGS.md)
 
 ---
 
@@ -420,6 +420,6 @@ python tests/smoke_test.py --advanced
 
 ## Next steps
 
-- **Persistent MLflow chart/column layout** → [`31_CHART_SETTINGS_GUIDE.md`](31_CHART_SETTINGS_GUIDE.md)
+- **Persistent MLflow chart/column layout** → [`31_CHART_SETTINGS.md`](31_CHART_SETTINGS.md)
 - **Architecture detail (pipelines, run lifecycle, registry)** → [`10_ARCHITECTURE.md`](10_ARCHITECTURE.md)
 - **Required tags + Sim-to-Real linkage** → [`00_PRINCIPLES.md`](00_PRINCIPLES.md)

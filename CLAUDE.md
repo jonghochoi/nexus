@@ -91,7 +91,7 @@ All intra-package imports use the relative form (`from .git_utils import ...`, `
 
 ### `chart_settings/` (separate concern)
 
-`apply_chart_settings.py` persists MLflow column / chart configuration as **experiment tags** (`nexus.chart_settings`, `nexus.chart_settings_version`) so they outlast browser sessions and are shared across the team. The browser-side restoration is a generated JS bookmarklet (printed by `python chart_settings/apply_chart_settings.py bookmarklet`) that fetches the tag and writes the MLflow 2.x localStorage keys. CLI subcommands: `apply`, `show`, `bookmarklet`. User-facing guide: `docs/31_CHART_SETTINGS_GUIDE.md`.
+`apply_chart_settings.py` persists MLflow column / chart configuration as **experiment tags** (`nexus.chart_settings`, `nexus.chart_settings_version`) so they outlast browser sessions and are shared across the team. The browser-side restoration is a generated JS bookmarklet (printed by `python chart_settings/apply_chart_settings.py bookmarklet`) that fetches the tag and writes the MLflow 2.x localStorage keys. CLI subcommands: `apply`, `show`, `bookmarklet`. User-facing guide: `docs/31_CHART_SETTINGS.md`.
 
 ### `nexus/brand.py` (output styling utilities)
 
@@ -139,7 +139,7 @@ Several concepts are reflected in multiple places. Change one without auditing t
 **New chart setting or column**
 - [ ] `chart_settings/chart_settings.json` — add the new entry
 - [ ] Run `python chart_settings/apply_chart_settings.py apply` against the central server
-- [ ] `docs/31_CHART_SETTINGS_GUIDE.md` — update if the new setting changes user workflow
+- [ ] `docs/31_CHART_SETTINGS.md` — update if the new setting changes user workflow
 
 **Changing default URIs (`5100`, `5000`)**
 - [ ] Grep for `5100` and `5000` across `nexus/logger/`, `scheduled_sync/*`, `post_upload/`, `chart_settings/apply_chart_settings.py`, and `README.md` diagrams — change in concert
@@ -147,7 +147,7 @@ Several concepts are reflected in multiple places. Change one without auditing t
 **Adding a new doc file under `docs/`**
 - [ ] `README.md` → "Further Reading" table — add the new entry with its numeric prefix
 - [ ] CLAUDE.md → "Where to read more" — update if the doc is relevant to code changes
-- [ ] If the doc applies to Korean users, consider adding a corresponding entry in `docs/ko/`
+- [ ] If the doc is relevant to onboarding, consider reflecting it in `docs/nexus_guide.html`
 
 ## Docs Markdown style (`docs/`)
 
@@ -328,4 +328,4 @@ Optional for trivial one-liners; required for any commit that touches more than 
 
 ## Where to read more
 
-`docs/00_PRINCIPLES.md` is the canonical entry point (team-agreed rules + engineering invariants). `docs/10_ARCHITECTURE.md` is the best starting point for data-flow and run-structure before touching code. All docs are indexed in `README.md` → "Further Reading": tracks `10–13` (engineer/user), `20–21` (operator infrastructure), `30–31` (opt-in features — `30_ADVANCED_FEATURES.md`, `31_CHART_SETTINGS_GUIDE.md`). Korean onboarding: `docs/ko/`.
+`docs/00_PRINCIPLES.md` is the canonical entry point (team-agreed rules + engineering invariants). `docs/10_ARCHITECTURE.md` is the best starting point for data-flow and run-structure before touching code. All docs are indexed in `README.md` → "Further Reading": `01` (experiment standard), tracks `10–13` (engineer/user), `20–21` (operator infrastructure), `30–32` (opt-in features). Korean onboarding: `docs/nexus_guide.html` (download and open locally).
