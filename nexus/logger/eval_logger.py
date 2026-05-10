@@ -3,11 +3,19 @@ nexus/logger/eval_logger.py
 ===========================
 EvalLogger: attaches post-training evaluation artifacts to an existing MLflow run.
 
-Uploads a local directory of eval outputs (mp4 rollouts, GIF previews, reports,
-score JSONs) under ``eval/<eval_id>/`` on a run that was previously created by
-``MLflowLogger`` / ``make_logger()`` or by Pipeline B's ``upload_tb.py``. The run
-is resolved by ``run_name`` via ``tags.mlflow.runName`` — the same identity key
-used throughout the rest of nexus.
+Uploads a local directory of eval outputs under ``eval/<eval_id>/`` on a run
+that was previously created by ``MLflowLogger`` / ``make_logger()`` or by
+Pipeline B's ``upload_tb.py``. The run is resolved by ``run_name`` via
+``tags.mlflow.runName`` — the same identity key used throughout the rest of
+nexus.
+
+Scope — the anchor feature is **inline rollout video playback**. MLflow 2.13's
+artifact viewer renders HTML inline but not ``.mp4``, so an auto-generated
+``index.html`` next to any video file embeds it in a ``<video controls>`` tag.
+Other files (images, reports, JSON, …) are uploaded verbatim and previewed /
+downloaded one-by-one from the MLflow Artifacts pane — they are not embedded
+in the auto index. Future inline rendering for additional file types may be
+added later; until then, ship your own ``index.html`` if you need it.
 
 Typical usage from an external training / eval repo:
 
@@ -32,19 +40,14 @@ Or with explicit params when the sidecar is not available:
     )
     ev.upload(eval_dir="./eval_out/ppo_v3_seed0/")
 
-Auto-generated ``index.html``: MLflow 2.13's artifact viewer renders HTML inline
-but not mp4. A minimal index page with ``<video>`` tags is synthesised next to
-any ``.mp4`` found in ``eval_dir`` so rollouts are playable from the Artifacts
-pane without downloading. Suppress with ``generate_index=False``.
-
 Expected eval_dir layout (flat or nested — everything is walked recursively):
 
     eval_outputs/<run_name>/
-    ├── rollout.mp4
-    ├── rollout_preview.gif
-    ├── report.md
-    ├── metrics.json
-    └── success_rate.png
+    ├── rollout.mp4            ← embedded in auto-generated index.html
+    ├── rollout_preview.gif    ← uploaded as-is, previewable from Artifacts pane
+    ├── report.md              ← uploaded as-is, downloadable
+    ├── metrics.json           ← uploaded as-is; pass via metrics_from= for scalars
+    └── success_rate.png       ← uploaded as-is, previewable from Artifacts pane
 """
 
 from __future__ import annotations
@@ -68,10 +71,9 @@ from .run_info import read_run_info
 
 _log = logging.getLogger(__name__)
 
-# Extensions that the auto-generated index.html embeds directly vs. links.
+# Extensions that the auto-generated index.html embeds inline as <video>.
+# Other file types are uploaded as-is — no inline embedding.
 _VIDEO_EXTS = (".mp4", ".webm", ".mov")
-_IMAGE_EXTS = (".gif", ".png", ".jpg", ".jpeg", ".svg")
-_TEXT_EXTS = (".md", ".txt", ".json", ".yaml", ".yml", ".log")
 
 
 # ── Module-level helpers ──────────────────────────────────────────────────────
@@ -259,9 +261,13 @@ class EvalLogger:
                           with ``metrics``; the explicit dict wins on conflict.
         tags            — Extra tags to set on the run. Bare keys are prefixed
                           with ``'eval.'`` automatically.
-        generate_index  — Auto-generate ``index.html`` embedding any ``.mp4``
-                          found in ``eval_dir`` (default True). Set False if your
-                          eval tool already ships its own index page.
+        generate_index  — Auto-generate ``index.html`` embedding any video file
+                          (``.mp4`` / ``.webm`` / ``.mov``) found in ``eval_dir``
+                          so rollouts play in-browser from the Artifacts pane
+                          (default True). Other file types are uploaded as-is
+                          and not embedded; if no video is present, a short
+                          placeholder page is generated instead. Set False if
+                          your eval tool already ships its own index page.
         dry_run         — List what would be uploaded and return without touching
                           MLflow.
 
@@ -401,33 +407,28 @@ class EvalLogger:
 
     def _preview_files(self, eval_dir: Path, files: list) -> None:
         print(f"\n{CYAN}Files in {eval_dir}{RESET}")
-        print(f"  {'Relative Path':<40} {'Size':>10}  Embed?")
-        print(f"  {'-' * 40} {'-' * 10}  {'-' * 6}")
+        print(f"  {'Relative Path':<40} {'Size':>10}  Inline?")
+        print(f"  {'-' * 40} {'-' * 10}  {'-' * 7}")
         for rel, size in files:
-            ext = rel.suffix.lower()
-            if ext in _VIDEO_EXTS:
-                embed = "video"
-            elif ext in _IMAGE_EXTS:
-                embed = "image"
-            else:
-                embed = "link"
-            print(f"  {str(rel):<40} {_fmt_size(size):>10}  {embed}")
+            inline = "video" if rel.suffix.lower() in _VIDEO_EXTS else "-"
+            print(f"  {str(rel):<40} {_fmt_size(size):>10}  {inline}")
 
         total = sum(s for _, s in files)
         print(brand_log(f"Total: {len(files)} files, {_fmt_size(total)}", "ok"))
         print()
 
     def _build_index_html(self, eval_id: str, files: list) -> str:
-        """Render a minimal index.html that embeds videos/images and links files.
+        """Render a minimal index.html that embeds rollout videos inline.
 
-        Paths are written as relative URLs so MLflow's HTML preview can resolve
-        them as siblings within the same artifact directory.
+        Only ``.mp4`` / ``.webm`` / ``.mov`` files are embedded — MLflow's
+        artifact viewer cannot play them inline, so this page is the way to
+        watch them without downloading. Other files in the same bundle are
+        uploaded as-is and viewable individually from the Artifacts pane.
+
+        Paths are written as relative URLs so MLflow's HTML preview can
+        resolve them as siblings within the same artifact directory.
         """
         videos = [str(rel) for rel, _ in files if rel.suffix.lower() in _VIDEO_EXTS]
-        images = [str(rel) for rel, _ in files if rel.suffix.lower() in _IMAGE_EXTS]
-        others = [
-            str(rel) for rel, _ in files if rel.suffix.lower() not in _VIDEO_EXTS + _IMAGE_EXTS
-        ]
 
         title = html.escape(f"{self.run_name} — eval {eval_id}")
         parts = [
@@ -440,9 +441,8 @@ class EvalLogger:
             "h1{font-size:1.3em;margin-bottom:0}",
             "h2{font-size:1.05em;margin-top:1.6em;border-bottom:1px solid #ddd;"
             "padding-bottom:.2em}",
-            "video,img{max-width:100%;height:auto;border-radius:6px;"
+            "video{max-width:100%;height:auto;border-radius:6px;"
             "box-shadow:0 1px 4px rgba(0,0,0,.1)}",
-            "ul{padding-left:1.2em}",
             "code{background:#f4f4f4;padding:1px 4px;border-radius:3px}",
             ".meta{color:#666;font-size:.9em}",
             "</style></head><body>",
@@ -459,19 +459,11 @@ class EvalLogger:
                     f"<p><strong>{label}</strong></p>"
                     f'<video controls preload="metadata" src="{src}"></video>'
                 )
-
-        if images:
-            parts.append("<h2>Plots / Previews</h2>")
-            for im in images:
-                src, label = _url_attr(im), html.escape(im)
-                parts.append(f'<p><strong>{label}</strong></p><img alt="{label}" src="{src}">')
-
-        if others:
-            parts.append("<h2>Reports & Files</h2><ul>")
-            for o in others:
-                src, label = _url_attr(o), html.escape(o)
-                parts.append(f'<li><a href="{src}">{label}</a></li>')
-            parts.append("</ul>")
+        else:
+            parts.append(
+                '<p class="meta">No video artifacts in this bundle — '
+                "browse the Artifacts pane to view individual files.</p>"
+            )
 
         parts.append("</body></html>")
         return "\n".join(parts)

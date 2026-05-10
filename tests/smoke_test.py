@@ -693,6 +693,9 @@ def test_eval_logger(tracking_uri: str) -> bool:
             (eval_dir / "metrics.json").write_text(
                 json.dumps({"success_rate": 0.87, "nested": {"speed": 1.2}}), encoding="utf-8"
             )
+            # Placeholder .mp4 — content isn't a valid video, but its presence
+            # exercises the auto-generated index.html's <video> embed path.
+            (eval_dir / "rollout.mp4").write_bytes(b"\x00")
 
             # ── 9c. Upload via EvalLogger ─────────────────────────────────────
             ev = EvalLogger(
@@ -740,6 +743,30 @@ def test_eval_logger(tracking_uri: str) -> bool:
             fail(f"Missing metrics on run: {missing}")
             return False
         ok(f"Metrics verified: {sorted(expected_metrics)}")
+
+        # ── 9e. Verify auto index.html embeds the placeholder mp4 ─────────────
+        artifacts = {a.path for a in client.list_artifacts(runs[0].info.run_id, "eval/smoke")}
+        expected_artifacts = {
+            "eval/smoke/rollout.mp4",
+            "eval/smoke/index.html",
+            "eval/smoke/report.md",
+            "eval/smoke/metrics.json",
+        }
+        missing_artifacts = expected_artifacts - artifacts
+        if missing_artifacts:
+            fail(f"Missing artifacts under eval/smoke/: {missing_artifacts}")
+            return False
+        ok("eval/smoke/ contains video, index.html, and as-is files")
+
+        with tempfile.TemporaryDirectory() as dl:
+            local_index = client.download_artifacts(
+                runs[0].info.run_id, "eval/smoke/index.html", dl
+            )
+            index_html = Path(local_index).read_text(encoding="utf-8")
+        if "<video" not in index_html or "rollout.mp4" not in index_html:
+            fail("Auto-generated index.html does not embed rollout.mp4 as <video>")
+            return False
+        ok("Auto-generated index.html embeds rollout.mp4 in <video> tag")
 
         return True
     except Exception as e:

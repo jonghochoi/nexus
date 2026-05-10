@@ -225,7 +225,7 @@ registry.set_sim_to_real_link(
 
 ## 3. EvalLogger — post-training eval artifact upload
 
-Attaches post-training evaluation outputs (mp4 rollouts, GIF previews, reports, score JSONs) to an existing MLflow run as artifacts under `eval/<eval_id>/`. The run is resolved by `run_name` — the same identity key used by `MLflowLogger` and Pipeline B.
+Attaches post-training evaluation outputs to an existing MLflow run as artifacts under `eval/<eval_id>/`. The anchor feature is **inline rollout video playback** — `.mp4` / `.webm` / `.mov` files are wrapped in an auto-generated `index.html` so they can be played from the MLflow Artifacts pane without downloading. Other files (images, reports, JSON, …) are uploaded as-is and viewed individually. The run is resolved by `run_name` — the same identity key used by `MLflowLogger` and Pipeline B.
 
 `EvalLogger` is designed for the external-repo case: the training repo already uses `make_logger()`, which writes a `.nexus_run.json` sidecar into the output directory. The eval step reads that sidecar to recover run identity without re-passing config.
 
