@@ -142,18 +142,20 @@ eval_id = ev.upload(
 
 ```
 eval_outputs/<run_name>/
-├── rollout.mp4            ← full-resolution video — auto-embedded in index.html
-├── rollout_preview.gif    ← short preview — also rendered inline by MLflow
-├── report.md              ← human-readable summary
-├── metrics.json           ← machine-readable scores (pass via metrics_from=)
-└── success_rate.png       ← any other plots
+├── rollout.mp4            ← full-resolution video — embedded in auto index.html
+├── rollout_preview.gif    ← uploaded as-is, viewable from the Artifacts pane
+├── report.md              ← uploaded as-is, downloadable
+├── metrics.json           ← uploaded as-is (pass via metrics_from= for scalars)
+└── success_rate.png       ← uploaded as-is, viewable from the Artifacts pane
 ```
+
+> 💡 The auto index.html only embeds video files — MLflow already previews images and renders text/JSON inline, so no extra wrapper is needed for those. Inline embedding for additional file types may be added later; for now, ship your own `index.html` if you need a custom layout (the auto-generator steps aside).
 
 ### ── Upload options
 
 **`generate_index` — auto-generated index.html**
 
-MLflow 2.13's artifact viewer renders HTML inline but not `.mp4`. `EvalLogger` auto-generates an `index.html` next to any video it finds, embedding it in a `<video controls>` tag. Open `eval/<eval_id>/index.html` in the Artifacts pane to play rollouts in-browser. If `eval_dir` already contains an `index.html`, the auto-generator steps aside. Suppress explicitly with `generate_index=False`:
+MLflow 2.13's artifact viewer renders HTML inline but not `.mp4`. `EvalLogger` auto-generates an `index.html` next to any video file it finds, embedding it in a `<video controls>` tag. Open `eval/<eval_id>/index.html` in the Artifacts pane to play rollouts in-browser. If no video file is present, a short placeholder page is generated pointing the user back to the Artifacts pane. If `eval_dir` already contains an `index.html`, the auto-generator steps aside. Suppress explicitly with `generate_index=False`:
 
 ```python
 ev.upload(eval_dir=..., generate_index=False)
@@ -208,9 +210,9 @@ artifacts/
         └── index.html               ← auto-generated unless suppressed
 ```
 
-Subdirectories of `eval_dir` are preserved verbatim ([`eval_logger.py:493-505`](../nexus/logger/eval_logger.py)).
+Subdirectories of `eval_dir` are preserved verbatim ([`eval_logger.py`](../nexus/logger/eval_logger.py) — `_upload_artifacts`).
 
-`index.html` embeds any `.mp4` / `.webm` / `.mov` via `<video>` tags and any `.gif` / `.png` / `.jpg` / `.svg` via `<img>` tags — open it from the MLflow UI's Artifacts pane and rollouts play in-line without download. Suppress with `generate_index=False`. If `eval_dir` already contains an `index.html`, the auto-generator steps aside.
+`index.html` embeds any `.mp4` / `.webm` / `.mov` via `<video controls>` tags so rollouts play in-line without download. **Other files (images, reports, JSON, …) are uploaded as-is into the same `eval/<eval_id>/` directory and previewed or downloaded individually from the MLflow Artifacts pane** — they are not embedded in the auto index. Inline rendering for additional file types may be added later; until then, drop your own `index.html` next to the bundle if you need a custom layout (the auto-generator detects it and steps aside). Suppress entirely with `generate_index=False`.
 
 A single run can carry an unbounded number of `eval/<eval_id>/` bundles — there is no overwrite of `checkpoints/best.pth` or `checkpoints/last.pth` (the eval namespace is intentionally separate). The sentinel tag `eval.last_id` (see below) always points to the most recent bundle.
 
