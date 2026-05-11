@@ -14,6 +14,7 @@ How an external evaluation pipeline lands its outputs (videos, plots, reports, s
 - [Artifact layout on the run](#artifact-layout-on-the-run)
 - [Naming asymmetry: metrics vs tags](#naming-asymmetry-metrics-vs-tags)
 - [Sourcing metrics from a JSON file](#sourcing-metrics-from-a-json-file)
+- [Real-world eval bundles](#real-world-eval-bundles)
 - [Failure modes and their messages](#failure-modes-and-their-messages)
 - [Worked example: a training-repo glue script](#worked-example-a-training-repo-glue-script)
 - [Migrating trainers without `central_tracking_uri`](#migrating-trainers-without-central_tracking_uri)
@@ -270,6 +271,164 @@ eval/failure_distribution.late_slip     = 0.03
 The string `dominant_failure_mode` is dropped (record it as a tag instead).
 
 `metrics` and `metrics_from` may be supplied together — the explicit `metrics` dict wins on conflict ([`eval_logger.py:289-293`](../nexus/logger/eval_logger.py)).
+
+---
+
+## Real-world eval bundles
+
+`EvalLogger` does not distinguish simulator output from real-world capture sessions — it walks `eval_dir` and uploads whatever it finds, and any `.mp4` / `.webm` / `.mov` is embedded in the auto index regardless of how it was recorded ([`eval_logger.py:74-76`](../nexus/logger/eval_logger.py)). To keep **both** kinds of bundle legible on the same run, layer the conventions below on top of the API contract. No code changes are required — these are call-site and folder rules.
+
+### ── `eval_id` prefix: `sim_` / `real_`
+
+The default `eval_id` is `YYYYmmdd_HHMMSS`, which loses the origin as soon as real-world bundles join. Prefix the source onto the timestamp so the Artifacts pane groups them naturally (it sorts lexicographically):
+
+```python
+import time
+ts = time.strftime("%Y%m%d_%H%M%S")
+
+ev.upload(eval_dir="./sim_eval/",     eval_id=f"sim_{ts}")
+ev.upload(eval_dir="./real_capture/", eval_id=f"real_{ts}")
+ev.upload(eval_dir="./demo/",         eval_id="real_20260512_lab_demo")  # human-readable
+```
+
+Result on the run:
+
+```
+artifacts/eval/
+├── sim_20260511_140230/
+├── real_20260511_153012/
+└── real_20260512_lab_demo/
+```
+
+The sentinel tag `eval.last_id` ([`eval_logger.py:344`](../nexus/logger/eval_logger.py)) always points to the most recent bundle, so uploading the real-world session last makes "the most recent eval" trivially discoverable.
+
+### ── Tag schema for bundle metadata
+
+`namespace_tags()` ([`eval_logger.py:134`](../nexus/logger/eval_logger.py)) prefixes bare tag keys with `eval.`. Pick a fixed schema so dashboards and `search_runs(filter_string=...)` queries are stable across bundles:
+
+| Tag key | Example value | Purpose |
+|---|---|---|
+| `eval.source` | `"sim"` / `"real_world"` | Primary filter in MLflow UI search |
+| `eval.session_date` | `"2026-05-12"` | Human-friendly capture date (distinct from the timestamp in `eval_id`) |
+| `eval.operator` | `"jongho"` | Who ran the session |
+| `eval.location` | `"lab_b_rig2"` | Physical rig or environment ID — for real-world bundles |
+| `eval.checkpoint` | `"best.pth"` / `"epoch_500"` | Which checkpoint was evaluated (run-internal cross-check) |
+| `eval.notes` | `"gripper recalibrated mid-session"` | Short free-form annotation |
+
+```python
+ev.upload(
+    eval_dir="./real_capture/",
+    eval_id=f"real_{ts}",
+    tags={
+        "source":       "real_world",
+        "session_date": "2026-05-12",
+        "operator":     "jongho",
+        "location":     "lab_b_rig2",
+        "checkpoint":   "best.pth",
+        "notes":        "10 trials, gripper recalibrated mid-session",
+    },
+)
+```
+
+> ⚠️ Tags are written via `client.set_tag(run_id, k, v)` ([`eval_logger.py:346`](../nexus/logger/eval_logger.py)) — **run-level, not bundle-level**. A subsequent `upload()` that reuses the same key overwrites the previous value, so `eval.source` always reflects the **last** uploaded bundle. Use the manifest pattern below for per-bundle metadata that must never be lost.
+
+### ── `manifest.json` for permanent per-bundle metadata
+
+Because tags overwrite, the durable source of truth for "what was this specific bundle?" is a file inside the bundle itself:
+
+```
+real_capture_2026-05-12/
+├── manifest.json
+├── report.md
+├── metrics.json
+├── photos/
+│   ├── setup.jpg
+│   └── failure_mode_3.jpg
+└── videos/
+    ├── trial_01.mp4
+    └── trial_02.mp4
+```
+
+`manifest.json` example:
+
+```json
+{
+  "source":       "real_world",
+  "session_date": "2026-05-12",
+  "operator":     "jongho",
+  "location":     "lab_b_rig2",
+  "checkpoint":   "best.pth",
+  "trials":       10,
+  "notes":        "gripper recalibrated mid-session"
+}
+```
+
+The manifest lives forever under `artifacts/eval/<eval_id>/manifest.json` and is not affected by later `upload()` calls. Tags remain the **search** surface; the manifest is the **truth** surface.
+
+### ── Metric key grouping: `sim/` vs `real/`
+
+Metric keys are written verbatim with an `eval/` prefix ([`eval_logger.py:341`](../nexus/logger/eval_logger.py)), and MLflow parses `/` as a chart-namespace separator. Embed the origin inside the metric key so simulation and real-world numbers land in **different chart groups** rather than overlapping on the same axis:
+
+```python
+ev.upload(eval_dir="./sim_eval/",     metrics={"sim/success_rate":  0.87, "sim/mean_return":  132.4})
+ev.upload(eval_dir="./real_capture/", metrics={"real/success_rate": 0.62, "real/n_trials":    10})
+```
+
+Result on the run's Metrics tab:
+
+```
+eval/sim/success_rate
+eval/sim/mean_return
+eval/real/success_rate
+eval/real/n_trials
+```
+
+If you prefer to load scalars from a JSON file via `metrics_from=`, note that `flatten_metrics_json` uses **dots**, not slashes — `{"sim": {"success_rate": ...}}` becomes `eval/sim.success_rate`, which is grouped under `eval/` only, not under `eval/sim/`. For slash-based chart grouping, pass the metrics through `metrics=` explicitly.
+
+### ── Shipping a custom `index.html`
+
+The auto-generated index only embeds video files. Real-world sessions typically want **video + written report + measurement table** on one page. Drop your own `index.html` into the bundle and the auto-generator steps aside ([`eval_logger.py:320`](../nexus/logger/eval_logger.py)):
+
+```html
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Real eval — 2026-05-12 lab_b_rig2</title></head>
+<body>
+  <h1>Real-world eval — 2026-05-12 lab_b_rig2</h1>
+  <p>Operator: jongho · 10 trials · 6 success.</p>
+
+  <h2>Rollouts</h2>
+  <video controls src="videos/trial_01.mp4"></video>
+  <video controls src="videos/trial_02.mp4"></video>
+
+  <h2>Report</h2>
+  <iframe src="report.html" style="width:100%;height:600px;border:0"></iframe>
+</body></html>
+```
+
+MLflow's Artifacts pane renders `.md` as raw text, so if you want the report inline, pre-convert it to `.html` and include both in the bundle.
+
+### ── End-to-end example
+
+```python
+from nexus.logger.eval_logger import EvalLogger
+
+ev = EvalLogger.from_run_info(training_output_dir)   # uses .nexus_run.json from training
+
+ev.upload(
+    eval_dir="./real_capture_2026-05-12/",
+    eval_id="real_20260512_lab_demo",
+    metrics_from="./real_capture_2026-05-12/metrics.json",
+    metrics={"real/success_rate": 0.6, "real/n_trials": 10},
+    tags={
+        "source":       "real_world",
+        "session_date": "2026-05-12",
+        "operator":     "jongho",
+        "location":     "lab_b_rig2",
+    },
+)
+```
+
+Summary — folder prefixes for grouping, tags for search, manifest for permanence, slash-keyed metrics for chart separation, custom `index.html` when video alone isn't enough. None of this needs a code change in `EvalLogger`; it's a team-level naming policy.
 
 ---
 
