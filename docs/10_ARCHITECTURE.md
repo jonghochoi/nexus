@@ -96,6 +96,8 @@ trainer.write_stats()
 > ✅ **Used when:** training code is unchanged (no `make_logger()` integration yet), or to back-fill completed legacy runs.
 >
 > ⚠️ **Not scheduled:** this is a one-shot batch upload. For ongoing sync during training, use Pipeline A.
+>
+> 📦 **Companion CLIs** under `post_upload/`: `verify_tb.py` re-checks an upload's numeric fidelity against its tfevents source; `register_model.py` registers a sync'd run's checkpoint as a Model Registry version; `upload_eval.py` attaches post-training eval bundles (rollout `.mp4`, `metrics.json`, reports) onto an existing run under `eval/<eval_id>/` via `EvalLogger` — see [`docs/32_EVAL_ARTIFACT_INGESTION.md`](32_EVAL_ARTIFACT_INGESTION.md) for the sidecar contract.
 
 ---
 
@@ -176,6 +178,7 @@ nexus/
 │   ├── upload_tb.py                # Full tfevents → MLflow batch upload
 │   ├── verify_tb.py                # Numeric validation vs. TB source
 │   ├── register_model.py           # Post-hoc Model Registry version registration
+│   ├── upload_eval.py              # Eval artifact bundle (mp4 / metrics / reports) → run
 │   ├── config.py                   # Loads ~/.nexus/post_config.json + builtin defaults
 │   └── history.py                  # Append-only ~/.nexus/history.json (capped at HISTORY_LIMIT)
 │
@@ -238,7 +241,7 @@ include = ["nexus*"]
 | Tool | Invocation | Where it runs |
 |:---|:---|:---|
 | `chart_settings/apply_chart_settings.py` | `python -m chart_settings.apply_chart_settings ...` | Operator workstation |
-| `post_upload/upload_tb.py`, `verify_tb.py`, `register_model.py` | `python post_upload/upload_tb.py ...` | After-training, manually |
+| `post_upload/upload_tb.py`, `verify_tb.py`, `register_model.py`, `upload_eval.py` | `python post_upload/upload_tb.py ...` | After-training, manually |
 | `scheduled_sync/*.py` | wrapped by `scheduled_sync/sync_mlflow_to_server.sh` (cron) | GPU server |
 
 Three reasons they stay outside the wheel:
