@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>Phase 2 — _scratch_rollout_glue/ follow-ups</title>
+<style>
+  body { font-family: -apple-system, "Helvetica Neue", sans-serif; max-width: 960px; margin: 2rem auto; padding: 0 1rem; line-height: 1.55; color: #1f2328; }
+  h1 { border-bottom: 2px solid #d0d7de; padding-bottom: .3rem; }
+  h2 { margin-top: 1.8rem; border-bottom: 1px solid #d0d7de; padding-bottom: .2rem; }
+  h3 { margin-top: 1.2rem; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  pre { background: #f6f8fa; padding: .8rem 1rem; border-radius: 6px; overflow-x: auto; font-size: .85rem; }
+  code { background: #eff1f3; padding: .1rem .35rem; border-radius: 4px; font-size: .9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: .6rem 0; font-size: .9em; }
+  th, td { border: 1px solid #d0d7de; padding: .35rem .55rem; text-align: left; vertical-align: top; }
+  th { background: #f6f8fa; }
+  .pill { display: inline-block; padding: .05rem .5rem; border-radius: 999px; font-size: .72rem; font-weight: 600; }
+  .new { background: #dafbe1; color: #116329; }
+  .edit { background: #ddf4ff; color: #0550ae; }
+  .reuse { background: #fff8c5; color: #7d4e00; }
+  .note { background: #ddf4ff; border-left: 4px solid #0969da; padding: .55rem .85rem; margin: .8rem 0; border-radius: 4px; font-size: .92em; }
+  .ok { color: #1a7f37; font-weight: 600; }
+  .no { color: #cf222e; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<h1>Phase 2 — <code>_scratch_rollout_glue/</code> follow-ups</h1>
+
+<h2>Context</h2>
+<p>
+  1차 PR 로 <code>post_upload/upload_eval.py</code> CLI 와 임시 글루 폴더
+  <code>docs/_scratch_rollout_glue/</code> (Python 스니펫 2 + 셸 스크립트 3 + README) 가 들어왔습니다.
+  외부 트레이너에 적용하기 전에 다음 4가지를 보강합니다.
+</p>
+<ol>
+  <li><strong>셸 인자 사용 예시</strong> — env-var 표면이 넓은데 헤더에 케이스가 없어 첫 사용자가 막힘.</li>
+  <li><strong>3-script 분리 근거</strong> — train.sh / play.sh / train_and_eval.sh 를 README 에 명문화.</li>
+  <li><strong>recorder 양립</strong> — gym <code>RecordVideo</code> 변형 유지 + observer recorder 변형(<code>play.py.recorder_variant.py</code>) 신규 추가. 사용자 선택지로 둠. (사용자 답변: 옵션 1 채택.)</li>
+  <li><strong>gym 변형 자체 개선</strong> — observer 로 가지 않더라도 현재의 단순 <code>RecordVideo</code> 호출은 손볼 점이 많음. 별도 섹션으로 분리.</li>
+</ol>
+
+<div class="note">
+  <strong>Q: gym <code>RecordVideo</code> 가 headless 에서도 되나?</strong> &nbsp;
+  <span class="ok">YES</span> — Isaac Lab 의 <code>train.py / play.py</code> 가 이미
+  <code>--headless --enable_cameras --video</code> 조합으로 mp4 를 뽑습니다. env 의 <code>render_mode="rgb_array"</code> + <code>--enable_cameras</code> 면 물리 뷰포트는 불필요.
+  Observer recorder 가 GUI 를 요구하는 것은 Replicator <code>RenderProduct</code> + viewport API 때문이고, 이게 진짜 차별점. 이 사실은 README 비교 표에 한 줄로 박아둡니다.
+</div>
+
+<h2>1) 셸 헤더 — <code># Examples:</code> 블록</h2>
+<p>각 <code>.sh</code> 의 <code># Required env:</code> 바로 아래에 붙입니다.</p>
+
+<h3><code>train.sh</code></h3>
+<pre><code># Examples:
+#   EXPERIMENT_NAME=robot_hand_rl RUN_NAME=manual_001 ./train.sh
+#   EXPERIMENT_NAME=robot_hand_rl RUN_NAME=smoke_001  ./train.sh --num_envs 64 --max_agent_steps 1000
+#   EXPERIMENT_NAME=robot_hand_rl RUN_NAME=v3_seed42  TASK=Sharpa-InHandRotation-Direct-v0 ALGO=PPO ./train.sh --num_envs 256
+</code></pre>
+
+<h3><code>play.sh</code></h3>
+<pre><code># Examples:
+#   EXPERIMENT_NAME=robot_hand_rl RUN_NAME=v3_seed42 ./play.sh                              # default: artifacts on, upload to central
+#   EXPERIMENT_NAME=robot_hand_rl RUN_NAME=v3_seed42 UPLOAD=0 ./play.sh --num_envs 4         # local-only smoke, no MLflow call
+#   EXPERIMENT_NAME=robot_hand_rl RUN_NAME=v3_seed42 CKPT=./logs/.../last.pth ./play.sh      # eval last.pth instead of best.pth
+#   EXPERIMENT_NAME=robot_hand_rl RUN_NAME=v3_seed42 TARGET=local ./play.sh                  # upload to GPU-node-local relay (run not yet synced)
+#   EXPERIMENT_NAME=robot_hand_rl RUN_NAME=v3_seed42 LOGS_ROOT=/scratch/team/logs ./play.sh  # custom logs root
+</code></pre>
+
+<h3><code>train_and_eval.sh</code></h3>
+<pre><code># Examples:
+#   EXPERIMENT_NAME=robot_hand_rl ./train_and_eval.sh --num_envs 64 --max_agent_steps 1000  # smoke E2E
+#   EXPERIMENT_NAME=robot_hand_rl RUN_NAME=v3_seed42 ./train_and_eval.sh --num_envs 256     # pinned RUN_NAME
+</code></pre>
+
+<p>README 상단(“What's here” 다음)에 <code>## Usage cookbook</code> 섹션을 두어 동일 케이스를 한 줄 설명과 함께 한곳에 모읍니다.</p>
+
+<h2>2) 3-script 분리 근거 — README 에 박는다</h2>
+<p>새 섹션 <code>## Why three scripts?</code> 6줄:</p>
+<ul>
+  <li><strong>Eval-without-train 이 일상.</strong> 같은 ckpt 를 카메라/에피소드 수/업로드 토글 바꿔가며 수십 번 다시 돌림. 합치면 재학습 강제 또는 <code>--skip_train</code> 플래그가 생김.</li>
+  <li><strong>실패 격리.</strong> 학습은 시간 단위, 플레이는 초~분 단위. 플레이 크래시가 학습을 무효화하면 안 됨.</li>
+  <li><strong>실행 컨텍스트가 다름.</strong> 학습은 sbatch / nohup / 장수명 tmux. 플레이는 노트북 SSH 인터랙티브. 슈퍼바이저·env 기본값이 다름.</li>
+  <li><strong>리소스 모양이 다름.</strong> 학습 <code>--num_envs 256</code>, 플레이 <code>--num_envs 4</code> (RecordVideo 가 vec env idx=0 만 잡음). 한 entrypoint 에 자연스럽게 안 묶임.</li>
+  <li><strong>CI 스모크.</strong> <code>train.sh --max_agent_steps 100</code> 으로 트레이너만, <code>play.sh UPLOAD=0</code> 으로 아티팩트 파이프라인만 검증. 합치면 깨지기 쉬운 플래그 조합 필요.</li>
+  <li><strong><code>train_and_eval.sh</code> 는 진짜 얇음.</strong> RUN_NAME export 후 5줄. 합치면 <em>커지지</em> 않고 entrypoint 가 <em>비대해짐</em>.</li>
+</ul>
+
+<h2>3) Recorder 양립 — gym 유지 + observer 변형 추가</h2>
+<p>사용자 선택: <strong>옵션 1 (두 변형 병행)</strong>. <code>play.py.snippet.py</code> 와 <code>play.py.recorder_variant.py</code> 가 같은 아티팩트 디렉토리 contract (<code>&lt;artifacts_dir&gt;/videos/*.mp4</code>) 를 공유하므로 <code>upload_eval.py</code> 는 변경 없음.</p>
+
+<h3>비교 표 (README 의 <code>## Video recorder choice</code> 섹션에 들어감)</h3>
+<table>
+<tr><th>Axis</th><th><code>play.py.snippet.py</code> (gym)</th><th><code>play.py.recorder_variant.py</code> (observer)</th></tr>
+<tr><td>Backend</td><td>env <code>render(mode="rgb_array")</code> → moviepy/imageio mp4</td><td><code>omni.replicator.core</code> RenderProduct → ffmpeg</td></tr>
+<tr><td>Headless</td><td><span class="ok">✅</span> <code>--headless --enable_cameras --video</code></td><td><span class="no">❌</span> GUI 뷰포트 필수</td></tr>
+<tr><td>Cameras</td><td>1 (env 렌더 뷰)</td><td>1 viewport, JSON pose 들 순차 sweep</td></tr>
+<tr><td>Codec / quality</td><td>없음 (env / Isaac Lab flag 로 간접 제어)</td><td><code>codec/crf/pix_fmt/resolution/fps</code> ctor</td></tr>
+<tr><td>Multi-camera mp4</td><td>없음</td><td>pose 별 1 mp4 (<code>record_all_views(...)</code>)</td></tr>
+<tr><td>Cinematic sweeps</td><td>없음</td><td><code>CameraController.generate_orbit_poses</code></td></tr>
+<tr><td>Vec env (256)</td><td>idx=0 만</td><td>env 갯수 무관</td></tr>
+<tr><td>Integration cost</td><td>drop-in</td><td>롤아웃 루프 재작성 + <code>isaaclab.sh</code> + observer pip-installed</td></tr>
+</table>
+
+<h3>새 파일 — <code>play.py.recorder_variant.py</code></h3>
+<p>Block-by-block 으로 <code>play.py.snippet.py</code> 와 동일하되 Block 3 (RecordVideo wrapper) + Block 5 (post-rollout) 만 교체. 상단 docstring 에 prerequisite 명시:</p>
+<pre><code>Prerequisites:
+  - Run under isaaclab.sh -p (Replicator + viewport APIs are Isaac-process bound)
+  - GUI viewport mandatory — headless 면 play.py.snippet.py 사용
+  - observer installed in the trainer env: pip install -e /path/to/observer</code></pre>
+
+<p>Block 3 sketch:</p>
+<pre><code>from observer.isaac import VideoRecorder, CameraController
+
+recorder = VideoRecorder(
+    output_dir=str(video_folder),
+    fps=args_cli.video_fps,
+    resolution=tuple(map(int, args_cli.video_resolution.split("x"))),
+    codec="libx264", crf=18,
+)
+camera_controller = CameraController(camera_config_path=args_cli.camera_config)
+# 또는: for p in CameraController.generate_orbit_poses(target=(0,0,0.4), radius=0.6, n_steps=8):
+#         camera_controller.add_pose(**p)
+</code></pre>
+
+<p>롤아웃 루프는 observer 의 기존 helper <code>record_all_views(sim, policy, camera_controller, recorder)</code> (<code>recorder.py:178-205</code>) 를 그대로 호출. <strong>새 코드 없음 — 기존 함수 재사용.</strong></p>
+
+<h2>4) gym 변형 <em>자체</em> 개선 (observer 로 안 가도 챙기는 부분)</h2>
+<p>현재 <code>play.py.snippet.py</code> Block 3 의 RecordVideo 호출은 사실상 “일단 동작” 수준. 다음 7가지를 적용해 <strong>같은 gym 백엔드로도 운영가능한 수준</strong>까지 끌어올립니다.</p>
+
+<table>
+<tr><th>#</th><th>개선</th><th>왜</th><th>변경 위치</th></tr>
+<tr>
+  <td>A</td>
+  <td><code>step_trigger</code> → <code>episode_trigger=lambda ep: ep &lt; args_cli.num_episodes</code></td>
+  <td>현재는 step==0 한 번만 트리거 → 한 개 큰 mp4. episode_trigger 로 바꾸면 <strong>에피소드 경계에서 자동 분할</strong>되어 <code>rollout-episode-{N}.mp4</code> 가 N 개. MLflow UI 에서 케이스별 비교 가능.</td>
+  <td>Block 3</td>
+</tr>
+<tr>
+  <td>B</td>
+  <td><code>name_prefix</code> 에 ckpt stem + timestamp 포함</td>
+  <td>여러 번 돌릴 때 파일명 충돌·식별 불가. <code>name_prefix=f"{Path(args_cli.checkpoint).stem}_{stamp}"</code> 로 자기-기술적.</td>
+  <td>Block 3</td>
+</tr>
+<tr>
+  <td>C</td>
+  <td><code>videos/info.json</code> 사이드카</td>
+  <td>mp4 만 봐서는 어떤 조건의 롤아웃인지 모름. <code>{ckpt, seed, task, algo, num_episodes, video_length, fps, resolution, git_commit}</code> 를 함께 떨어뜨림. <code>upload_eval.py --metrics_from</code> 와 별개로 인간이 읽는 메타.</td>
+  <td>Block 5</td>
+</tr>
+<tr>
+  <td>D</td>
+  <td>Isaac Lab 네이티브 <code>--video --video_length --video_interval</code> 와의 정렬 — 이미 있으면 새로 만들지 말고 위임</td>
+  <td>Isaac Lab 의 base play.py 가 동등 wrapper 를 이미 둠. 재작성하면 옵션 두 군데. 기존 인자가 있으면 그대로 forward 하고 본 스니펫의 video_length / video_fps 는 <em>그쪽이 미지원일 때만</em> 활성화.</td>
+  <td>Block 1 (argparse 주석), Block 3</td>
+</tr>
+<tr>
+  <td>E</td>
+  <td>FPS / 해상도는 RecordVideo 가 아닌 <strong>env 카메라</strong>에서 결정됨을 주석으로 명시</td>
+  <td>오해 빈발 — RecordVideo 에는 fps 인자가 없음 (env metadata 의 <code>render_fps</code> 사용). 해상도는 IsaacLab 의 <code>--camera_resolution</code> 또는 env cfg. 주석 한 줄로 함정 제거.</td>
+  <td>Block 3 주석</td>
+</tr>
+<tr>
+  <td>F</td>
+  <td>(opt) GIF 프리뷰 생성 — <code>--gif_preview</code></td>
+  <td>mp4 는 MLflow 인라인 안 됨 (그래서 <code>EvalLogger</code> 가 index.html 만들어줌). 부가로 <strong>2~3초 짜리 저해상 GIF</strong> 를 떨어뜨리면 Artifacts 패널에서 썸네일처럼 즉시 보임. moviepy 로 mp4→gif 한 줄. 기본 off.</td>
+  <td>Block 5 (선택적)</td>
+</tr>
+<tr>
+  <td>G</td>
+  <td>RecordVideo 가 vec env idx=0 만 본다는 점을 readme/주석에 명시 + <code>num_envs=4</code> 권장값</td>
+  <td>Train 에서 num_envs=256 으로 돌리던 사람이 그대로 play 실행하면 비디오는 1번 env 만 나옴. 일반적인 함정이라 명시 필요.</td>
+  <td>play.sh 주석 + README 의 “Why three scripts?” 의 “리소스 모양이 다름” 항목과 연결</td>
+</tr>
+</table>
+
+<p>적용 후 Block 3 최종 모양:</p>
+<pre><code>import gymnasium as gym
+import time
+from pathlib import Path
+
+# RecordVideo는 env metadata.render_fps 와 env 의 camera resolution 에서
+# fps/해상도를 가져갑니다. 여기서는 변경 불가 — Isaac Lab 의
+# --camera_resolution / env cfg 의 render_fps 로 조절하세요.
+ckpt_stem = Path(args_cli.checkpoint).stem if args_cli.checkpoint else "rollout"
+stamp     = time.strftime("%Y%m%d_%H%M%S")
+
+env = gym.wrappers.RecordVideo(
+    env,
+    video_folder=str(video_folder),
+    episode_trigger=lambda ep: ep &lt; args_cli.num_episodes,   # ← A
+    video_length=args_cli.video_length,
+    name_prefix=f"{ckpt_stem}_{stamp}",                       # ← B
+    disable_logger=True,
+)
+</code></pre>
+
+<p>Block 5 에 추가할 메타데이터 sidecar (C):</p>
+<pre><code>info = {
+    "checkpoint": str(args_cli.checkpoint),
+    "task":       args_cli.task,
+    "algo":       args_cli.algo,
+    "num_episodes": int(args_cli.num_episodes),
+    "video_length": int(args_cli.video_length),
+    "name_prefix":  f"{ckpt_stem}_{stamp}",
+    "produced_at":  stamp,
+}
+(video_folder / "info.json").write_text(json.dumps(info, indent=2), encoding="utf-8")
+</code></pre>
+
+<h2>5) <code>--target</code> 플러밍 (1번 cookbook 의 case 4 가 실제로 동작하려면 필요)</h2>
+<ul>
+  <li><code>play.sh</code>: <code>: "${TARGET:=central}"</code> 선언 + <code>--target "$TARGET"</code> 를 play.py 호출에 추가 (UPLOAD=1 일 때).</li>
+  <li><code>play.py.snippet.py</code>: <code>--target {central,local}</code> argparse arg (default <code>"central"</code>) + Block 6 의 subprocess cmd 에 <code>--target</code> 전달.</li>
+  <li><code>upload_eval.py</code> 는 이미 <code>--target</code> 받음 — 추가 변경 없음 (<code>post_upload/upload_eval.py:82-90</code>).</li>
+</ul>
+
+<h2>변경 파일 목록</h2>
+<table>
+<tr><th>경로</th><th>변경</th></tr>
+<tr><td><code>docs/_scratch_rollout_glue/README.md</code></td><td><span class="pill edit">EDIT</span> + Usage cookbook + Why three scripts? + Video recorder choice + variant row</td></tr>
+<tr><td><code>docs/_scratch_rollout_glue/train.sh</code></td><td><span class="pill edit">EDIT</span> # Examples (3줄)</td></tr>
+<tr><td><code>docs/_scratch_rollout_glue/play.sh</code></td><td><span class="pill edit">EDIT</span> # Examples (5줄) + <code>TARGET</code> env 추가 + num_envs 함정 주석 (G)</td></tr>
+<tr><td><code>docs/_scratch_rollout_glue/train_and_eval.sh</code></td><td><span class="pill edit">EDIT</span> # Examples (2줄)</td></tr>
+<tr><td><code>docs/_scratch_rollout_glue/play.py.snippet.py</code></td><td><span class="pill edit">EDIT</span> A/B/C/D/E/G 적용 + <code>--target</code> argparse + subprocess <code>--target</code> 전달 + 선택적 F (<code>--gif_preview</code>)</td></tr>
+<tr><td><code>docs/_scratch_rollout_glue/play.py.recorder_variant.py</code></td><td><span class="pill new">NEW</span> observer recorder 변형</td></tr>
+</table>
+
+<h2>재사용 (수정 없음)</h2>
+<ul>
+  <li><span class="pill reuse">REUSE</span> <code>observer/observer/isaac/recorder.py:47-205</code> — <code>VideoRecorder</code>, <code>record_all_views</code></li>
+  <li><span class="pill reuse">REUSE</span> <code>observer/observer/isaac/camera_controller.py:46-174</code> — <code>CameraController</code> + orbit generator</li>
+  <li><span class="pill reuse">REUSE</span> <code>nexus/post_upload/upload_eval.py:82-90</code> — <code>--target</code> 이미 plumbed</li>
+  <li><span class="pill reuse">REUSE</span> <code>nexus/nexus/logger/eval_logger.py:176-233</code> — <code>from_run_info(target=...)</code></li>
+</ul>
+
+<h2>Verification</h2>
+<ol>
+  <li><strong>Syntax:</strong> <code>bash -n docs/_scratch_rollout_glue/*.sh</code> + <code>python -c "import ast; ast.parse(...)"</code> 두 .py.</li>
+  <li><strong>Cold-read:</strong> 각 .sh 를 처음 보는 사람이 <code># Examples:</code> 만 보고 한 줄 복붙으로 동작시킬 수 있는지.</li>
+  <li><strong>--target 추적:</strong> <code>TARGET=local ./play.sh</code> → <code>play.py --target local</code> → subprocess <code>upload_eval.py --target local</code> → <code>EvalLogger.from_run_info(target="local")</code> sidecar 의 local URI 사용. 정적 검토만.</li>
+  <li><strong>Variant parity:</strong> <code>play.py.snippet.py</code> vs <code>play.py.recorder_variant.py</code> Block 1/2/4/5/6 동일, Block 3 (+ 그 import) 만 다름.</li>
+  <li><strong>Cookbook coverage:</strong> README 6 케이스 = 세 스크립트 # Examples 합집합. 양쪽 누락 없음.</li>
+  <li><strong>gym 개선 dry-run:</strong> 외부 트레이너에서 <code>UPLOAD=0 ./play.sh --num_episodes 3</code> 돌렸을 때 <code>videos/&lt;stem&gt;_&lt;ts&gt;-episode-{0,1,2}.mp4</code> 와 <code>videos/info.json</code> 생성 확인.</li>
+  <li><strong>Commit + push</strong> to <code>claude/upload-rollout-artifacts-F9NGj</code>.</li>
+</ol>
+
+</body>
+</html>

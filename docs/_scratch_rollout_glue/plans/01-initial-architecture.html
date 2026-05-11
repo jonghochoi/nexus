@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>Phase 1 — Rollout Artifact Upload — MVP Plan</title>
+<style>
+  body { font-family: -apple-system, "Helvetica Neue", sans-serif; max-width: 920px; margin: 2rem auto; padding: 0 1rem; line-height: 1.55; color: #1f2328; }
+  h1 { border-bottom: 2px solid #d0d7de; padding-bottom: .3rem; }
+  h2 { margin-top: 1.8rem; border-bottom: 1px solid #d0d7de; padding-bottom: .2rem; }
+  h3 { margin-top: 1.2rem; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  pre { background: #f6f8fa; padding: .8rem 1rem; border-radius: 6px; overflow-x: auto; font-size: .88rem; }
+  code { background: #eff1f3; padding: .1rem .35rem; border-radius: 4px; font-size: .9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: .6rem 0; }
+  th, td { border: 1px solid #d0d7de; padding: .4rem .7rem; text-align: left; vertical-align: top; }
+  th { background: #f6f8fa; }
+  .pill { display: inline-block; padding: .05rem .5rem; border-radius: 999px; font-size: .75rem; font-weight: 600; }
+  .mvp { background: #dafbe1; color: #116329; }
+  .stub { background: #fff8c5; color: #7d4e00; }
+  .note { background: #ddf4ff; border-left: 4px solid #0969da; padding: .6rem .9rem; margin: .8rem 0; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<h1>Phase 1 — Rollout Artifact Upload — MVP Plan</h1>
+
+<h2>Context</h2>
+<p>
+  학습 로깅(metric/scalar)은 이미 nexus 의 <code>make_logger(mode="dual")</code> 를 통해 로컬 MLflow(5100) → 중앙 MLflow 로 전송되고 있다.
+  다음 단계는 <strong>학습이 끝난 체크포인트를 play(추론)로 돌려 생성된 rollout 산출물을 같은 MLflow run 의 artifact 로 부착</strong>하는 것.
+  요구사항이 큼지막하므로(비디오, 손가락 관절 궤적, tactile, 물체 상태, 인코더 임베딩 등),
+  <strong>MVP 는 Isaac 비디오 업로드 하나만 실제로 구현</strong>하고 나머지는 디렉토리/Python hook 시그니처만 미리 잡아두어 이후 PR 에서 채워 넣는다.
+  observer 는 끼우지 않는다 — nexus <code>EvalLogger</code> 에 직접 붙는 것이 가장 minimal 하기 때문.
+</p>
+
+<h2>Architecture</h2>
+<pre><code>train.sh ──► train.py ──► ./logs/&lt;exp&gt;/&lt;run&gt;/&lt;algo&gt;/{best.pth, .nexus_run.json}
+                                            │
+                                            │ (run_name 을 shell 이 양쪽에 동일하게 전달)
+                                            ▼
+play.sh  ──► play.py  ──► ./logs/&lt;exp&gt;/&lt;run&gt;/eval/&lt;eval_id&gt;/{videos,trajectories,...}
+                              │
+                              │ --upload 시
+                              ▼
+                          EvalLogger.from_run_info(train_dir).upload(eval_dir)
+                              │
+                              ▼
+                          중앙 MLflow run (학습 run 에 artifact 부착)
+
+train_and_eval.sh = train.sh && play.sh  (run_name 공유)
+</code></pre>
+
+<h2>Directory Contract</h2>
+<p>play.py 가 <code>--artifacts_dir</code> 로 지정된 디렉토리에 다음 레이아웃으로 산출물을 떨군다. EvalLogger 는 이 디렉토리를 통째로 업로드한다.</p>
+<pre><code>./logs/&lt;exp&gt;/&lt;run&gt;/eval/&lt;eval_id&gt;/
+├── videos/         # &lt;span class="pill mvp"&gt;MVP&lt;/span&gt;  rollout_*.mp4
+├── trajectories/   # &lt;span class="pill stub"&gt;stub&lt;/span&gt; README.md (joint qpos/qvel, ee pose 포맷 명시)
+├── tactile/        # &lt;span class="pill stub"&gt;stub&lt;/span&gt; README.md (contact pos/force 시각화 포맷)
+├── objects/        # &lt;span class="pill stub"&gt;stub&lt;/span&gt; README.md (object pose/velocity)
+├── embeddings/     # &lt;span class="pill stub"&gt;stub&lt;/span&gt; README.md (encoder activation .npy)
+└── metrics.json    # &lt;span class="pill mvp"&gt;MVP&lt;/span&gt; success_rate, mean_episode_return 등
+</code></pre>
+
+<h2>File-by-file Changes</h2>
+
+<h3>1. <code>play.py</code> <span class="pill mvp">modify</span></h3>
+<p><code>_play_custom_algo</code> 만 손대고 <code>_play_rsl_rl</code> 은 건드리지 않는다.</p>
+<table>
+<tr><th>변경</th><th>내용</th></tr>
+<tr><td>새 CLI 인자</td><td>
+  <code>--artifacts_dir &lt;path&gt;</code> · <code>--run_info_dir &lt;train_dir&gt;</code> · <code>--upload</code> · <code>--video_length</code> (기본 1000) · <code>--num_episodes</code> (기본 1)
+</td></tr>
+<tr><td>video_folder 결정</td><td>
+  <code>--artifacts_dir</code> 이 주어지면 <code>artifacts_dir/videos/</code> 로, 아니면 기존 <code>./outputs/videos</code> 로 (하위호환).
+</td></tr>
+<tr><td>hook 시그니처 추가</td><td>
+  <code>play.py</code> 안에 모듈 레벨 함수로:
+  <pre><code>def record_videos(env, artifacts_dir): ...   # 실제 구현은 RecordVideo wrapper 가 처리하므로 no-op
+def dump_trajectories(env, artifacts_dir): pass
+def dump_tactile(env, artifacts_dir): pass
+def dump_objects(env, artifacts_dir): pass
+def dump_embeddings(agent, artifacts_dir): pass</code></pre>
+  현재는 stub. 나중에 <code>agent.test()</code> 루프 내부에 hook 호출을 끼워 넣는 PR 에서 채운다.
+</td></tr>
+<tr><td>업로드 호출</td><td>
+  <code>agent.test()</code> 종료 후 <code>simulation_app.close()</code> <strong>이전에</strong> <code>EvalLogger.from_run_info(...).upload(...)</code> 호출. (이후 phase 에서 subprocess 호출로 변경됨 — play.py 의 import graph 에 mlflow 가 끼이지 않게.)
+</td></tr>
+<tr><td>metrics.json 생성</td><td>
+  <code>agent.test()</code> 가 반환/기록하는 값이 무엇인지에 맞춰 최소 <code>{"eval_episodes": N}</code> 만이라도 떨궈 둠. (실제 success_rate 추출은 후속 작업)
+</td></tr>
+</table>
+
+<h3>2. <code>train.py</code> <span class="pill stub">minimal change</span></h3>
+<p>본질적으로 변경 거의 없음 — <code>make_logger(mode="dual", tb_dir=train_dir, ...)</code> 가 이미 <code>train_dir/.nexus_run.json</code> 을 떨군다. 다만 sidecar 가 central URI 를 들고 가야 <code>EvalLogger.from_run_info(target="central")</code> 이 동작하므로 <code>central_tracking_uri=</code> 키워드를 한 줄 추가.</p>
+<pre><code>writer = make_logger(
+    mode="dual",
+    tb_dir=train_dir,
+    run_name=run_name,
+    tracking_uri="http://127.0.0.1:5100",
+    central_tracking_uri="http://nexus-server:5000",   # ← 새로 추가
+    ...
+)</code></pre>
+
+<h3>3. <code>train.sh</code> <span class="pill mvp">new</span></h3>
+<pre><code>#!/usr/bin/env bash
+set -euo pipefail
+: "${EXPERIMENT_NAME:?required}"
+: "${RUN_NAME:?required}"   # train_and_eval.sh 가 미리 계산해서 export
+: "${TASK:=Sharpa-InHandRotation-Direct-v0}"
+: "${ALGO:=PPO}"
+
+python train.py \
+  --task "$TASK" --algo "$ALGO" \
+  --experiment_name "$EXPERIMENT_NAME" \
+  --run_name "$RUN_NAME" \
+  "$@"</code></pre>
+
+<h3>4. <code>play.sh</code> <span class="pill mvp">new</span></h3>
+<pre><code>#!/usr/bin/env bash
+set -euo pipefail
+: "${EXPERIMENT_NAME:?required}"
+: "${RUN_NAME:?required}"
+: "${TASK:=Sharpa-InHandRotation-Direct-v0}"
+: "${ALGO:=PPO}"
+: "${ARTIFACTS:=1}"   # 1 이면 구조화 디렉토리 생성
+: "${UPLOAD:=1}"      # 1 이면 EvalLogger.upload 호출
+
+TRAIN_DIR="./logs/${EXPERIMENT_NAME}/${RUN_NAME}/${ALGO}"
+CKPT="${CKPT:-${TRAIN_DIR}/best.pth}"
+
+EVAL_ID="$(date +%Y%m%d_%H%M%S)"
+ARTIFACTS_DIR="./logs/${EXPERIMENT_NAME}/${RUN_NAME}/eval/${EVAL_ID}"
+
+ARGS=(--task "$TASK" --algo "$ALGO" --checkpoint "$CKPT")
+if [[ "$ARTIFACTS" == "1" ]]; then
+  ARGS+=(--video --artifacts_dir "$ARTIFACTS_DIR")
+fi
+if [[ "$UPLOAD" == "1" ]]; then
+  ARGS+=(--upload --run_info_dir "$TRAIN_DIR")
+fi
+
+python play.py "${ARGS[@]}" "$@"</code></pre>
+
+<h3>5. <code>train_and_eval.sh</code> <span class="pill mvp">new</span></h3>
+<pre><code>#!/usr/bin/env bash
+set -euo pipefail
+: "${EXPERIMENT_NAME:?required}"
+export RUN_NAME="${RUN_NAME:-$(date +%Y-%m-%d_%H-%M-%S)}"   # ← 핵심: 양쪽이 같은 값을 봄
+export EXPERIMENT_NAME
+
+./train.sh "$@"
+./play.sh                       # train.sh 의 인자(--num_envs 등)는 전달하지 않음 (의도적 분리)
+</code></pre>
+
+<div class="note">
+  <strong>왜 RUN_NAME 을 셸에서 미리 계산하는가:</strong>
+  train.py 가 미지정 시 자체 timestamp 를 만들어버리므로, 셸이 종료 후 <code>train_dir</code> 을 알 방법이 없어진다.
+  미리 정해 양쪽에 같이 넘기면 stdout 파싱·심볼릭 링크 같은 우회를 안 해도 된다.
+</div>
+
+<h3>6. Stub README 파일들 <span class="pill stub">new</span></h3>
+<p><code>play.py</code> 가 <code>--artifacts_dir</code> 사용 시 자동으로 빈 카테고리 디렉토리와 README 를 떨구도록 한다 (한 함수에서 처리).</p>
+<pre><code># trajectories/README.md (예시)
+Joint trajectory artifacts (planned).
+Format: HDF5 with datasets {qpos: (T, dof), qvel: (T, dof), ee_pose: (T, 7)}.
+Filename: rollout_&lt;ep&gt;.h5</code></pre>
+
+<h2>Critical files</h2>
+<ul>
+  <li><code>play.py</code> — 가장 큰 변경 (CLI 인자 + 업로드 호출 + 디렉토리 셋업 + hook 시그니처)</li>
+  <li><code>train.py</code> — <code>central_tracking_uri=</code> 한 줄 추가</li>
+  <li><code>train.sh</code> · <code>play.sh</code> · <code>train_and_eval.sh</code> — 신규</li>
+</ul>
+
+<h2>Reused utilities (재사용)</h2>
+<ul>
+  <li><code>nexus.logger.eval_logger.EvalLogger.from_run_info(path_or_dir)</code> — sidecar 자동 매칭</li>
+  <li><code>EvalLogger.upload(eval_dir, metrics_from=..., tags=...)</code> — 디렉토리 재귀 업로드 + index.html 자동 생성 (mp4 video 자동 임베드)</li>
+  <li><code>gym.wrappers.RecordVideo</code> — 이미 play.py 에서 사용 중, video_folder 만 바꿔주면 됨</li>
+  <li><code>nexus.logger.make_logger(mode="dual", tb_dir=...)</code> 가 train 시 자동으로 <code>.nexus_run.json</code> 작성 — train.py 변경 불필요 (sidecar 형식만)</li>
+</ul>
+
+<h2>Verification</h2>
+<ol>
+  <li><strong>로컬 MLflow 띄우기</strong>: <code>mlflow server --host 127.0.0.1 --port 5100</code> (이미 운영 중이라면 skip).</li>
+  <li><strong>Train 단독 동작 확인</strong>:
+    <pre><code>EXPERIMENT_NAME=test_artifact RUN_NAME=smoke_001 ./train.sh --num_envs 64 --max_agent_steps 1000</code></pre>
+    <code>./logs/test_artifact/smoke_001/PPO/.nexus_run.json</code> 과 <code>best.pth</code>(또는 <code>last.pth</code>) 존재 확인.
+  </li>
+  <li><strong>Play (artifact 생성만, 업로드 X)</strong>:
+    <pre><code>EXPERIMENT_NAME=test_artifact RUN_NAME=smoke_001 UPLOAD=0 ./play.sh --num_envs 4</code></pre>
+    <code>./logs/test_artifact/smoke_001/eval/&lt;ts&gt;/videos/*.mp4</code> 생성 확인 + stub README 들 존재 확인.
+  </li>
+  <li><strong>Play (업로드 포함)</strong>:
+    <pre><code>EXPERIMENT_NAME=test_artifact RUN_NAME=smoke_001 ./play.sh --num_envs 4</code></pre>
+    MLflow UI(5100) → 해당 run → Artifacts 탭에 <code>videos/rollout_*.mp4</code> 가 보이고 <code>index.html</code> 에서 재생되는지 확인.
+    중앙 MLflow 동기화 후 동일 run 에서도 보이는지 확인.
+  </li>
+  <li><strong>End-to-end</strong>:
+    <pre><code>EXPERIMENT_NAME=test_artifact ./train_and_eval.sh --num_envs 64 --max_agent_steps 1000</code></pre>
+    train + play 가 같은 RUN_NAME 으로 묶여 한 run 에 metrics + artifact 가 모두 붙는지 확인.
+  </li>
+  <li><strong>Negative</strong>: <code>--upload</code> 없이 <code>--run_info_dir</code> 만 줘도 에러 없이 끝나야 함 (artifact 생성만).</li>
+</ol>
+
+<h2>Out of scope (다음 PR — Phase 2 에서 다룸)</h2>
+<ul>
+  <li>실제 trajectory/tactile/object/embedding 추출 — <code>agent.test()</code> 루프 내부 훅 삽입 필요.</li>
+  <li>여러 에피소드를 명시적으로 separated mp4 로 떨어뜨리는 multi-trigger 로직.</li>
+  <li>tactile heatmap 시각화 렌더러 (matplotlib/PIL 기반).</li>
+  <li>observer 통합 (sweep/배치 평가가 필요해질 때).</li>
+</ul>
+
+</body>
+</html>
