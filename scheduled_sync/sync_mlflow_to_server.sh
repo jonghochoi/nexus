@@ -223,7 +223,12 @@ mapfile -t CANDIDATE_PIDS < <(pgrep -f "bash .*sync_mlflow_to_server\.sh" 2>/dev
 CONFLICT_PIDS=()
 for pid in "${CANDIDATE_PIDS[@]}"; do
     [[ -z "$pid" || "$pid" == "$$" ]] && continue
-    other_pgid=$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')
+    # `|| true` — pgrep races: a candidate PID can exit between `pgrep` and
+    # `ps`, leaving `ps` to exit non-zero. Without this, pipefail + set -e
+    # silently kills the whole sync after the first echo, so cron writes one
+    # header line every 5 minutes, `~/.nexus/sync_state/` stays empty, and no
+    # metrics reach central.
+    other_pgid=$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ' || true)
     [[ -z "$other_pgid" || "$other_pgid" == "$MY_PGID" ]] && continue
     CONFLICT_PIDS+=("$pid")
 done
