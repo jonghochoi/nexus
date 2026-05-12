@@ -189,6 +189,7 @@ The default pulls **`mlflow-skinny`** — `MlflowClient` and the tracking / enti
 | **20** | [`docs/20_MLFLOW_SERVER_SETUP.md`](docs/20_MLFLOW_SERVER_SETUP.md) | Operator — central MLflow server install (Step 0 includes local PC verification) |
 | **21** | [`docs/21_AIRGAPPED_GPU_SERVER_SETUP.md`](docs/21_AIRGAPPED_GPU_SERVER_SETUP.md) | Operator — GPU node offline bring-up (Step 1 transfer & install via Method A or B, Step 2 smoke-test verification) |
 | **22** | [`docs/22_BACKUP.md`](docs/22_BACKUP.md) | Operator — daily snapshots + restore runbook (single run, single experiment, full disaster) |
+| **23** | [`docs/23_CLEANUP.md`](docs/23_CLEANUP.md) | Operator / engineer — soft-delete vs `mlflow gc`, sync_state hygiene, end-to-end test-experiment wipe playbook |
 | **30** | [`docs/30_ADVANCED_FEATURES.md`](docs/30_ADVANCED_FEATURES.md) | Opt-in — SweepLogger, EvalLogger, Model Registry, system metrics, git tracking |
 | **31** | [`docs/31_CHART_SETTINGS.md`](docs/31_CHART_SETTINGS.md) | Opt-in — persist MLflow chart/column settings across browser sessions |
 | **32** | [`docs/32_EVAL_ARTIFACT_INGESTION.md`](docs/32_EVAL_ARTIFACT_INGESTION.md) | Opt-in — hand off an external evaluator's outputs to the central run via `EvalLogger` (sidecar contract, naming policy, glue script) |

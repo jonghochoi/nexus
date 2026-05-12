@@ -330,4 +330,4 @@ Optional for trivial one-liners; required for any commit that touches more than 
 
 ## Where to read more
 
-`docs/00_PRINCIPLES.md` is the canonical entry point (team-agreed rules + engineering invariants). `docs/10_ARCHITECTURE.md` is the best starting point for data-flow and run-structure before touching code. All docs are indexed in `README.md` → "Further Reading": `01` (experiment standard), tracks `10–13` (engineer/user), `20–21` (operator infrastructure), `30–32` (opt-in features). Korean onboarding: `docs/nexus_guide.html` (download and open locally).
+`docs/00_PRINCIPLES.md` is the canonical entry point (team-agreed rules + engineering invariants). `docs/10_ARCHITECTURE.md` is the best starting point for data-flow and run-structure before touching code. All docs are indexed in `README.md` → "Further Reading": `01` (experiment standard), tracks `10–13` (engineer/user), `20–23` (operator infrastructure — install, air-gap, backup, cleanup), `30–32` (opt-in features). Korean onboarding: `docs/nexus_guide.html` (download and open locally).
