@@ -24,20 +24,20 @@
 #   1. CLI flag                       (e.g. --experiment foo)
 #   2. --config <path>                (explicit JSON file — replaces auto-discovery)
 #   3. /etc/nexus/sync_config.json    (system / team-wide)
-#   4. Built-in default               (only for local_uri / remote_uri / ssh_port)
+#   4. Built-in default               (only for local-uri / remote-uri / ssh-port)
 #
 # Usage:
 #   bash sync_mlflow_to_server.sh \
-#       [--config          /etc/nexus/sync_config.json]   # or set keys directly:
-#       --experiment       robot_hand_rl \
-#       [--remote          user@mlflow-server:/data/mlflow_delta_inbox] \
-#       [--remote_nexus_dir /opt/nexus] \
-#       [--local_uri       http://127.0.0.1:5100] \
-#       [--remote_uri      http://127.0.0.1:5000] \
-#       [--ssh_key         ~/.ssh/id_rsa] \
-#       [--ssh_port        22] \
-#       [--remote_python   /opt/nexus-mlflow/venv/bin/python3] \
-#       [--state_file      ~/.nexus/sync_state/my_state.json] \
+#       [--config           /etc/nexus/sync_config.json]   # or set keys directly:
+#       --experiment        robot_hand_rl \
+#       [--remote           user@mlflow-server:/data/mlflow_delta_inbox] \
+#       [--remote-nexus-dir /opt/nexus] \
+#       [--local-uri        http://127.0.0.1:5100] \
+#       [--remote-uri       http://127.0.0.1:5000] \
+#       [--ssh-key          ~/.ssh/id_rsa] \
+#       [--ssh-port         22] \
+#       [--remote-python    /opt/nexus-mlflow/venv/bin/python3] \
+#       [--state-file       ~/.nexus/sync_state/my_state.json] \
 #       [--dry-run]                    # export only; skip SCP + remote import
 #
 # Exit codes:
@@ -74,13 +74,13 @@ while [[ $# -gt 0 ]]; do
         --config)           CONFIG_FILE="$2";       shift 2 ;;
         --experiment)       EXPERIMENT="$2";        shift 2 ;;
         --remote)           REMOTE="$2";            shift 2 ;;
-        --local_uri)        LOCAL_MLFLOW_URI="$2";  shift 2 ;;
-        --remote_uri)       REMOTE_MLFLOW_URI="$2"; shift 2 ;;
-        --remote_nexus_dir) REMOTE_NEXUS_DIR="$2";  shift 2 ;;
-        --remote_python)    REMOTE_PYTHON="$2";     shift 2 ;;
-        --ssh_key)          SSH_KEY="$2";           shift 2 ;;
-        --ssh_port)         SSH_PORT="$2";          shift 2 ;;
-        --state_file)       STATE_FILE="$2";        shift 2 ;;
+        --local-uri)        LOCAL_MLFLOW_URI="$2";  shift 2 ;;
+        --remote-uri)       REMOTE_MLFLOW_URI="$2"; shift 2 ;;
+        --remote-nexus-dir) REMOTE_NEXUS_DIR="$2";  shift 2 ;;
+        --remote-python)    REMOTE_PYTHON="$2";     shift 2 ;;
+        --ssh-key)          SSH_KEY="$2";           shift 2 ;;
+        --ssh-port)         SSH_PORT="$2";          shift 2 ;;
+        --state-file)       STATE_FILE="$2";        shift 2 ;;
         --dry-run)          DRY_RUN=1;              shift ;;
         *) echo "[ERROR] Unknown argument: $1"; exit 1 ;;
     esac
@@ -168,21 +168,21 @@ REMOTE_PYTHON="${REMOTE_PYTHON:-python3}"
 
 if [[ -z "$EXPERIMENT" || -z "$REMOTE" || -z "$REMOTE_NEXUS_DIR" ]]; then
     echo "Usage: bash sync_mlflow_to_server.sh \\"
-    echo "    [--config          <path>]           Path to sync config JSON"
-    echo "                                         (auto-discovers /etc/nexus/sync_config.json"
-    echo "                                         when omitted)"
-    echo "    --experiment       <name>            MLflow experiment name"
-    echo "    --remote           <user@host:/path> SCP destination for delta files"
-    echo "    --remote_nexus_dir <path>            nexus installation path on MLflow server"
-    echo "    [--local_uri       <uri>]            Local MLflow URI  (default: http://127.0.0.1:5100)"
-    echo "    [--remote_uri      <uri>]            Remote MLflow URI (default: http://127.0.0.1:5000)"
-    echo "    [--ssh_key         <path>]           SSH private key"
-    echo "    [--ssh_port        <port>]           SSH port (default: 22)"
-    echo "    [--remote_python   <path>]           Python interpreter on the MLflow server"
-    echo "                                         (default: python3 — set to venv path,"
-    echo "                                         e.g. /opt/nexus-mlflow/venv/bin/python3)"
-    echo "    [--state_file      <path>]           Override local state file path"
-    echo "    [--dry-run]                          Export only; skip SCP + remote import"
+    echo "    [--config           <path>]           Path to sync config JSON"
+    echo "                                          (auto-discovers /etc/nexus/sync_config.json"
+    echo "                                          when omitted)"
+    echo "    --experiment        <name>            MLflow experiment name"
+    echo "    --remote            <user@host:/path> SCP destination for delta files"
+    echo "    --remote-nexus-dir  <path>            nexus installation path on MLflow server"
+    echo "    [--local-uri        <uri>]            Local MLflow URI  (default: http://127.0.0.1:5100)"
+    echo "    [--remote-uri       <uri>]            Remote MLflow URI (default: http://127.0.0.1:5000)"
+    echo "    [--ssh-key          <path>]           SSH private key"
+    echo "    [--ssh-port         <port>]           SSH port (default: 22)"
+    echo "    [--remote-python    <path>]           Python interpreter on the MLflow server"
+    echo "                                          (default: python3 — set to venv path,"
+    echo "                                          e.g. /opt/nexus-mlflow/venv/bin/python3)"
+    echo "    [--state-file       <path>]           Override local state file path"
+    echo "    [--dry-run]                           Export only; skip SCP + remote import"
     echo ""
     echo "Required values may come from CLI flags or from a config file"
     echo "(experiment, remote, remote_nexus_dir)."
@@ -262,10 +262,10 @@ fi
 # ── Step 1: Export delta from local MLflow
 echo "  [1/3] Exporting delta from local MLflow ($LOCAL_MLFLOW_URI)..."
 
-EXPORT_ARGS=(--tracking_uri "$LOCAL_MLFLOW_URI"
+EXPORT_ARGS=(--tracking-uri "$LOCAL_MLFLOW_URI"
              --experiment   "$EXPERIMENT"
              --output       "$DELTA_FILE")
-[[ -n "$STATE_FILE" ]] && EXPORT_ARGS+=(--state_file "$STATE_FILE")
+[[ -n "$STATE_FILE" ]] && EXPORT_ARGS+=(--state-file "$STATE_FILE")
 
 # `|| EXPORT_EXIT=$?` is required: under `set -e`, a non-zero python exit
 # (including the legitimate exit 2 = "no new data") would abort the script
@@ -325,8 +325,8 @@ REMOTE_IMPORT_PY="${REMOTE_NEXUS_DIR}/scheduled_sync/import_delta.py"
 
 ssh $SSH_OPTS "$REMOTE_HOST" \
     "'$REMOTE_PYTHON' '$REMOTE_IMPORT_PY' \
-        --delta_file   '${REMOTE_PATH}/${DELTA_FILENAME}' \
-        --tracking_uri '$REMOTE_MLFLOW_URI' && \
+        --delta-file           '${REMOTE_PATH}/${DELTA_FILENAME}' \
+        --central-tracking-uri '$REMOTE_MLFLOW_URI' && \
      rm -f '${REMOTE_PATH}/${DELTA_FILENAME}'" || {
     echo "  [ERROR] Remote import_delta.py failed on $REMOTE_HOST."
     echo "          Likely causes:"
@@ -334,7 +334,7 @@ ssh $SSH_OPTS "$REMOTE_HOST" \
     echo "              crash on tar.gz bundles with UnicodeDecodeError 0x8b."
     echo "              Fix: ssh $REMOTE_HOST 'cd $REMOTE_NEXUS_DIR && git pull'"
     echo "            - Remote MLflow at $REMOTE_MLFLOW_URI not reachable from $REMOTE_HOST."
-    echo "            - --remote_python ($REMOTE_PYTHON) cannot import mlflow."
+    echo "            - --remote-python ($REMOTE_PYTHON) cannot import mlflow."
     rm -f "$DELTA_FILE"
     exit 5
 }

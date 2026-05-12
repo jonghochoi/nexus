@@ -72,7 +72,7 @@ def make_record(
     tb_dir: str,
     experiment: str,
     run_name: str,
-    tracking_uri: str,
+    central_tracking_uri: str,
     tags: dict,
     verify_ok: Optional[bool],
     script: str = LEGACY_SCRIPT,
@@ -85,7 +85,7 @@ def make_record(
         "tb_dir": str(Path(tb_dir).resolve()),
         "experiment": experiment,
         "run_name": run_name,
-        "tracking_uri": tracking_uri,
+        "central_tracking_uri": central_tracking_uri,
         "tags": dict(tags),
         "verify_ok": verify_ok,
     }

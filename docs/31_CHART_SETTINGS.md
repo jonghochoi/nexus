@@ -93,7 +93,7 @@ python chart_settings/apply_chart_settings.py apply --experiment real_robot_eval
 To point at a non-default server:
 
 ```bash
-python chart_settings/apply_chart_settings.py apply --tracking-uri http://nexus-server:5000
+python chart_settings/apply_chart_settings.py apply --central-tracking-uri http://nexus-server:5000
 ```
 
 Run this once after editing `chart_settings.json`. Re-run whenever you update the file.

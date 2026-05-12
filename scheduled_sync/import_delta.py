@@ -19,8 +19,8 @@ For each run in the delta:
 
 Usage:
     python import_delta.py \
-        --delta_file  /data/mlflow_delta_inbox/delta_user_20240419_143000_1234.tar.gz \
-        --tracking_uri http://127.0.0.1:5000
+        --delta-file  /data/mlflow_delta_inbox/delta_user_20240419_143000_1234.tar.gz \
+        --central-tracking-uri http://127.0.0.1:5000
 """
 
 import argparse
@@ -42,10 +42,10 @@ BATCH_SIZE = 1000
 def parse_args():
     p = argparse.ArgumentParser(description="Import MLflow delta bundle into central MLflow")
     p.add_argument(
-        "--delta_file", required=True, help="Path to delta tar.gz produced by export_delta.py"
+        "--delta-file", required=True, help="Path to delta tar.gz produced by export_delta.py"
     )
     p.add_argument(
-        "--tracking_uri",
+        "--central-tracking-uri",
         default="http://127.0.0.1:5000",
         help="Central MLflow URI (default: http://127.0.0.1:5000)",
     )
@@ -111,8 +111,8 @@ def main():
             print("[INFO] Empty delta — nothing to import.", flush=True)
             sys.exit(0)
 
-        mlflow.set_tracking_uri(args.tracking_uri)
-        client = MlflowClient(tracking_uri=args.tracking_uri)
+        mlflow.set_tracking_uri(args.central_tracking_uri)
+        client = MlflowClient(tracking_uri=args.central_tracking_uri)
 
         experiment = client.get_experiment_by_name(experiment_name)
         if experiment is None:

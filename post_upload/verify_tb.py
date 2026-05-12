@@ -5,7 +5,7 @@ post_upload/verify_tb.py
 Validates the uploaded MLflow run against the original TensorBoard data.
 
 Usage:
-    python verify_tb.py --run_id <run_id> --tb_dir ./logs/run_001
+    python verify_tb.py --run-id <run_id> --tb-dir ./logs/run_001
 """
 
 import argparse
@@ -29,20 +29,22 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Validate MLflow upload against TensorBoard source"
     )
-    parser.add_argument("--run_id", type=str, default=None, help="MLflow Run ID to validate")
-    parser.add_argument("--tb_dir", type=str, default=None, help="Original tfevents directory")
+    parser.add_argument("--run-id", type=str, default=None, help="MLflow Run ID to validate")
+    parser.add_argument("--tb-dir", type=str, default=None, help="Original tfevents directory")
     parser.add_argument(
-        "--tracking_uri", type=str, default="http://127.0.0.1:5000", help="MLflow server URI"
+        "--central-tracking-uri",
+        type=str,
+        default="http://127.0.0.1:5000",
+        help="Central MLflow server URI (default: http://127.0.0.1:5000)",
     )
     parser.add_argument(
         "--tolerance", type=float, default=1e-6, help="Numeric comparison tolerance (default: 1e-6)"
     )
     parser.add_argument(
         "--from-last",
-        dest="from_last",
         action="store_true",
         help="Re-verify the most recent upload from ~/.nexus/history.json "
-        "(fills run_id/tb_dir/tracking_uri automatically)",
+        "(fills run_id/tb_dir/central_tracking_uri automatically)",
     )
     args = parser.parse_args()
 
@@ -54,19 +56,19 @@ def parse_args():
             parser.error("--from-last: no previous upload in history.")
         args.run_id = args.run_id or last["run_id"]
         args.tb_dir = args.tb_dir or last["tb_dir"]
-        # Only inherit tracking_uri if user didn't override it from the default.
-        if args.tracking_uri == "http://127.0.0.1:5000":
-            args.tracking_uri = last["tracking_uri"]
+        # Only inherit URI if user didn't override it from the default.
+        if args.central_tracking_uri == "http://127.0.0.1:5000":
+            args.central_tracking_uri = last["central_tracking_uri"]
 
     if not args.run_id or not args.tb_dir:
-        parser.error("--run_id and --tb_dir are required (or pass --from-last).")
+        parser.error("--run-id and --tb-dir are required (or pass --from-last).")
 
     return args
 
 
-def fetch_mlflow_metrics(run_id: str, tracking_uri: str) -> pd.DataFrame:
+def fetch_mlflow_metrics(run_id: str, central_tracking_uri: str) -> pd.DataFrame:
     """Fetch all metric histories from MLflow for a given run"""
-    mlflow.set_tracking_uri(tracking_uri)
+    mlflow.set_tracking_uri(central_tracking_uri)
     client = mlflow.tracking.MlflowClient()
 
     try:
@@ -223,7 +225,9 @@ def verify(tb_df: pd.DataFrame, mlflow_df: pd.DataFrame, tolerance: float):
     return all_pass
 
 
-def run_verify(run_id: str, tb_dir: str, tracking_uri: str, tolerance: float = 1e-6) -> bool:
+def run_verify(
+    run_id: str, tb_dir: str, central_tracking_uri: str, tolerance: float = 1e-6
+) -> bool:
     """Programmatic entry point — callable from upload_tb.py for auto-verify.
 
     Returns True if all checks pass, False otherwise.
@@ -231,7 +235,7 @@ def run_verify(run_id: str, tb_dir: str, tracking_uri: str, tolerance: float = 1
     console.rule("[bold blue]MLflow Upload Verifier[/bold blue]")
 
     console.print("[yellow]Fetching MLflow metrics...[/yellow]")
-    mlflow_df = fetch_mlflow_metrics(run_id, tracking_uri)
+    mlflow_df = fetch_mlflow_metrics(run_id, central_tracking_uri)
 
     console.print("[yellow]Parsing TensorBoard source...[/yellow]")
     tb_df = fetch_tb_metrics(tb_dir)
@@ -241,7 +245,7 @@ def run_verify(run_id: str, tb_dir: str, tracking_uri: str, tolerance: float = 1
 
 def main():
     args = parse_args()
-    run_verify(args.run_id, args.tb_dir, args.tracking_uri, args.tolerance)
+    run_verify(args.run_id, args.tb_dir, args.central_tracking_uri, args.tolerance)
 
 
 if __name__ == "__main__":

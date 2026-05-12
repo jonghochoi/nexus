@@ -796,15 +796,15 @@ pip install "nexus-logger[server] @ git+https://github.com/jonghochoi/nexus.git"
     <div class="code-label bash">bash</div>
     <pre><code># 초기 설정 (최초 1회)
 cp post_upload/post_config.example.json ~/.nexus/post_config.json
-$EDITOR ~/.nexus/post_config.json   # tracking_uri + 고정 태그 설정
+$EDITOR ~/.nexus/post_config.json   # central_tracking_uri + 고정 태그 설정
 
 # 매 업로드
 python post_upload/upload_tb.py \
-    --tb_dir    /path/to/your/logs/run_001 \
+    --tb-dir    /path/to/your/logs/run_001 \
     --experiment robot_hand_rl \
-    --run_name  ppo_baseline_v1 \
+    --run-name  ppo_baseline_v1 \
     --tags      researcher=yourname seed=42 task=in_hand_reorientation \
-    --tracking_uri http://&lt;nexus-server&gt;:5000
+    --central-tracking-uri http://&lt;nexus-server&gt;:5000
 # [NXS] Upload complete ✓</code></pre>
 
     <h3>도입 단계별 플랜</h3>
@@ -958,13 +958,13 @@ bash scheduled_sync/start_local_mlflow.sh</code></pre>
     <div class="code-label bash">bash</div>
     <pre><code># 초기 설정 (최초 1회)
 cp post_upload/post_config.example.json ~/.nexus/post_config.json
-$EDITOR ~/.nexus/post_config.json   # tracking_uri + 고정 태그 입력
+$EDITOR ~/.nexus/post_config.json   # central_tracking_uri + 고정 태그 입력
 
 # 매 업로드
-python post_upload/upload_tb.py --tb_dir /path/to/run_001
+python post_upload/upload_tb.py --tb-dir /path/to/run_001
 
 # 같은 설정으로 다른 seed 업로드
-python post_upload/upload_tb.py --tb_dir /path/to/run_002 --repeat-last --tags seed=2
+python post_upload/upload_tb.py --tb-dir /path/to/run_002 --repeat-last --tags seed=2
 
 # 업로드 히스토리 확인 / 마지막 업로드 재검증
 python post_upload/upload_tb.py --history
@@ -973,8 +973,8 @@ python post_upload/verify_tb.py --from-last</code></pre>
     <h3>Dry Run — 파싱 미리보기</h3>
     <div class="code-label bash">bash</div>
     <pre><code>python post_upload/upload_tb.py \
-    --tb_dir /path/to/run_001 \
-    --dry_run
+    --tb-dir /path/to/run_001 \
+    --dry-run
 # → 실제 업로드 없이 파싱될 metric 수 미리 확인</code></pre>
 
     <h3>주요 CLI 플래그</h3>
@@ -982,14 +982,14 @@ python post_upload/verify_tb.py --from-last</code></pre>
       <table>
         <thead><tr><th>플래그</th><th>설명</th></tr></thead>
         <tbody>
-          <tr><td><code>--tb_dir</code></td><td>tfevents 파일이 있는 디렉토리 경로</td></tr>
+          <tr><td><code>--tb-dir</code></td><td>tfevents 파일이 있는 디렉토리 경로</td></tr>
           <tr><td><code>--experiment</code></td><td>MLflow experiment 이름</td></tr>
-          <tr><td><code>--run_name</code></td><td>MLflow run 이름</td></tr>
+          <tr><td><code>--run-name</code></td><td>MLflow run 이름</td></tr>
           <tr><td><code>--tags key=val</code></td><td>추가 태그 (여러 개 가능)</td></tr>
-          <tr><td><code>--tracking_uri</code></td><td>MLflow 서버 주소</td></tr>
-          <tr><td><code>--dry_run</code></td><td>실제 업로드 없이 파싱만 테스트</td></tr>
+          <tr><td><code>--central-tracking-uri</code></td><td>MLflow 서버 주소</td></tr>
+          <tr><td><code>--dry-run</code></td><td>실제 업로드 없이 파싱만 테스트</td></tr>
           <tr><td><code>--repeat-last</code></td><td>마지막 업로드 설정 재사용</td></tr>
-          <tr><td><code>--no_verify</code></td><td>자동 검증 건너뜀</td></tr>
+          <tr><td><code>--no-verify</code></td><td>자동 검증 건너뜀</td></tr>
           <tr><td><code>--history</code></td><td>최근 업로드 히스토리 출력</td></tr>
         </tbody>
       </table>
@@ -999,9 +999,9 @@ python post_upload/verify_tb.py --from-last</code></pre>
     <p>평가 완료 후 선택된 checkpoint를 중앙 Model Registry 버전으로 등록합니다.</p>
     <div class="code-label bash">bash</div>
     <pre><code>python post_upload/register_model.py \
-    --run_name  ppo_baseline_v1 \
-    --model_name robot_hand_policy \
-    --tracking_uri http://&lt;nexus-server&gt;:5000</code></pre>
+    --run-name  ppo_baseline_v1 \
+    --model-name robot_hand_policy \
+    --central-tracking-uri http://&lt;nexus-server&gt;:5000</code></pre>
   </section>
 
   <!-- ── Recommended Tags ───────────────────────────────────────── -->
