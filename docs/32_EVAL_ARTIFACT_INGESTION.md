@@ -137,6 +137,32 @@ eval_id = ev.upload(
 # → artifacts/eval/<eval_id>/ on the MLflow run
 ```
 
+### ── CLI — `post_upload/upload_eval.py`
+
+For shell-driven workflows (post-eval glue scripts, CI jobs, ad-hoc uploads from the operator desktop), `post_upload/upload_eval.py` wraps the same API. Sidecar-driven invocation matches the Python quick start one-for-one — pass the trainer's `tb_dir` to `--run-info` and the eval bundle to `--eval-dir`:
+
+```bash
+python post_upload/upload_eval.py \
+    --run-info     ./logs/exp1/run_001/PPO \
+    --eval-dir     ./eval_results/exp1__ckpt_5000__20260510 \
+    --metrics-from ./eval_results/exp1__ckpt_5000__20260510/metrics.json \
+    --tag observer.commit=abc123
+```
+
+Without a sidecar, supply the explicit triple:
+
+```bash
+python post_upload/upload_eval.py \
+    --central-tracking-uri http://nexus-server:5000 \
+    --experiment           robot_hand_rl \
+    --run-name             exp1_run_001 \
+    --eval-dir             ./eval_results/exp1__ckpt_5000__20260510
+```
+
+`--dry-run` resolves the run and lists what would be uploaded without touching MLflow. `--history` prints recent `upload_eval` invocations (recorded in `~/.nexus/history.json` alongside `upload_tb` / `register_model`).
+
+Bare `--tag KEY=VAL` keys are auto-prefixed with `eval.`; pass a dotted key (e.g. `--tag observer.commit=abc123`) to bypass the prefix.
+
 ### ── Recommended eval_dir layout
 
 `EvalLogger` walks `eval_dir` recursively and uploads everything it finds. A flat layout is fine; subdirectories are preserved under `eval/<eval_id>/` on the server.
@@ -161,6 +187,8 @@ MLflow 2.13's artifact viewer renders HTML inline but not `.mp4`. `EvalLogger` a
 ```python
 ev.upload(eval_dir=..., generate_index=False)
 ```
+
+> ⚠️ The video is embedded as a `data:video/mp4;base64,...` URI inside `<video src=...>`, not as a relative reference to the sibling mp4. MLflow's HTML preview iframe doesn't resolve relative URLs to sibling artifacts (the player UI appears but no mp4 request fires), so the bytes are inlined directly. Trade-off: HTML ends up ≈ 1.37× the mp4 size and must download fully before playback. Files over **30 MB raw mp4** fall back to a download link — the mp4 is always uploaded as a sibling artifact regardless, so download is the universal fallback. Raise the ceiling at `nexus/logger/eval_logger.py::_MAX_DATA_URI_BYTES` if your central MLflow tolerates larger HTML payloads.
 
 **`eval_id` — stable name vs. timestamp**
 

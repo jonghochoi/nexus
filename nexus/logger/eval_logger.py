@@ -52,6 +52,7 @@ Expected eval_dir layout (flat or nested — everything is walked recursively):
 
 from __future__ import annotations
 
+import base64
 import html
 import json
 import logging
@@ -74,6 +75,17 @@ _log = logging.getLogger(__name__)
 # Extensions that the auto-generated index.html embeds inline as <video>.
 # Other file types are uploaded as-is — no inline embedding.
 _VIDEO_EXTS = (".mp4", ".webm", ".mov")
+
+# MIME types matching what ffmpeg's libx264 default writes for each container.
+_VIDEO_MIME = {".mp4": "video/mp4", ".webm": "video/webm", ".mov": "video/quicktime"}
+
+# Cap on raw video size for inline base64 embedding. MLflow's HTML preview
+# iframe breaks relative URLs to sibling artifacts, so videos are embedded
+# directly into `<video src="data:...">` — at the cost of ~1.37× base64
+# overhead and the whole HTML having to download before playback. Above
+# this ceiling the index falls back to a plain download link; the mp4 is
+# uploaded as a sibling artifact regardless.
+_MAX_DATA_URI_BYTES = 30 * 1024 * 1024
 
 
 # ── Module-level helpers ──────────────────────────────────────────────────────
@@ -320,7 +332,7 @@ class EvalLogger:
         has_user_index = any(rel.name == "index.html" for rel, _ in files)
         index_html: Optional[str] = None
         if generate_index and not has_user_index:
-            index_html = self._build_index_html(resolved_id, files)
+            index_html = self._build_index_html(resolved_id, eval_dir_path, files)
             if self._verbose:
                 print(f"{DIM}Auto-generating index.html for in-UI playback.{RESET}")
         elif has_user_index and self._verbose:
@@ -417,18 +429,17 @@ class EvalLogger:
         print(brand_log(f"Total: {len(files)} files, {_fmt_size(total)}", "ok"))
         print()
 
-    def _build_index_html(self, eval_id: str, files: list) -> str:
-        """Render a minimal index.html that embeds rollout videos inline.
+    def _build_index_html(self, eval_id: str, eval_dir: Path, files: list) -> str:
+        """Render an index.html that embeds rollout videos inline as base64 data URIs.
 
-        Only ``.mp4`` / ``.webm`` / ``.mov`` files are embedded — MLflow's
-        artifact viewer cannot play them inline, so this page is the way to
-        watch them without downloading. Other files in the same bundle are
-        uploaded as-is and viewable individually from the Artifacts pane.
-
-        Paths are written as relative URLs so MLflow's HTML preview can
-        resolve them as siblings within the same artifact directory.
+        Only ``.mp4`` / ``.webm`` / ``.mov`` files are embedded — relative URLs
+        to sibling artifacts don't resolve in MLflow's HTML preview iframe, so
+        the bytes are inlined into ``<video src="data:...">``. Videos over
+        ``_MAX_DATA_URI_BYTES`` fall back to a download link. Other files in
+        the bundle are uploaded as-is and viewed individually from the
+        Artifacts pane — they are not referenced here.
         """
-        videos = [str(rel) for rel, _ in files if rel.suffix.lower() in _VIDEO_EXTS]
+        videos = [(rel, size) for rel, size in files if rel.suffix.lower() in _VIDEO_EXTS]
 
         title = html.escape(f"{self.run_name} — eval {eval_id}")
         parts = [
@@ -453,11 +464,23 @@ class EvalLogger:
 
         if videos:
             parts.append("<h2>Rollouts</h2>")
-            for v in videos:
-                src, label = _url_attr(v), html.escape(v)
+            for rel, size in videos:
+                label = html.escape(str(rel))
+                if size > _MAX_DATA_URI_BYTES:
+                    download_href = _url_attr(str(rel))
+                    parts.append(
+                        f"<p><strong>{label}</strong> "
+                        f'<span class="meta">({_fmt_size(size)} — too large to inline, '
+                        f'<a href="{download_href}" download>download</a> and play locally)</span></p>'
+                    )
+                    continue
+                mime = _VIDEO_MIME.get(rel.suffix.lower(), "video/mp4")
+                b64 = base64.b64encode((eval_dir / rel).read_bytes()).decode("ascii")
                 parts.append(
-                    f"<p><strong>{label}</strong></p>"
-                    f'<video controls preload="metadata" src="{src}"></video>'
+                    f"<p><strong>{label}</strong> "
+                    f'<span class="meta">({_fmt_size(size)})</span></p>'
+                    f'<video controls preload="metadata" '
+                    f'src="data:{mime};base64,{b64}"></video>'
                 )
         else:
             parts.append(

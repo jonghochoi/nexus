@@ -122,7 +122,7 @@ The default pulls **`mlflow-skinny`** — `MlflowClient` and the tracking / enti
 | **When** | New trainer / monitor a live run | Upload a completed tfevents in one shot, or register a checkpoint as a model after evaluation |
 | **Trainer code** | 3-line change: `SummaryWriter` → `make_logger` | Untouched |
 | **Cadence** | Every step → local MLflow buffer → cron sync (every 5 min) | Manual, once per run dir / once per registration |
-| **Setup guides** | [`11_LOGGER_SETUP`](docs/11_LOGGER_SETUP.md) (code integration) → [`12_SCHEDULED_SYNC`](docs/12_SCHEDULED_SYNC.md) (cron sync) | [`13_POST_UPLOAD`](docs/13_POST_UPLOAD.md) — includes `register_model.py` for post-hoc Model Registry entries |
+| **Setup guides** | [`11_LOGGER_SETUP`](docs/11_LOGGER_SETUP.md) (code integration) → [`12_SCHEDULED_SYNC`](docs/12_SCHEDULED_SYNC.md) (cron sync) | [`13_POST_UPLOAD`](docs/13_POST_UPLOAD.md) — includes `register_model.py` for post-hoc Model Registry entries and `upload_eval.py` for rollout artifact bundles |
 
 ---
 
@@ -185,7 +185,7 @@ The default pulls **`mlflow-skinny`** — `MlflowClient` and the tracking / enti
 | **10** | [`docs/10_ARCHITECTURE.md`](docs/10_ARCHITECTURE.md) | Full system design and component map |
 | **11** | [`docs/11_LOGGER_SETUP.md`](docs/11_LOGGER_SETUP.md) | Pipeline A — logger integration step-by-step diff |
 | **12** | [`docs/12_SCHEDULED_SYNC.md`](docs/12_SCHEDULED_SYNC.md) | Pipeline A — cron sync wiring (config, validate, multi-user, verification checklist) |
-| **13** | [`docs/13_POST_UPLOAD.md`](docs/13_POST_UPLOAD.md) | Pipeline B — `upload_tb` / `verify_tb` / `register_model` CLIs: config, interactive, history, `sim_run_id` |
+| **13** | [`docs/13_POST_UPLOAD.md`](docs/13_POST_UPLOAD.md) | Pipeline B — `upload_tb` / `verify_tb` / `register_model` / `upload_eval` CLIs: config, interactive, history, `sim_run_id` |
 | **20** | [`docs/20_MLFLOW_SERVER_SETUP.md`](docs/20_MLFLOW_SERVER_SETUP.md) | Operator — central MLflow server install (Step 0 includes local PC verification) |
 | **21** | [`docs/21_AIRGAPPED_GPU_SERVER_SETUP.md`](docs/21_AIRGAPPED_GPU_SERVER_SETUP.md) | Operator — GPU node offline bring-up (Step 1 transfer & install via Method A or B, Step 2 smoke-test verification) |
 | **22** | [`docs/22_BACKUP.md`](docs/22_BACKUP.md) | Operator — daily snapshots + restore runbook (single run, single experiment, full disaster) |

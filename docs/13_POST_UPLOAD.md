@@ -48,6 +48,16 @@ python post_upload/upload_tb.py --history
 python post_upload/verify_tb.py --from-last
 ```
 
+Attach a directory of post-training rollout artifacts (mp4, plots, `metrics.json`, …) to an existing run:
+
+```bash
+python post_upload/upload_eval.py \
+    --run-info ./logs/exp1/run_001/PPO \
+    --eval-dir ./eval_results/exp1__ckpt_5000__20260510
+```
+
+> 📖 `upload_eval.py` is a thin CLI over `EvalLogger`; the full operational guide lives in [`32_EVAL_ARTIFACT_INGESTION.md`](32_EVAL_ARTIFACT_INGESTION.md).
+
 ---
 
 ## Step 0 — First-time upload walkthrough

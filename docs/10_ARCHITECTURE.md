@@ -76,26 +76,35 @@ trainer.write_stats()
 
 ---
 
-### ── Pipeline B — TensorBoard Post-Upload *(one-shot, no code changes)*
+### ── Pipeline B — Post-Upload CLIs *(one-shot, no code changes)*
 
 ```
-trainer.write_stats()
-      │
-      ▼
-  SummaryWriter
-  → tfevents (disk)
-        │
-        │ (after training ends — manual, one-time)
-        ▼
-  post_upload/upload_tb.py
-        │ parse tfevents → log_batch()
-        ▼
-  [MLflow Server :5000]
+trainer.write_stats()                     eval driver writes
+        │                                 eval_results/<run>/
+        ▼                                       │
+  SummaryWriter                                 │
+  → tfevents (disk)                             │
+        │                                       │
+        │ (after training)                      │ (after eval)
+        ▼                                       ▼
+  post_upload/upload_tb.py            post_upload/upload_eval.py
+        │ parse tfevents → log_batch()          │ EvalLogger.upload()
+        │                                       │   → eval/<eval_id>/ artifacts
+        │                                       │   (auto index.html embeds rollout videos
+        │                                       │     as base64 data: URIs for inline play)
+        │                                       │    
+        │     post_upload/register_model.py     │
+        │           │ register_from_run_name()  │
+        │           │                           │
+        ▼           ▼                           ▼
+              [MLflow Server :5000]
 ```
 
-> ✅ **Used when:** training code is unchanged (no `make_logger()` integration yet), or to back-fill completed legacy runs.
+> ✅ **Used when:** training code is unchanged (no `make_logger()` integration yet), back-filling completed legacy runs, attaching post-hoc eval artifacts (rollout mp4s, metrics.json, coverage plots), or registering a checkpoint as a Model Registry version.
 >
-> ⚠️ **Not scheduled:** this is a one-shot batch upload. For ongoing sync during training, use Pipeline A.
+> ⚠️ **Not scheduled:** these are one-shot batch uploads. For ongoing sync during training, use Pipeline A.
+>
+> 📖 Operator guides: [`13_POST_UPLOAD.md`](13_POST_UPLOAD.md) (upload_tb / verify_tb / register_model), [`32_EVAL_ARTIFACT_INGESTION.md`](32_EVAL_ARTIFACT_INGESTION.md) (upload_eval / `EvalLogger`).
 
 ---
 
@@ -176,6 +185,7 @@ nexus/
 │   ├── upload_tb.py                # Full tfevents → MLflow batch upload
 │   ├── verify_tb.py                # Numeric validation vs. TB source
 │   ├── register_model.py           # Post-hoc Model Registry version registration
+│   ├── upload_eval.py              # Eval bundle (mp4 / metrics.json / plots) → eval/<id>/ artifacts
 │   ├── config.py                   # Loads ~/.nexus/post_config.json + builtin defaults
 │   └── history.py                  # Append-only ~/.nexus/history.json (capped at HISTORY_LIMIT)
 │
@@ -204,8 +214,11 @@ nexus/
 │   ├── 13_POST_UPLOAD.md           # Pipeline B — upload_tb / verify_tb CLIs
 │   ├── 20_MLFLOW_SERVER_SETUP.md   # Operator — central MLflow server install (incl. local PC verify)
 │   ├── 21_AIRGAPPED_GPU_SERVER_SETUP.md  # Operator — GPU node offline bring-up (pip wheel / Docker, incl. verify)
+│   ├── 22_BACKUP.md                # Operator — daily MLflow backup tooling and service account
+│   ├── 23_CLEANUP.md               # Operator — deletion and disk-reclaim runbook (soft-delete vs `mlflow gc`)
 │   ├── 30_ADVANCED_FEATURES.md     # Opt-in — SweepLogger, RL metrics, Model Registry
 │   ├── 31_CHART_SETTINGS.md        # Opt-in — persist MLflow chart/column settings
+│   ├── 32_EVAL_ARTIFACT_INGESTION.md  # Opt-in — EvalLogger / upload_eval CLI for rollout artifact bundles
 │   └── nexus_guide.html            # Korean onboarding guide — download and open locally
 │
 ├── brand.py                        # ASCII art, sigils, color constants
@@ -238,7 +251,7 @@ include = ["nexus*"]
 | Tool | Invocation | Where it runs |
 |:---|:---|:---|
 | `chart_settings/apply_chart_settings.py` | `python -m chart_settings.apply_chart_settings ...` | Operator workstation |
-| `post_upload/upload_tb.py`, `verify_tb.py`, `register_model.py` | `python post_upload/upload_tb.py ...` | After-training, manually |
+| `post_upload/upload_tb.py`, `verify_tb.py`, `register_model.py`, `upload_eval.py` | `python post_upload/upload_tb.py ...` | After-training, manually |
 | `scheduled_sync/*.py` | wrapped by `scheduled_sync/sync_mlflow_to_server.sh` (cron) | GPU server |
 
 Three reasons they stay outside the wheel:
