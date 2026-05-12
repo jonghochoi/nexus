@@ -782,10 +782,16 @@ def test_eval_logger(tracking_uri: str) -> bool:
                 runs[0].info.run_id, "eval/smoke/index.html", dl
             )
             index_html = Path(local_index).read_text(encoding="utf-8")
-        if "<video" not in index_html or "rollout.mp4" not in index_html:
-            fail("Auto-generated index.html does not embed rollout.mp4 as <video>")
+        if "<video" not in index_html:
+            fail("Auto-generated index.html is missing the <video> element")
             return False
-        ok("Auto-generated index.html embeds rollout.mp4 in <video> tag")
+        if 'src="data:video/mp4;base64,' not in index_html:
+            fail("Auto-generated index.html does not embed mp4 as a data: URI")
+            return False
+        if "rollout.mp4" not in index_html:
+            fail("Auto-generated index.html does not label rollout.mp4")
+            return False
+        ok("Auto-generated index.html embeds rollout.mp4 inline as data:video/mp4 URI")
 
         return True
     except Exception as e:
