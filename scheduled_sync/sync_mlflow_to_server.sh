@@ -223,7 +223,12 @@ mapfile -t CANDIDATE_PIDS < <(pgrep -f "bash .*sync_mlflow_to_server\.sh" 2>/dev
 CONFLICT_PIDS=()
 for pid in "${CANDIDATE_PIDS[@]}"; do
     [[ -z "$pid" || "$pid" == "$$" ]] && continue
-    other_pgid=$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')
+    # `|| true` — pgrep can return a candidate PID (typically the transient
+    # subshell pgrep itself spawns) that exits before `ps` runs. Under
+    # `set -euo pipefail` the failed pipeline inside $(...) silently kills
+    # the script right after the first echo, so cron writes one header line
+    # per tick, sync_state stays empty, and nothing reaches central.
+    other_pgid=$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ' || true)
     [[ -z "$other_pgid" || "$other_pgid" == "$MY_PGID" ]] && continue
     CONFLICT_PIDS+=("$pid")
 done
