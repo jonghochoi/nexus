@@ -10,7 +10,7 @@
 # Usage:
 #   bash sync_mlflow_all.sh [--config /etc/nexus/sync_config.json] [--dry-run]
 #   All flags are forwarded verbatim to sync_mlflow_to_server.sh per experiment.
-#   --local_uri <uri>  Override local MLflow URI for experiment discovery
+#   --local-uri <uri>  Override local MLflow URI for experiment discovery
 #                      (default: http://127.0.0.1:5100; also read from --config)
 #
 # Cron example (register under the operator's user account, NOT root —
@@ -27,14 +27,14 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# ── Default local URI — overridable via --local_uri or --config
+# ── Default local URI — overridable via --local-uri or --config
 LOCAL_URI="http://127.0.0.1:5100"
 
-# Scan forwarded args for --local_uri (needed for experiment discovery;
+# Scan forwarded args for --local-uri (needed for experiment discovery;
 # all args are still forwarded unchanged to sync_mlflow_to_server.sh)
 ARGS=("$@")
 for ((idx = 0; idx < ${#ARGS[@]}; idx++)); do
-    if [[ "${ARGS[$idx]}" == "--local_uri" && $((idx + 1)) -lt ${#ARGS[@]} ]]; then
+    if [[ "${ARGS[$idx]}" == "--local-uri" && $((idx + 1)) -lt ${#ARGS[@]} ]]; then
         LOCAL_URI="${ARGS[$((idx + 1))]}"
         break
     fi

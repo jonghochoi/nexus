@@ -1,5 +1,5 @@
 {
-  "tracking_uri": "http://nexus-server:5000",
+  "central_tracking_uri": "http://nexus-server:5000",
   "experiment": "robot_hand_rl",
   "tags": {
     "researcher": "your_name",

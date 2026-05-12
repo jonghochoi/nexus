@@ -5,7 +5,7 @@ post_upload/upload_tb.py
 TensorBoard tfevents -> MLflow conversion uploader (Pipeline B)
 
 Usage:
-    python upload_tb.py --tb_dir ./logs/run_001 --experiment robot_hand_grasp --run_name ppo_v1
+    python upload_tb.py --tb-dir ./logs/run_001 --experiment robot_hand_grasp --run-name ppo_v1
 
 Expected tfevents directory structure:
     logs/
@@ -49,7 +49,7 @@ def parse_args(defaults: dict):
     """Build the argument parser, using `defaults` (from config) as fallbacks."""
     parser = argparse.ArgumentParser(description="TensorBoard -> MLflow conversion uploader")
     parser.add_argument(
-        "--tb_dir",
+        "--tb-dir",
         type=str,
         default=None,
         help="Path to directory containing tfevents files "
@@ -62,13 +62,13 @@ def parse_args(defaults: dict):
         help=f"MLflow experiment name (default: {defaults['experiment']})",
     )
     parser.add_argument(
-        "--run_name", type=str, default=None, help="MLflow run name (default: dirname_timestamp)"
+        "--run-name", type=str, default=None, help="MLflow run name (default: dirname_timestamp)"
     )
     parser.add_argument(
-        "--tracking_uri",
+        "--central-tracking-uri",
         type=str,
-        default=defaults["tracking_uri"],
-        help=f"MLflow server URI (default: {defaults['tracking_uri']})",
+        default=defaults["central_tracking_uri"],
+        help=f"Central MLflow server URI (default: {defaults['central_tracking_uri']})",
     )
     parser.add_argument(
         "--tags",
@@ -94,13 +94,13 @@ def parse_args(defaults: dict):
         "--force", action="store_true", help="Skip required-tag validation (researcher, seed, task)"
     )
     parser.add_argument(
-        "--no_verify", action="store_true", help="Skip the automatic post-upload verification step"
+        "--no-verify", action="store_true", help="Skip the automatic post-upload verification step"
     )
     parser.add_argument(
-        "--dry_run", action="store_true", help="Print parsed results only, without uploading"
+        "--dry-run", action="store_true", help="Print parsed results only, without uploading"
     )
     parser.add_argument(
-        "--upload_artifacts", action="store_true", help="Upload files in tb_dir as MLflow artifacts"
+        "--upload-artifacts", action="store_true", help="Upload files in tb_dir as MLflow artifacts"
     )
     parser.add_argument(
         "--history",
@@ -109,13 +109,12 @@ def parse_args(defaults: dict):
     )
     parser.add_argument(
         "--repeat-last",
-        dest="repeat_last",
         action="store_true",
         help="Inherit experiment/run_name/tags from the most recent upload "
         "(CLI flags and -i still override)",
     )
     parser.add_argument(
-        "--git_commit",
+        "--git-commit",
         type=str,
         default=None,
         metavar="HASH",
@@ -158,8 +157,8 @@ def parse_tfevents(tb_dir: str) -> pd.DataFrame:
         )
         console.print(
             f"  [yellow]for run_dir in {tb_dir}/*/; do\n"
-            f'      python upload_tb.py --tb_dir "$run_dir" \\\n'
-            f'          --experiment <experiment> --run_name $(basename "$run_dir") ...\n'
+            f'      python upload_tb.py --tb-dir "$run_dir" \\\n'
+            f'          --experiment <experiment> --run-name $(basename "$run_dir") ...\n'
             f"  done[/yellow]"
         )
         sys.exit(1)
@@ -301,13 +300,13 @@ def upload_to_mlflow(
     tb_dir: str,
     experiment_name: str,
     run_name: Optional[str],
-    tracking_uri: str,
+    central_tracking_uri: str,
     extra_tags: dict,
     upload_artifacts: bool,
 ):
     # Verify MLflow server connection
-    mlflow.set_tracking_uri(tracking_uri)
-    console.print(f"[cyan]MLflow URI:[/cyan] {tracking_uri}")
+    mlflow.set_tracking_uri(central_tracking_uri)
+    console.print(f"[cyan]Central MLflow URI:[/cyan] {central_tracking_uri}")
 
     try:
         mlflow.set_experiment(experiment_name)
@@ -353,7 +352,7 @@ def upload_to_mlflow(
         ]
 
         # ── Upload via log_batch() — max 1000 metrics per call (MLflow hard limit)
-        client = MlflowClient(tracking_uri=tracking_uri)
+        client = MlflowClient(tracking_uri=central_tracking_uri)
         total_batches = (total_rows + BATCH_SIZE - 1) // BATCH_SIZE
 
         with Progress(
@@ -382,7 +381,7 @@ def upload_to_mlflow(
     console.print(f"\n[bold green]✓ Upload complete![/bold green]")
     console.print(f"  Run ID      : [yellow]{run_id}[/yellow]")
     console.print(f"  Data points : [green]{total_rows:,}[/green]  ({total_batches} batches)")
-    console.print(f"  UI URL      : [blue]{tracking_uri}[/blue]")
+    console.print(f"  UI URL      : [blue]{central_tracking_uri}[/blue]")
     console.print(f"\n  -> Open the URL above in your browser to verify.\n")
 
     return run_id
@@ -424,7 +423,7 @@ def main():
         return
 
     if not args.tb_dir:
-        console.print("[red][ERROR] --tb_dir is required for uploads.[/red]")
+        console.print("[red][ERROR] --tb-dir is required for uploads.[/red]")
         sys.exit(1)
 
     console.rule("[bold blue]TensorBoard -> MLflow Uploader[/bold blue]")
@@ -504,7 +503,7 @@ def main():
     preview_dataframe(df)
 
     if args.dry_run:
-        console.print("[bold yellow]--dry_run mode: skipping upload.[/bold yellow]")
+        console.print("[bold yellow]--dry-run mode: skipping upload.[/bold yellow]")
         console.print(f"[cyan]Would upload with tags:[/cyan] {tags}")
         return
 
@@ -524,7 +523,7 @@ def main():
         tb_dir=args.tb_dir,
         experiment_name=experiment,
         run_name=run_name,
-        tracking_uri=args.tracking_uri,
+        central_tracking_uri=args.central_tracking_uri,
         extra_tags=tags,
         upload_artifacts=args.upload_artifacts,
     )
@@ -532,10 +531,12 @@ def main():
     # Auto-verify — removes the manual run_id copy/paste step.
     verify_ok: Optional[bool] = None
     if args.no_verify:
-        console.print("[dim]Skipping verification (--no_verify).[/dim]")
+        console.print("[dim]Skipping verification (--no-verify).[/dim]")
     else:
         console.print("\n[bold cyan]Running automatic verification...[/bold cyan]")
-        verify_ok = run_verify(run_id=run_id, tb_dir=args.tb_dir, tracking_uri=args.tracking_uri)
+        verify_ok = run_verify(
+            run_id=run_id, tb_dir=args.tb_dir, central_tracking_uri=args.central_tracking_uri
+        )
 
     # Record for --history / --repeat-last / --from-last. Persist even if
     # verification failed, so the user can retry or replay.
@@ -545,7 +546,7 @@ def main():
             tb_dir=args.tb_dir,
             experiment=experiment,
             run_name=run_name,
-            tracking_uri=args.tracking_uri,
+            central_tracking_uri=args.central_tracking_uri,
             tags=tags,
             verify_ok=verify_ok,
             script="upload_tb",

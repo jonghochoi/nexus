@@ -60,14 +60,14 @@ def parse_args():
         description="Export MLflow delta (metrics + artifacts) for scheduled sync"
     )
     p.add_argument(
-        "--tracking_uri",
+        "--tracking-uri",
         default="http://127.0.0.1:5100",
         help="Local MLflow URI (default: http://127.0.0.1:5100)",
     )
     p.add_argument("--experiment", required=True, help="MLflow experiment name")
     p.add_argument("--output", required=True, help="Path to write delta tar.gz bundle")
     p.add_argument(
-        "--state_file",
+        "--state-file",
         default=None,
         help="Override state file path (default: ~/.nexus/sync_state/{experiment}.json)",
     )

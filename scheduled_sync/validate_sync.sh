@@ -24,7 +24,7 @@
 # Usage:
 #   bash validate_sync.sh                          # uses /etc/nexus/sync_config.json
 #   bash validate_sync.sh --config /path/to.json   # explicit config file
-#   bash validate_sync.sh --remote ... --remote_nexus_dir ...
+#   bash validate_sync.sh --remote ... --remote-nexus-dir ...
 # ============================================================
 
 set -euo pipefail
@@ -44,12 +44,12 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --config)           CONFIG_FILE="$2";       shift 2 ;;
         --remote)           REMOTE="$2";            shift 2 ;;
-        --local_uri)        LOCAL_MLFLOW_URI="$2";  shift 2 ;;
-        --remote_uri)       REMOTE_MLFLOW_URI="$2"; shift 2 ;;
-        --remote_nexus_dir) REMOTE_NEXUS_DIR="$2";  shift 2 ;;
-        --remote_python)    REMOTE_PYTHON="$2";     shift 2 ;;
-        --ssh_key)          SSH_KEY="$2";           shift 2 ;;
-        --ssh_port)         SSH_PORT="$2";          shift 2 ;;
+        --local-uri)        LOCAL_MLFLOW_URI="$2";  shift 2 ;;
+        --remote-uri)       REMOTE_MLFLOW_URI="$2"; shift 2 ;;
+        --remote-nexus-dir) REMOTE_NEXUS_DIR="$2";  shift 2 ;;
+        --remote-python)    REMOTE_PYTHON="$2";     shift 2 ;;
+        --ssh-key)          SSH_KEY="$2";           shift 2 ;;
+        --ssh-port)         SSH_PORT="$2";          shift 2 ;;
         -h|--help)
             sed -n '2,28p' "$0"; exit 0 ;;
         *) echo "[ERROR] Unknown argument: $1"; exit 1 ;;
@@ -136,7 +136,8 @@ REMOTE_PYTHON="${REMOTE_PYTHON:-python3}"
 
 if [[ -z "$REMOTE" || -z "$REMOTE_NEXUS_DIR" ]]; then
     echo "[ERROR] Missing required fields. Need: remote, remote_nexus_dir."
-    echo "        Provide via CLI or in /etc/nexus/sync_config.json"
+    echo "        Provide via --remote / --remote-nexus-dir on the CLI,"
+    echo "        or via the matching keys in /etc/nexus/sync_config.json"
     echo "        (see scheduled_sync/sync_config.example.json)."
     exit 1
 fi
@@ -229,7 +230,7 @@ fi
 step "3/7  Remote import_delta.py present and current"
 REMOTE_IMPORT_PY="${REMOTE_NEXUS_DIR}/scheduled_sync/import_delta.py"
 if ! ssh $SSH_OPTS "$REMOTE_HOST" "test -f '$REMOTE_IMPORT_PY'" 2>/dev/null; then
-    fail "$REMOTE_IMPORT_PY not found. Verify --remote_nexus_dir points at the nexus checkout."
+    fail "$REMOTE_IMPORT_PY not found. Verify --remote-nexus-dir points at the nexus checkout."
 fi
 if ! ssh $SSH_OPTS "$REMOTE_HOST" "grep -q 'tarfile.is_tarfile' '$REMOTE_IMPORT_PY'" 2>/dev/null; then
     fail "$REMOTE_IMPORT_PY is from before the artifact-sync feature and cannot
@@ -289,9 +290,9 @@ else
     [[ -n "$CONFIG_FILE" ]] && DRY_ARGS+=("--config" "$CONFIG_FILE")
     DRY_ARGS+=("--dry-run")
     [[ -n "$REMOTE"           ]] && DRY_ARGS+=("--remote" "$REMOTE")
-    [[ -n "$REMOTE_NEXUS_DIR" ]] && DRY_ARGS+=("--remote_nexus_dir" "$REMOTE_NEXUS_DIR")
-    [[ -n "$REMOTE_PYTHON"    ]] && DRY_ARGS+=("--remote_python"    "$REMOTE_PYTHON")
-    [[ -n "$LOCAL_MLFLOW_URI" ]] && DRY_ARGS+=("--local_uri" "$LOCAL_MLFLOW_URI")
+    [[ -n "$REMOTE_NEXUS_DIR" ]] && DRY_ARGS+=("--remote-nexus-dir" "$REMOTE_NEXUS_DIR")
+    [[ -n "$REMOTE_PYTHON"    ]] && DRY_ARGS+=("--remote-python"    "$REMOTE_PYTHON")
+    [[ -n "$LOCAL_MLFLOW_URI" ]] && DRY_ARGS+=("--local-uri" "$LOCAL_MLFLOW_URI")
     if bash "${SCRIPT_DIR}/sync_mlflow_all.sh" "${DRY_ARGS[@]}"; then
         ok "Dry-run completed"
     else

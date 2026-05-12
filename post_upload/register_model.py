@@ -6,11 +6,11 @@ Post-hoc Model Registry registration (Pipeline B)
 
 Usage:
     python register_model.py \
-        --tracking_uri http://nexus-server:5000 \
+        --central-tracking-uri http://nexus-server:5000 \
         --experiment shadow_hand_rl \
-        --run_name exp_v3_seed42 \
+        --run-name exp_v3_seed42 \
         --kind best \
-        --model_name shadow_hand_ppo \
+        --model-name shadow_hand_ppo \
         --description "PPO v3 — success rate 87% on real hand" \
         --stage Staging
 
@@ -52,23 +52,22 @@ def parse_args():
         description="Register a checkpoint from an existing MLflow run as a Model Registry version"
     )
     parser.add_argument(
-        "--tracking_uri",
+        "--central-tracking-uri",
         type=str,
         default=None,
-        help="MLflow server URI — typically central. Required unless set in "
-        "~/.nexus/post_config.json.",
+        help="Central MLflow server URI. Required unless set in ~/.nexus/post_config.json.",
     )
     parser.add_argument(
         "--experiment", type=str, default=None, help="Experiment name the source run lives in"
     )
     parser.add_argument(
-        "--run_name",
+        "--run-name",
         type=str,
         default=None,
         help="Source run name (run identity). Required for registration.",
     )
     parser.add_argument(
-        "--model_name",
+        "--model-name",
         type=str,
         default=None,
         help="Model Registry name to register against. Required for registration.",
@@ -91,7 +90,7 @@ def parse_args():
         help="Optional stage to transition the new version to",
     )
     parser.add_argument(
-        "--archive_existing_production",
+        "--archive-existing-production",
         action="store_true",
         help="With --stage Production, archive existing Production versions first "
         "(keeps exactly one Production version)",
@@ -103,7 +102,7 @@ def parse_args():
         help=f"Path to JSON config file (default: {DEFAULT_CONFIG_PATH})",
     )
     parser.add_argument(
-        "--dry_run",
+        "--dry-run",
         action="store_true",
         help="Resolve the run + artifact and print what would be registered, without registering",
     )
@@ -120,7 +119,7 @@ def print_preflight(args, source_run_id: str, source: str) -> None:
     table = Table(title="[bold]Register Model[/bold]", header_style="bold magenta")
     table.add_column("Field", style="cyan")
     table.add_column("Value")
-    table.add_row("Tracking URI", args.tracking_uri)
+    table.add_row("Central tracking URI", args.central_tracking_uri)
     table.add_row("Experiment", args.experiment)
     table.add_row("Run name", args.run_name)
     table.add_row("Source run_id", source_run_id)
@@ -172,25 +171,30 @@ def main() -> int:
         name for name in ("experiment", "run_name", "model_name") if getattr(args, name) is None
     ]
     if missing:
-        console.print(f"[red]Missing required:[/red] {', '.join('--' + m for m in missing)}")
+        flags = {
+            "experiment": "--experiment",
+            "run_name": "--run-name",
+            "model_name": "--model-name",
+        }
+        console.print(f"[red]Missing required:[/red] {', '.join(flags[m] for m in missing)}")
         return 1
 
-    # Resolve tracking_uri with strict precedence:
+    # Resolve central_tracking_uri with strict precedence:
     #   CLI flag (non-None)  >  config file (when present)  >  fail
     # Builtin default is *not* used silently — it would point at
     # localhost which is rarely correct for register_model invocations
     # from a desktop or inference node.
     config = load_config(_preparse_config_path())
-    if args.tracking_uri is None:
+    if args.central_tracking_uri is None:
         if config["source"] == "<builtin>":
             console.print(
-                "[red]Missing required:[/red] --tracking_uri "
+                "[red]Missing required:[/red] --central-tracking-uri "
                 "(no ~/.nexus/post_config.json found, so it can't fall back to a default)"
             )
             return 1
-        args.tracking_uri = config["tracking_uri"]
+        args.central_tracking_uri = config["central_tracking_uri"]
 
-    registry = ModelRegistry(tracking_uri=args.tracking_uri)
+    registry = ModelRegistry(tracking_uri=args.central_tracking_uri)
 
     # ── Pre-flight: resolve run + artifact (raises with actionable hints on miss)
     try:
@@ -232,7 +236,7 @@ def main() -> int:
         "tb_dir": "",
         "experiment": args.experiment,
         "run_name": args.run_name,
-        "tracking_uri": args.tracking_uri,
+        "central_tracking_uri": args.central_tracking_uri,
         "tags": {
             "model_name": args.model_name,
             "kind": args.kind,

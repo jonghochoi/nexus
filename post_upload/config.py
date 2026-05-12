@@ -1,8 +1,11 @@
 """Config loader for the nexus post-upload CLI.
 
 Reads ~/.nexus/post_config.json (or a custom path) and returns a merged dict
-with defaults for tracking_uri, experiment, and tags.
+with defaults for central_tracking_uri, experiment, and tags.
 Command-line flags override these defaults.
+
+``central_tracking_uri`` always refers to the team-shared NEXUS central MLflow
+server — Pipeline B uploads, registers, and verifies against central only.
 """
 
 import json
@@ -17,7 +20,7 @@ HISTORY_LIMIT = 20
 # Team-wide fixed values. These mirror the current NEXUS deployment so the
 # CLI works with zero setup; override per user via ~/.nexus/post_config.json.
 BUILTIN_DEFAULTS = {
-    "tracking_uri": "http://127.0.0.1:5000",
+    "central_tracking_uri": "http://127.0.0.1:5000",
     "experiment": "robot_hand_rl",
     "tags": {"hand": "robot_22dof"},
 }
@@ -38,13 +41,13 @@ REQUIRED_TAGS = _BASE_REQUIRED
 def load_config(path: Optional[str] = None) -> dict:
     """Load config from JSON, merged on top of BUILTIN_DEFAULTS.
 
-    Returns a dict with keys: tracking_uri (str), experiment (str),
+    Returns a dict with keys: central_tracking_uri (str), experiment (str),
     tags (dict[str, str]), source (str — path or '<builtin>').
     """
     config_path = Path(path) if path else DEFAULT_CONFIG_PATH
 
     merged = {
-        "tracking_uri": BUILTIN_DEFAULTS["tracking_uri"],
+        "central_tracking_uri": BUILTIN_DEFAULTS["central_tracking_uri"],
         "experiment": BUILTIN_DEFAULTS["experiment"],
         "tags": dict(BUILTIN_DEFAULTS["tags"]),
         "source": "<builtin>",
@@ -71,8 +74,8 @@ def load_config(path: Optional[str] = None) -> dict:
     if not isinstance(user, dict):
         raise SystemExit(f"[ERROR] {config_path} must contain a JSON object")
 
-    if "tracking_uri" in user:
-        merged["tracking_uri"] = str(user["tracking_uri"])
+    if "central_tracking_uri" in user:
+        merged["central_tracking_uri"] = str(user["central_tracking_uri"])
     if "experiment" in user:
         merged["experiment"] = str(user["experiment"])
     if "tags" in user:
