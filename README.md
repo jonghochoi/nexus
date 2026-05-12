@@ -169,7 +169,7 @@ The default pulls **`mlflow-skinny`** — `MlflowClient` and the tracking / enti
 | `git_commit` | `54696cb326bb...` | auto *(Pipeline A)* |
 | `git_dirty` | `false` / `true` | auto *(Pipeline A)* |
 
-> 💡 `git_commit` and `git_dirty` are set automatically by `MLflowLogger` (Pipeline A). For Pipeline B post-uploads, pass `--git_commit <hash>` manually. When `git_dirty=true`, the full diff is saved as `artifacts/git/git_patch.html` (previewable inline in the MLflow UI). See [`docs/30_ADVANCED_FEATURES.md`](docs/30_ADVANCED_FEATURES.md#5-git-commit-tracking) for details.
+> 💡 `git_commit` and `git_dirty` are set automatically by `MLflowLogger` (Pipeline A). For Pipeline B post-uploads, pass `--git-commit <hash>` manually. When `git_dirty=true`, the full diff is saved as `artifacts/git/git_patch.html` (previewable inline in the MLflow UI). See [`docs/30_ADVANCED_FEATURES.md`](docs/30_ADVANCED_FEATURES.md#5-git-commit-tracking) for details.
 
 ---
 

@@ -13,13 +13,13 @@ Venv setup and activation are covered in `README.md` → "Quick Start" (`bash se
 - The venv is at `~/.nexus/venv` — **outside** the source tree — so overwriting the repo does not wipe installed packages. `~/.nexus/` also holds the user's `post_config.json` (Pipeline B), `sync_state/{exp}.json`, `history.json`, and the local MLflow server's runtime data (`mlruns_training/`, `mlflow_training.log`, `.mlflow_training.pid` — written by `scheduled_sync/start_local_mlflow.sh`).
 - There is no mandatory `pip install` step — scripts are run directly and `nexus/logger/` is imported via `sys.path.insert(0, ".")` from the repo root (which puts the `nexus` package on `sys.path`). `pyproject.toml` exists for ruff config and the `nexus-logger` package definition, but is not required for day-to-day development.
 
-Smoke / end-to-end tests (require an MLflow server reachable at `--tracking_uri`):
+Smoke / end-to-end tests (require an MLflow server reachable at `--tracking-uri`):
 
 ```bash
 bash scheduled_sync/start_local_mlflow.sh        # starts local MLflow on 127.0.0.1:5100
 python tests/smoke_test.py                       # core: imports, MLflowLogger, DualLogger, factory
 python tests/smoke_test.py --advanced            # also: OmegaConf flatten, SweepLogger, scheduled_sync
-python tests/smoke_test.py --tracking_uri http://<host>:5000   # against a different server
+python tests/smoke_test.py --tracking-uri http://<host>:5000   # against a different server
 ```
 
 There is no pytest config and no linter — `smoke_test.py` is a hand-rolled script with sectioned PASS/FAIL output. Run it from the repo root (it does `sys.path.insert(0, ".")` to import the `nexus.logger` package). It writes to a real `nexus_smoke_test` experiment on whatever server you point it at.
@@ -27,7 +27,7 @@ There is no pytest config and no linter — `smoke_test.py` is a hand-rolled scr
 Pipeline B CLI smoke (no MLflow upload):
 
 ```bash
-cd post_upload && python upload_tb.py --tb_dir <path> --dry_run
+cd post_upload && python upload_tb.py --tb-dir <path> --dry-run
 python upload_tb.py --history                   # show ~/.nexus/history.json
 python verify_tb.py --from-last                 # re-verify the last upload
 ```
@@ -61,7 +61,7 @@ Back-fills completed tfevents, attaches post-hoc eval artifacts, and registers s
 - **Multi-run protection** — aborts if tfevents span more than one parent directory (would cause step collisions). Always upload one run dir at a time.
 - **Vectorized metric building** — build `Metric` entities via vectorized zip over numpy arrays, not `iterrows` (~50x faster); the file comments call this out.
 - **Tag precedence** (7-level chain) — single source of truth is `docs/13_POST_UPLOAD.md` §2; keep that table authoritative if you change the order.
-- **Auto-verify** — `run_verify()` runs unconditionally after upload unless `--no_verify`; exits `2` on failure (so CI can branch on it) but still records the upload in history.
+- **Auto-verify** — `run_verify()` runs unconditionally after upload unless `--no-verify`; exits `2` on failure (so CI can branch on it) but still records the upload in history.
 - **Eval artifacts** go under `eval/<eval_id>/` — never `checkpoints/`, to preserve `best.pth`/`last.pth` policy.
 - **Model Registry registration is post-hoc, not in-loop** — `scheduled_sync` does not propagate registry rows. Registering on the GPU-side local server (`MLflowLogger.register_checkpoint()` / `DualLogger`) writes only to local `5100`. The canonical NEXUS path is to evaluate runs after sync, then register selected runs against central via `post_upload/register_model.py` or `ModelRegistry.register_from_run_name()`. The CLI tags new versions with `nexus.sourceRunName=<run_name>` for back-traceability.
 - **History** (`~/.nexus/history.json`, capped at `HISTORY_LIMIT=20`) — records both `script="upload_tb"` and `script="register_model"`; `--repeat-last` / `--from-last` filter on `script="upload_tb"`, `register_model.py --history` filters on `script="register_model"`.
@@ -69,6 +69,8 @@ Back-fills completed tfevents, attaches post-hoc eval artifacts, and registers s
 
 ### Cross-cutting conventions
 
+- **`tracking_uri` vs `central_tracking_uri`** — single rule: `tracking_uri` is **always** the GPU-node-local relay (`:5100`); `central_tracking_uri` is **always** the team-shared central MLflow (`:5000` / `http://nexus-server:5000`). The split appears in `make_logger()` / `DualLogger` parameter names, in the `.nexus_run.json` schema (`run_info.py`), in `post_upload/config.py::BUILTIN_DEFAULTS`, and in every CLI that talks to central (`upload_tb.py`, `verify_tb.py`, `register_model.py`, `import_delta.py`, `apply_chart_settings.py`). Scripts that operate on local only (`export_delta.py`, `tests/smoke_test.py`) keep plain `--tracking-uri`. Never overload a single name to mean both servers.
+- **CLI flag naming** — all user-facing CLI flags (Python argparse and Bash case patterns) use **hyphenated** form: `--tb-dir`, `--central-tracking-uri`, `--dry-run`, `--remote-nexus-dir`, `--local-uri`. Python internal identifiers (argparse `dest`, function parameters, dict keys) and JSON config keys stay **underscored** (`args.tb_dir`, `central_tracking_uri`, `"remote_nexus_dir"`). argparse converts `--foo-bar` → `args.foo_bar` automatically — do not set `dest=` manually.
 - **Default URIs**: GPU-server local MLflow is `http://127.0.0.1:5100`; central MLflow is `http://127.0.0.1:5000` (and `http://nexus-server:5000` from clients). These appear hardcoded as defaults across many files — change them in concert.
 - **Metric name sanitization**: `name.replace(" ", "_").replace(":", "-")`. Slashes are preserved so TensorBoard's `losses/actor_loss` hierarchy survives. **Three** copies must stay in lock-step — `MLflowLogger._sanitize` (logger), `upload_tb.sanitize_metric_name` (uploader), and `verify_tb.sanitize_metric_name` (verifier applies it to the TB-side tags before comparing) — or `verify_tb.py` will report tag-list mismatches.
 - **Param flattening**: `MLflowLogger._flatten` recursively flattens nested dict params with `.` separator. Lists/tuples are stored via `str(v)` (not flattened).
@@ -134,7 +136,7 @@ Several concepts are reflected in multiple places. Change one without auditing t
 - [ ] `scheduled_sync/sync_config.example.json` — add the new key
 - [ ] `scheduled_sync/validate_sync.sh` — add to required-key list if the new key is required
 - [ ] `docs/12_SCHEDULED_SYNC.md` — Step 1 required-keys table + Verification checklist if required
-- [ ] Keep CLI-name ↔ JSON-key mapping consistent (`--remote_nexus_dir` ↔ `"remote_nexus_dir"`)
+- [ ] Keep CLI-name ↔ JSON-key mapping consistent (`--remote-nexus-dir` ↔ `"remote_nexus_dir"` — hyphenated flag, underscored JSON key)
 
 **New chart setting or column**
 - [ ] `chart_settings/chart_settings.json` — add the new entry
@@ -309,7 +311,7 @@ Optional for trivial one-liners; required for any commit that touches more than 
 
    Use `─` (U+2500) — never `-` or `=`. Pad the trailing run so the line ends near column 72. Numbered sections (`── 1. ...`, `── 2. ...`) when there are multiple, plain titles (`── Section ──...`) otherwise. See `fix: repair broken TOC anchor links in all guide docs` and `docs: unify style of operator (20/21) and opt-in (30/31) docs` for canonical examples.
 7. **Em dash `—` (U+2014)**, not ` - `, when joining a label to its explanation in body prose. Same rule as for source-code comments.
-8. **Backticks** around paths (`post_upload/upload_tb.py`), identifiers (`MlflowClient`, `_BASE_REQUIRED`), CLI flags (`--dry_run`), and shell commands.
+8. **Backticks** around paths (`post_upload/upload_tb.py`), identifiers (`MlflowClient`, `_BASE_REQUIRED`), CLI flags (`--dry-run`), and shell commands.
 
 ### Audit checklist before committing
 

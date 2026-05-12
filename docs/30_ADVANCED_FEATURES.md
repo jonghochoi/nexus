@@ -169,11 +169,11 @@ After training is finished and `scheduled_sync` has copied the run to central, r
 
 ```bash
 python post_upload/register_model.py \
-    --tracking_uri http://nexus-server:5000 \
+    --central-tracking-uri http://nexus-server:5000 \
     --experiment shadow_hand_rl \
-    --run_name exp_v3_seed42 \
+    --run-name exp_v3_seed42 \
     --kind best \
-    --model_name shadow_hand_ppo \
+    --model-name shadow_hand_ppo \
     --description "PPO v3 — 87% success on real hand" \
     --stage Staging
 ```

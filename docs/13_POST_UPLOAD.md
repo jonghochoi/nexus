@@ -28,17 +28,17 @@
 ```bash
 # One-time setup
 cp post_upload/post_config.example.json ~/.nexus/post_config.json
-$EDITOR ~/.nexus/post_config.json   # set tracking_uri + your fixed tags
+$EDITOR ~/.nexus/post_config.json   # set central_tracking_uri + your fixed tags
 
 # Every upload
-python post_upload/upload_tb.py --tb_dir /path/to/run_001
+python post_upload/upload_tb.py --tb-dir /path/to/run_001
 # → prompts for seed/task if missing, uploads, auto-verifies
 ```
 
 Repeat the same config for another seed?
 
 ```bash
-python post_upload/upload_tb.py --tb_dir /path/to/run_002 --repeat-last --tags seed=2
+python post_upload/upload_tb.py --tb-dir /path/to/run_002 --repeat-last --tags seed=2
 ```
 
 List recent uploads / re-verify the last one:
@@ -72,15 +72,15 @@ events.out.tfevents.1700000000.hostname.12345.0
 
 ### ── Dry run — preview parsing without uploading
 
-Before the actual upload, use `--dry_run` to preview which metrics will be parsed and how many there are.
+Before the actual upload, use `--dry-run` to preview which metrics will be parsed and how many there are.
 
 ```bash
 cd nexus/
 source ~/.nexus/activate.sh   # or: nexus-activate
 
 python post_upload/upload_tb.py \
-    --tb_dir    /path/to/your/logs/run_001 \
-    --dry_run
+    --tb-dir    /path/to/your/logs/run_001 \
+    --dry-run
 ```
 
 Expected output (metric summary table):
@@ -97,26 +97,26 @@ Expected output (metric summary table):
 
 Total: 3 tags, 2,100 data points
 
---dry_run mode: skipping upload.
+--dry-run mode: skipping upload.
 ```
 
 If the table appears, parsing is working correctly. Verify that metric names and data counts match your expectations.
 
 ### ── Run the actual upload
 
-After reviewing the dry-run contents, proceed with the actual upload. Make sure `~/.nexus/post_config.json` exists (see [Step 1](#-step-1--nexuspost_configjson--team-fixed-values) below). For local-testing MLflow (`:5100`), set `"tracking_uri": "http://127.0.0.1:5100"` in the config; the built-in default is `:5000` (central server).
+After reviewing the dry-run contents, proceed with the actual upload. Make sure `~/.nexus/post_config.json` exists (see [Step 1](#-step-1--nexuspost_configjson--team-fixed-values) below). For local-testing MLflow (`:5100`), set `"central_tracking_uri": "http://127.0.0.1:5100"` in the config; the built-in default is `:5000` (central server).
 
 ```bash
-# Short form — config supplies tracking_uri, researcher, hand, etc.
+# Short form — config supplies central_tracking_uri, researcher, hand, etc.
 # Missing required tags (researcher/seed/task) are prompted interactively.
-python post_upload/upload_tb.py --tb_dir /path/to/your/logs/run_001
+python post_upload/upload_tb.py --tb-dir /path/to/your/logs/run_001
 
 # Or fully explicit (for CI or ad-hoc overrides)
 python post_upload/upload_tb.py \
-    --tb_dir       /path/to/your/logs/run_001 \
+    --tb-dir       /path/to/your/logs/run_001 \
     --experiment   robot_hand_rl \
-    --run_name     ppo_baseline_v1 \
-    --tracking_uri http://127.0.0.1:5100 \
+    --run-name     ppo_baseline_v1 \
+    --central-tracking-uri http://127.0.0.1:5100 \
     --tags         researcher=kim seed=42 task=in_hand_reorientation
 ```
 
@@ -134,17 +134,17 @@ Running automatic verification...
 ✓ All checks passed! TB -> MLflow porting is accurate.
 ```
 
-Pass `--no_verify` to skip the automatic check (e.g. in CI where you verify later). The full flag reference lives in [Step 6 — All CLI flags at a glance](#step-6--all-cli-flags-at-a-glance).
+Pass `--no-verify` to skip the automatic check (e.g. in CI where you verify later). The full flag reference lives in [Step 6 — All CLI flags at a glance](#step-6--all-cli-flags-at-a-glance).
 
 ### ── Re-verify a previous upload (optional)
 
-Automatic verification runs at the end of every upload — no manual step needed. To re-verify a previous upload, or to validate one that was run with `--no_verify`:
+Automatic verification runs at the end of every upload — no manual step needed. To re-verify a previous upload, or to validate one that was run with `--no-verify`:
 
 ```bash
 python post_upload/verify_tb.py \
-    --run_id       a1b2c3d4e5f6...   \
-    --tb_dir       /path/to/your/logs/run_001 \
-    --tracking_uri http://127.0.0.1:5100
+    --run-id       a1b2c3d4e5f6...   \
+    --tb-dir       /path/to/your/logs/run_001 \
+    --central-tracking-uri http://127.0.0.1:5100
 ```
 
 Three items are checked:
@@ -174,9 +174,9 @@ Select multiple runs and click the **Compare** button to compare curves side by 
 
 ### ── First-upload checklist
 
-- [ ] `~/.nexus/post_config.json` populated with tracking_uri, researcher, team-fixed tags
+- [ ] `~/.nexus/post_config.json` populated with central_tracking_uri, researcher, team-fixed tags
 - [ ] Confirmed tfevents file existence with `ls`
-- [ ] Reviewed metric parsing results after `--dry_run`
+- [ ] Reviewed metric parsing results after `--dry-run`
 - [ ] Ran actual upload; automatic verification printed `✓ All checks passed!`
 - [ ] Training curve graphs confirmed in MLflow UI
 
@@ -195,7 +195,7 @@ Example:
 
 ```json
 {
-  "tracking_uri": "http://nexus-server:5000",
+  "central_tracking_uri": "http://nexus-server:5000",
   "experiment": "robot_hand_rl",
   "tags": {
     "researcher": "kim",
@@ -206,7 +206,7 @@ Example:
 
 | Field | Purpose |
 |---|---|
-| `tracking_uri` | Central MLflow server URL (local testing: `http://127.0.0.1:5100`) |
+| `central_tracking_uri` | Central MLflow server URL (local testing: `http://127.0.0.1:5100`) |
 | `experiment` | Default experiment name |
 | `tags.researcher` | Your name — per-user, set once and forget |
 | `tags.hand` | Hand identifier — team-fixed reproducibility tag |
@@ -242,7 +242,7 @@ Override the config path with `--config /path/to/other.json` (useful for CI or s
 - **Explicit** — `-i` / `--interactive` prompts for every required tag regardless, which is handy for editing a repeated set (see Step 4):
 
   ```bash
-  python post_upload/upload_tb.py --tb_dir /path/to/run_003 --repeat-last -i
+  python post_upload/upload_tb.py --tb-dir /path/to/run_003 --repeat-last -i
   ```
 
 ### ── Precedence (low → high)
@@ -254,10 +254,10 @@ Override the config path with `--config /path/to/other.json` (useful for CI or s
 | 3 | `--repeat-last` (history) | all tags |
 | 4 | `run_meta.json` | `sim_run_id` only |
 | 5 | `--tags k=v ...` | all tags |
-| 6 | `--git_commit HASH` | `git_commit` only |
+| 6 | `--git-commit HASH` | `git_commit` only |
 | 7 | `-i` interactive input | required tags |
 
-> **Note:** `--git_commit` is a convenience shorthand for `--tags git_commit=<hash>`. Use it for post-hoc uploads where the training commit is known but the working tree is no longer in that state. For scheduled-sync runs (Pipeline A), the commit is captured automatically — no flag needed.
+> **Note:** `--git-commit` is a convenience shorthand for `--tags git_commit=<hash>`. Use it for post-hoc uploads where the training commit is known but the working tree is no longer in that state. For scheduled-sync runs (Pipeline A), the commit is captured automatically — no flag needed.
 
 ---
 
@@ -274,7 +274,7 @@ Running automatic verification...
 ✓ All checks passed! TB -> MLflow porting is accurate.
 ```
 
-Pass `--no_verify` to skip (e.g. in CI, where a separate job verifies).
+Pass `--no-verify` to skip (e.g. in CI, where a separate job verifies).
 
 Re-verify a past upload:
 
@@ -284,8 +284,8 @@ python post_upload/verify_tb.py --from-last
 
 # A specific run
 python post_upload/verify_tb.py \
-    --run_id a1b2c3d4e5f6... \
-    --tb_dir /path/to/run_001
+    --run-id a1b2c3d4e5f6... \
+    --tb-dir /path/to/run_001
 ```
 
 ---
@@ -312,16 +312,16 @@ Inherit `experiment`, `run_name`, and `tags` from the most recent upload — per
 
 ```bash
 # Upload 10 seeds of the same task without re-typing everything:
-python post_upload/upload_tb.py --tb_dir ./runs/seed1 --tags seed=1 task=in_hand_reorientation
-python post_upload/upload_tb.py --tb_dir ./runs/seed2 --repeat-last --tags seed=2
-python post_upload/upload_tb.py --tb_dir ./runs/seed3 --repeat-last --tags seed=3
+python post_upload/upload_tb.py --tb-dir ./runs/seed1 --tags seed=1 task=in_hand_reorientation
+python post_upload/upload_tb.py --tb-dir ./runs/seed2 --repeat-last --tags seed=2
+python post_upload/upload_tb.py --tb-dir ./runs/seed3 --repeat-last --tags seed=3
 ...
 ```
 
 Combine with `-i` to edit a tag interactively with the previous value prefilled:
 
 ```bash
-python post_upload/upload_tb.py --tb_dir ./runs/seed2 --repeat-last -i
+python post_upload/upload_tb.py --tb-dir ./runs/seed2 --repeat-last -i
 #   seed [1]: 2
 #   task [in_hand_reorientation]: ↵  (accept)
 ```
@@ -383,30 +383,30 @@ with open(log_dir / "run_meta.json", "w") as f:
 
 | Flag | Purpose |
 |---|---|
-| `--tb_dir PATH` | tfevents directory (required for uploads) |
+| `--tb-dir PATH` | tfevents directory (required for uploads) |
 | `--experiment NAME` | MLflow experiment (default: from config) |
-| `--run_name NAME` | MLflow run name (default: `{dirname}_{timestamp}`) |
-| `--tracking_uri URL` | MLflow server (default: from config) |
+| `--run-name NAME` | MLflow run name (default: `{dirname}_{timestamp}`) |
+| `--central-tracking-uri URL` | MLflow server (default: from config) |
 | `--tags k=v ...` | Per-run tags, highest-priority source after `-i` |
-| `--git_commit HASH` | Git commit hash of the training code; stored as `git_commit` tag |
+| `--git-commit HASH` | Git commit hash of the training code; stored as `git_commit` tag |
 | `--config PATH` | Alternate config file path |
 | `-i`, `--interactive` | Prompt for every required tag |
 | `--repeat-last` | Inherit experiment/run_name/tags from last history entry |
 | `--force` | Skip required-tag validation |
-| `--no_verify` | Skip automatic post-upload verification |
-| `--dry_run` | Parse & preview only (skips validation and upload) |
-| `--upload_artifacts` | Also attach tfevents files as MLflow artifacts |
+| `--no-verify` | Skip automatic post-upload verification |
+| `--dry-run` | Parse & preview only (skips validation and upload) |
+| `--upload-artifacts` | Also attach tfevents files as MLflow artifacts |
 | `--history` | Print recent uploads and exit |
 
 ### ── `verify_tb.py`
 
 | Flag | Purpose |
 |---|---|
-| `--run_id ID` | MLflow run ID to verify |
-| `--tb_dir PATH` | Source tfevents directory to compare against |
-| `--tracking_uri URL` | MLflow server (default: `http://127.0.0.1:5000`) |
+| `--run-id ID` | MLflow run ID to verify |
+| `--tb-dir PATH` | Source tfevents directory to compare against |
+| `--central-tracking-uri URL` | MLflow server (default: `http://127.0.0.1:5000`) |
 | `--tolerance F` | Numeric match tolerance (default: `1e-6`) |
-| `--from-last` | Fill run_id/tb_dir/tracking_uri from last history entry |
+| `--from-last` | Fill run_id/tb_dir/central_tracking_uri from last history entry |
 
 ---
 
@@ -430,7 +430,7 @@ $EDITOR ~/.nexus/post_config.json
 
 ```json
 {
-  "tracking_uri": "http://nexus-server:5000",
+  "central_tracking_uri": "http://nexus-server:5000",
   "experiment": "robot_hand_rl",
   "tags": {
     "researcher": "lee",
@@ -442,7 +442,7 @@ $EDITOR ~/.nexus/post_config.json
 First upload — the CLI handles the rest:
 
 ```
-$ python post_upload/upload_tb.py --tb_dir ./logs/ppo_first_try
+$ python post_upload/upload_tb.py --tb-dir ./logs/ppo_first_try
 
 ──────── TensorBoard -> MLflow Uploader ────────
 Config source: /home/lee/.nexus/post_config.json
@@ -470,7 +470,7 @@ Running automatic verification...
 ✓ All checks passed! TB -> MLflow porting is accurate.
 ```
 
-That's it — from here on, just `--tb_dir` + answer two prompts.
+That's it — from here on, just `--tb-dir` + answer two prompts.
 
 ---
 
@@ -490,8 +490,8 @@ Upload the first with full metadata:
 
 ```bash
 python post_upload/upload_tb.py \
-    --tb_dir   ~/runs/ppo_v17_seed1 \
-    --run_name ppo_v17_seed1 \
+    --tb-dir   ~/runs/ppo_v17_seed1 \
+    --run-name ppo_v17_seed1 \
     --tags     seed=1 task=in_hand_reorientation
 ```
 
@@ -500,8 +500,8 @@ For seeds 2–5, `--repeat-last` inherits experiment/tags from history — just 
 ```bash
 for S in 2 3 4 5; do
     python post_upload/upload_tb.py \
-        --tb_dir   ~/runs/ppo_v17_seed${S} \
-        --run_name ppo_v17_seed${S} \
+        --tb-dir   ~/runs/ppo_v17_seed${S} \
+        --run-name ppo_v17_seed${S} \
         --repeat-last --tags seed=${S}
 done
 ```
@@ -550,7 +550,7 @@ Upload after eval completes:
 
 ```
 $ python post_upload/upload_tb.py \
-    --tb_dir     ./logs/real_eval_2026-04-23 \
+    --tb-dir     ./logs/real_eval_2026-04-23 \
     --experiment real_robot_eval \
     --tags       seed=42 task=in_hand_reorientation
 
@@ -580,7 +580,7 @@ Interactive tag entry (press Enter to accept default)
 Upload failed:
 
 ```
-$ python post_upload/upload_tb.py --tb_dir ~/runs/ppo_v19_seed1 \
+$ python post_upload/upload_tb.py --tb-dir ~/runs/ppo_v19_seed1 \
       --tags seed=1 task=in_hand_reorientation
 ...
 [ERROR] Failed to connect to MLflow server: HTTPConnectionPool(...)
@@ -594,8 +594,8 @@ python post_upload/upload_tb.py --history
 
 # Replay tags + change only the seed and run_name
 python post_upload/upload_tb.py \
-    --tb_dir   ~/runs/ppo_v19_seed1 \
-    --run_name ppo_v19_seed1 \
+    --tb-dir   ~/runs/ppo_v19_seed1 \
+    --run-name ppo_v19_seed1 \
     --repeat-last --tags seed=1
 ```
 
@@ -636,10 +636,10 @@ In CI (no TTY) every required tag must be explicit; there's no interactive fallb
     MLFLOW_URI: ${{ secrets.MLFLOW_URI }}
   run: |
     python post_upload/upload_tb.py \
-        --tb_dir       ./logs/${RUN_NAME} \
+        --tb-dir       ./logs/${RUN_NAME} \
         --experiment   robot_hand_rl \
-        --run_name     ${RUN_NAME} \
-        --tracking_uri ${MLFLOW_URI} \
+        --run-name     ${RUN_NAME} \
+        --central-tracking-uri ${MLFLOW_URI} \
         --tags         researcher=ci task=${TASK} hand=robot_22dof
 ```
 
@@ -651,11 +651,11 @@ Exit codes you can branch on:
 | `1` | Connection error, missing tfevents, missing required tags, etc. |
 | `2` | Upload succeeded but auto-verify failed |
 
-If a separate CI job handles verification, add `--no_verify` and fail the pipeline later on the verify step instead. For leaner configuration on a long-lived runner, keep `~/.nexus/post_config.json` populated and drop the fixed flags:
+If a separate CI job handles verification, add `--no-verify` and fail the pipeline later on the verify step instead. For leaner configuration on a long-lived runner, keep `~/.nexus/post_config.json` populated and drop the fixed flags:
 
 ```bash
 python post_upload/upload_tb.py \
-    --tb_dir ./logs/${RUN_NAME} \
+    --tb-dir ./logs/${RUN_NAME} \
     --tags   seed=${SEED} task=${TASK}
 ```
 
@@ -671,18 +671,18 @@ The intended flow is *evaluate first, register second*: train many runs, run inf
 
 - The run already exists on central MLflow (visible in the UI). Pipeline A users: wait for the next `scheduled_sync` cycle if the run is fresh.
 - `checkpoints/<kind>.pth` artifact is uploaded to that run. This requires the trainer to have called `MLflowLogger.log_checkpoint(path, kind="best")` (or `"last"`) at least once. *(Canonical policy: `docs/00_PRINCIPLES.md#checkpoint-policy`.)*
-- `~/.nexus/post_config.json` `tracking_uri` points at central MLflow, or pass `--tracking_uri` explicitly.
+- `~/.nexus/post_config.json` `central_tracking_uri` points at central MLflow, or pass `--central-tracking-uri` explicitly.
 
 ### ── Usage
 
 ```bash
 cd post_upload
 python register_model.py \
-    --tracking_uri http://nexus-server:5000 \
+    --central-tracking-uri http://nexus-server:5000 \
     --experiment shadow_hand_rl \
-    --run_name exp_v3_seed42 \
+    --run-name exp_v3_seed42 \
     --kind best \
-    --model_name shadow_hand_ppo \
+    --model-name shadow_hand_ppo \
     --description "PPO v3 — success rate 87% on real hand" \
     --stage Staging
 ```
@@ -693,20 +693,20 @@ Result: a new `shadow_hand_ppo` version on central with `current_stage = Staging
 
 | Flag | Required | Notes |
 |---|---|---|
-| `--tracking_uri` | ✅ unless set in `~/.nexus/post_config.json` | Typically the central server. *No silent fallback to `127.0.0.1:5000`* — the script aborts if neither CLI flag nor config provides it. |
+| `--central-tracking-uri` | ✅ unless set in `~/.nexus/post_config.json` | Typically the central server. *No silent fallback to `127.0.0.1:5000`* — the script aborts if neither CLI flag nor config provides it. |
 | `--experiment` | ✅ | The experiment that owns the source run. **CLI-only — does not inherit from the config file**, since `experiment` is per-task and changes between invocations. |
-| `--run_name` | ✅ | Stable run identity (NEXUS convention). |
-| `--model_name` | ✅ | Model Registry name. Created on first call. |
+| `--run-name` | ✅ | Stable run identity (NEXUS convention). |
+| `--model-name` | ✅ | Model Registry name. Created on first call. |
 | `--kind` | default `best` | `best` or `last`. |
 | `--description` | strongly recommended | Free-text rationale (eval result, hardware tested on, …). |
 | `--stage` | optional | `Staging` / `Production` / `Archived`. Skipped if omitted. |
-| `--archive_existing_production` | optional | With `--stage Production`, archives current Production versions first. Use to keep exactly one Production version. |
-| `--dry_run` | | Resolve run + artifact, print preflight, *do not register*. |
+| `--archive-existing-production` | optional | With `--stage Production`, archives current Production versions first. Use to keep exactly one Production version. |
+| `--dry-run` | | Resolve run + artifact, print preflight, *do not register*. |
 | `--history` | | Print recent `register_model` invocations from `~/.nexus/history.json` and exit. |
 
 ### ── Idempotency
 
-`register_model.py` creates a **new version on every successful invocation**. This matches MLflow's `register_model()` behavior and keeps the registry as an append-only audit trail. If you want exactly one Production version, use `--stage Production --archive_existing_production`.
+`register_model.py` creates a **new version on every successful invocation**. This matches MLflow's `register_model()` behavior and keeps the registry as an append-only audit trail. If you want exactly one Production version, use `--stage Production --archive-existing-production`.
 
 ### ── Python API equivalent
 
@@ -736,14 +736,14 @@ For pre-flight without registering (e.g. validating a list of candidate runs), u
 | Symptom | Cause / Fix |
 |---|---|
 | `[ERROR] Required tags missing: researcher, seed, task.` | No config file and not a TTY. Either populate `~/.nexus/post_config.json`, pass `--tags`, or re-run in a TTY to get the interactive prompt. |
-| `[ERROR] Multiple run directories detected under: <dir>` | `--tb_dir` pointed at a parent containing multiple runs. Upload each run dir individually (use the shell loop suggested in the error). |
-| `[ERROR] Failed to connect to MLflow server` | Wrong `tracking_uri`. Check `~/.nexus/post_config.json`; for local testing use `http://127.0.0.1:5100`, for central use `http://<server>:5000`. |
+| `[ERROR] Multiple run directories detected under: <dir>` | `--tb-dir` pointed at a parent containing multiple runs. Upload each run dir individually (use the shell loop suggested in the error). |
+| `[ERROR] Failed to connect to MLflow server` | Wrong `central_tracking_uri`. Check `~/.nexus/post_config.json`; for local testing use `http://127.0.0.1:5100`, for central use `http://<server>:5000`. |
 | `[WARN] --repeat-last: no previous upload in history.` | Empty `~/.nexus/history.json`. Do one manual upload first, then `--repeat-last` works. |
 | Auto-verify prints `✗ Verification failed` | Tag list, counts, or values diverge. Compare via MLflow UI + `verify_tb.py --from-last` to inspect which tags/steps differ. |
 | `[yellow]run_meta.json sim_run_id (X) overrides carried-over value (Y)` | `--repeat-last` had a different sim_run_id than the tb_dir's run_meta.json. The file's value wins (ground truth for this dir). If the file is wrong, delete it or override with `--tags sim_run_id=...`. |
 | `register_model.py: Run not found ... If this is a GPU-side run, verify scheduled_sync has uploaded it.` | The run exists on the GPU node's local MLflow but not yet on central. Wait for the next sync cycle (default 5 min); `validate_sync.sh` if you suspect cron is not running. |
 | `register_model.py: Run ... has no 'checkpoints/best.pth' artifact.` | Trainer never called `log_checkpoint(kind="best")`, or `last` was uploaded but `best` was not. Check the run's artifacts in the MLflow UI to confirm what's actually stored. |
-| `register_model.py: Missing required: --tracking_uri (no ~/.nexus/post_config.json found ...)` | The CLI does not silently default to `127.0.0.1:5000`. Pass `--tracking_uri http://nexus-server:5000` explicitly, or create `~/.nexus/post_config.json` with the team's central URI so it applies automatically. |
+| `register_model.py: Missing required: --central-tracking-uri (no ~/.nexus/post_config.json found ...)` | The CLI does not silently default to `127.0.0.1:5000`. Pass `--central-tracking-uri http://nexus-server:5000` explicitly, or create `~/.nexus/post_config.json` with the team's central URI so it applies automatically. |
 | `register_model.py: Missing required: --experiment` | `--experiment` is intentionally CLI-only — it is per-task and changes between invocations. Pass it explicitly every time. |
 
 ---

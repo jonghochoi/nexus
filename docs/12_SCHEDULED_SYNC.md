@@ -159,7 +159,7 @@ bash scheduled_sync/sync_mlflow_all.sh
 bash scheduled_sync/sync_mlflow_all.sh --config /etc/nexus/sync_config.json
 ```
 
-> 💡 `--remote_nexus_dir` is the path where nexus is installed on the NEXUS server (e.g., `/opt/nexus`). Required to locate `import_delta.py` on the server.
+> 💡 `--remote-nexus-dir` is the path where nexus is installed on the NEXUS server (e.g., `/opt/nexus`). Required to locate `import_delta.py` on the server.
 
 > 💡 Add `--dry-run` to exercise the local export step only (state file is updated, no SCP, no remote import). Useful before committing the cron entry.
 
@@ -184,7 +184,7 @@ crontab -e
 
 > 💡 If your nexus clone is somewhere other than `~/nexus`, replace `$HOME/nexus` with the absolute path (e.g. `/srv/work/nexus`). `validate_sync.sh` prints the exact path it resolved — copy from there to avoid typos.
 
-Need a per-key override (e.g. a specific `local_uri`)? Add the matching CLI flag — flags win over the config file.
+Need a per-key override (e.g. a specific `local_uri`)? Add the matching CLI flag (`--local-uri`) — flags win over the config file. CLI flag names are hyphenated; JSON keys remain underscored.
 
 ---
 

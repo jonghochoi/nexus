@@ -22,9 +22,10 @@ Usage:
   python chart_settings/apply_chart_settings.py show
 
 Options:
-  --config PATH           Path to chart_settings.json (default: file next to this script)
-  --tracking-uri URI      MLflow server address (default: ~/.nexus/config.json or http://127.0.0.1:5000)
-  --experiment NAME       Experiment name (default: all experiments in the config file)
+  --config PATH              Path to chart_settings.json (default: file next to this script)
+  --central-tracking-uri URI Central MLflow server address
+                             (default: ~/.nexus/config.json or http://127.0.0.1:5000)
+  --experiment NAME          Experiment name (default: all experiments in the config file)
 """
 
 from __future__ import annotations
@@ -58,11 +59,11 @@ def _load_nexus_config() -> dict:
             return {}
 
 
-def _resolve_tracking_uri(cli_uri: str | None) -> str:
+def _resolve_central_tracking_uri(cli_uri: str | None) -> str:
     if cli_uri:
         return cli_uri
     nexus = _load_nexus_config()
-    return nexus.get("tracking_uri", "http://127.0.0.1:5000")
+    return nexus.get("central_tracking_uri", "http://127.0.0.1:5000")
 
 
 def _load_settings(path: Path) -> dict:
@@ -80,7 +81,7 @@ def _load_settings(path: Path) -> dict:
 
 def cmd_apply(args: argparse.Namespace) -> None:
     settings = _load_settings(Path(args.config))
-    tracking_uri = _resolve_tracking_uri(args.tracking_uri)
+    tracking_uri = _resolve_central_tracking_uri(args.central_tracking_uri)
     mlflow.set_tracking_uri(tracking_uri)
     client = MlflowClient(tracking_uri=tracking_uri)
 
@@ -124,7 +125,7 @@ def cmd_apply(args: argparse.Namespace) -> None:
 
 
 def cmd_show(args: argparse.Namespace) -> None:
-    tracking_uri = _resolve_tracking_uri(args.tracking_uri)
+    tracking_uri = _resolve_central_tracking_uri(args.central_tracking_uri)
     client = MlflowClient(tracking_uri=tracking_uri)
 
     settings = _load_settings(Path(args.config))
@@ -168,7 +169,7 @@ def cmd_show(args: argparse.Namespace) -> None:
 
 
 def cmd_bookmarklet(args: argparse.Namespace) -> None:
-    tracking_uri = _resolve_tracking_uri(args.tracking_uri)
+    tracking_uri = _resolve_central_tracking_uri(args.central_tracking_uri)
     settings = _load_settings(Path(args.config))
     experiments_cfg = settings.get("experiments", {})
     targets = [args.experiment] if args.experiment else list(experiments_cfg.keys())
@@ -247,9 +248,7 @@ def _make_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument("--config", default=str(_DEFAULT_SETTINGS), help="path to chart_settings.json")
-    p.add_argument(
-        "--tracking-uri", dest="tracking_uri", default=None, help="MLflow server address"
-    )
+    p.add_argument("--central-tracking-uri", default=None, help="Central MLflow server address")
     p.add_argument(
         "--experiment", default=None, help="experiment name (default: all in config file)"
     )

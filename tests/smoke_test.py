@@ -10,8 +10,8 @@ Prerequisites:
 
 Usage:
   python tests/smoke_test.py
-  python tests/smoke_test.py --tracking_uri http://127.0.0.1:5100
-  python tests/smoke_test.py --tracking_uri http://<nexus-server>:5000
+  python tests/smoke_test.py --tracking-uri http://127.0.0.1:5100
+  python tests/smoke_test.py --tracking-uri http://<nexus-server>:5000
 """
 
 import argparse
@@ -465,20 +465,21 @@ def test_scheduled_sync_roundtrip(tracking_uri: str) -> bool:
 
         # ── 2. export_delta.py — keep state + delta inside a temp dir
         with tempfile.TemporaryDirectory() as tmp:
-            delta_path = Path(tmp) / "delta.json"
+            # export_delta.py writes a tar.gz bundle (delta.json + artifacts/).
+            delta_path = Path(tmp) / "delta.tar.gz"
             state_path = Path(tmp) / "state.json"
 
             r = subprocess.run(
                 [
                     "python",
                     str(export_py),
-                    "--tracking_uri",
+                    "--tracking-uri",
                     tracking_uri,
                     "--experiment",
                     src_exp,
                     "--output",
                     str(delta_path),
-                    "--state_file",
+                    "--state-file",
                     str(state_path),
                 ],
                 capture_output=True,
@@ -495,22 +496,40 @@ def test_scheduled_sync_roundtrip(tracking_uri: str) -> bool:
             ok(f"export_delta.py wrote delta ({delta_path.stat().st_size} bytes)")
 
             # ── 3. Rewrite the delta to target a fresh experiment so import_delta
-            #      creates new runs (instead of resuming the source ones).
-            with open(delta_path) as f:
+            #      creates new runs (instead of resuming the source ones). The
+            #      bundle is a tar.gz of `delta.json` + `artifacts/<run_id>/...`,
+            #      so we extract, patch the experiment field, and repack.
+            import tarfile as _tarfile
+
+            extract_dir = Path(tmp) / "extracted"
+            extract_dir.mkdir()
+            with _tarfile.open(delta_path, "r:gz") as tar:
+                tar.extractall(extract_dir)
+
+            inner_json = extract_dir / "delta.json"
+            with open(inner_json) as f:
                 delta = _json.load(f)
             assert delta.get("source_host"), "source_host missing from delta"
             delta["experiment"] = dst_exp
-            with open(delta_path, "w") as f:
+            with open(inner_json, "w") as f:
                 _json.dump(delta, f)
+
+            # Repack with the same layout (delta.json + optional artifacts/).
+            delta_path.unlink()
+            with _tarfile.open(delta_path, "w:gz") as tar:
+                tar.add(inner_json, arcname="delta.json")
+                artifacts_dir = extract_dir / "artifacts"
+                if artifacts_dir.exists():
+                    tar.add(artifacts_dir, arcname="artifacts")
 
             # ── 4. import_delta.py — same tracking server, fresh experiment
             r = subprocess.run(
                 [
                     "python",
                     str(import_py),
-                    "--delta_file",
+                    "--delta-file",
                     str(delta_path),
-                    "--tracking_uri",
+                    "--central-tracking-uri",
                     tracking_uri,
                 ],
                 capture_output=True,
@@ -874,7 +893,7 @@ def test_post_register(tracking_uri: str) -> bool:
 def main() -> None:
     parser = argparse.ArgumentParser(description="NEXUS smoke test")
     parser.add_argument(
-        "--tracking_uri",
+        "--tracking-uri",
         default="http://127.0.0.1:5100",
         help="MLflow tracking URI (default: http://127.0.0.1:5100)",
     )
