@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nexus-logger"
-version = "0.3.0"
+version = "0.3.1"
 description = "Unified RL logging package: MLflow + TensorBoard"
 # Default install is client-only (training nodes, CI):
 #   mlflow-skinny ships MlflowClient + tracking APIs without Flask, SQLAlchemy,
