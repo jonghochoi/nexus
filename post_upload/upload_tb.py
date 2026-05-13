@@ -34,7 +34,7 @@ from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn
 from rich import print as rprint
 
-from config import DEFAULT_CONFIG_PATH, load_config, required_tags
+from config import add_config_arg, load_config, preparse_config_path, required_tags
 from history import last_upload, make_record, print_history, save_upload
 from verify_tb import run_verify
 
@@ -78,12 +78,7 @@ def parse_args(defaults: dict):
         help="Additional tags (e.g. researcher=kim seed=42 task=grasp); "
         "merged on top of config-file tags",
     )
-    parser.add_argument(
-        "--config",
-        type=str,
-        default=None,
-        help=f"Path to JSON config file (default: {DEFAULT_CONFIG_PATH})",
-    )
+    add_config_arg(parser)
     parser.add_argument(
         "-i",
         "--interactive",
@@ -399,21 +394,9 @@ def sanitize_metric_name(name: str) -> str:
 
 
 # ── 7. Main ──────────────────────────────────────────────────────────────────
-def _preparse_config_path() -> Optional[str]:
-    """Scan sys.argv for --config so we can load the config before argparse
-    builds its defaults. Returns the path if present, else None."""
-    argv = sys.argv[1:]
-    for i, arg in enumerate(argv):
-        if arg == "--config" and i + 1 < len(argv):
-            return argv[i + 1]
-        if arg.startswith("--config="):
-            return arg.split("=", 1)[1]
-    return None
-
-
 def main():
     # Load config first so its values can be used as argparse defaults.
-    config = load_config(_preparse_config_path())
+    config = load_config(preparse_config_path())
     args = parse_args(defaults=config)
 
     # --history: print recent uploads and exit (no tb_dir required).

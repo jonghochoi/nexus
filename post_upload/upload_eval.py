@@ -39,7 +39,6 @@ Workflow context:
 
 import argparse
 import sys
-import time
 from pathlib import Path
 
 # Ensure sibling modules resolve whether invoked from repo root or post_upload/.
@@ -51,7 +50,7 @@ from rich.console import Console
 from rich.table import Table
 
 from config import load_config
-from history import print_history, save_upload
+from history import make_record, print_history, save_upload
 from nexus.logger.eval_logger import EvalLogger
 
 console = Console()
@@ -252,18 +251,18 @@ def main() -> int:
         return 0
 
     # ── History — record alongside upload_tb / register_model invocations.
-    record = {
-        "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
-        "script": "upload_eval",
-        "run_id": "",
-        "tb_dir": str(Path(args.eval_dir).resolve()),
-        "experiment": ev.experiment,
-        "run_name": ev.run_name,
-        "tracking_uri": ev.tracking_uri,
-        "tags": {"eval_id": eval_id, **{k: str(v) for k, v in tags.items()}},
-        "verify_ok": None,
-    }
-    save_upload(record)
+    save_upload(
+        make_record(
+            run_id="",
+            tb_dir=args.eval_dir,
+            experiment=ev.experiment,
+            run_name=ev.run_name,
+            central_tracking_uri=ev.tracking_uri,
+            tags={"eval_id": eval_id, **{k: str(v) for k, v in tags.items()}},
+            verify_ok=None,
+            script="upload_eval",
+        )
+    )
     return 0
 
 

@@ -82,7 +82,9 @@ def make_record(
         "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "script": script,
         "run_id": run_id,
-        "tb_dir": str(Path(tb_dir).resolve()),
+        # register_model has no on-disk tb_dir — preserve the empty marker
+        # rather than resolving "" to cwd.
+        "tb_dir": str(Path(tb_dir).resolve()) if tb_dir else "",
         "experiment": experiment,
         "run_name": run_name,
         "central_tracking_uri": central_tracking_uri,

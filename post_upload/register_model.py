@@ -27,9 +27,7 @@ Workflow context:
 
 import argparse
 import sys
-import time
 from pathlib import Path
-from typing import Optional
 
 # Ensure sibling modules resolve whether invoked from repo root or post_upload/.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -39,8 +37,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from rich.console import Console
 from rich.table import Table
 
-from config import DEFAULT_CONFIG_PATH, load_config
-from history import print_history, save_upload
+from config import add_config_arg, load_config, preparse_config_path
+from history import make_record, print_history, save_upload
 from nexus.logger.model_registry import ModelRegistry
 
 console = Console()
@@ -95,12 +93,7 @@ def parse_args():
         help="With --stage Production, archive existing Production versions first "
         "(keeps exactly one Production version)",
     )
-    parser.add_argument(
-        "--config",
-        type=str,
-        default=None,
-        help=f"Path to JSON config file (default: {DEFAULT_CONFIG_PATH})",
-    )
+    add_config_arg(parser)
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -146,18 +139,6 @@ def print_result(args, result: dict) -> None:
     console.print(table)
 
 
-def _preparse_config_path() -> Optional[str]:
-    """Scan sys.argv for --config so we can load the config before argparse
-    builds its defaults. Mirrors upload_tb._preparse_config_path."""
-    argv = sys.argv[1:]
-    for i, arg in enumerate(argv):
-        if arg == "--config" and i + 1 < len(argv):
-            return argv[i + 1]
-        if arg.startswith("--config="):
-            return arg.split("=", 1)[1]
-    return None
-
-
 # ── 4. Main ──────────────────────────────────────────────────────────────────
 def main() -> int:
     args = parse_args()
@@ -184,7 +165,7 @@ def main() -> int:
     # Builtin default is *not* used silently — it would point at
     # localhost which is rarely correct for register_model invocations
     # from a desktop or inference node.
-    config = load_config(_preparse_config_path())
+    config = load_config(preparse_config_path())
     if args.central_tracking_uri is None:
         if config["source"] == "<builtin>":
             console.print(
@@ -229,23 +210,23 @@ def main() -> int:
     print_result(args, result)
 
     # ── History
-    record = {
-        "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
-        "script": "register_model",
-        "run_id": result["run_id"],
-        "tb_dir": "",
-        "experiment": args.experiment,
-        "run_name": args.run_name,
-        "central_tracking_uri": args.central_tracking_uri,
-        "tags": {
-            "model_name": args.model_name,
-            "kind": args.kind,
-            "version": str(result["version"]),
-            "stage": result["stage"] or "None",
-        },
-        "verify_ok": None,
-    }
-    save_upload(record)
+    save_upload(
+        make_record(
+            run_id=result["run_id"],
+            tb_dir="",
+            experiment=args.experiment,
+            run_name=args.run_name,
+            central_tracking_uri=args.central_tracking_uri,
+            tags={
+                "model_name": args.model_name,
+                "kind": args.kind,
+                "version": str(result["version"]),
+                "stage": result["stage"] or "None",
+            },
+            verify_ok=None,
+            script="register_model",
+        )
+    )
 
     return 0
 

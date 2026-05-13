@@ -8,7 +8,9 @@ Command-line flags override these defaults.
 server — Pipeline B uploads, registers, and verifies against central only.
 """
 
+import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -85,3 +87,27 @@ def load_config(path: Optional[str] = None) -> dict:
 
     merged["source"] = str(config_path)
     return merged
+
+
+# ── CLI helpers ─────────────────────────────────────────────────────────────
+def preparse_config_path() -> Optional[str]:
+    """Scan sys.argv for --config so callers can load the config before
+    argparse builds its defaults. Returns the path if present, else None.
+    """
+    argv = sys.argv[1:]
+    for i, arg in enumerate(argv):
+        if arg == "--config" and i + 1 < len(argv):
+            return argv[i + 1]
+        if arg.startswith("--config="):
+            return arg.split("=", 1)[1]
+    return None
+
+
+def add_config_arg(parser: argparse.ArgumentParser) -> None:
+    """Add the standard ``--config <path>`` flag shared by all Pipeline B CLIs."""
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help=f"Path to JSON config file (default: {DEFAULT_CONFIG_PATH})",
+    )
