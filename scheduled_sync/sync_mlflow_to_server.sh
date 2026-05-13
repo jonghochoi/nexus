@@ -55,6 +55,8 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # ── Empty placeholders (defaults are applied AFTER config-file merge)
 EXPERIMENT=""
 REMOTE=""
@@ -96,42 +98,13 @@ else
     [[ -f "$SYSTEM_CONFIG" ]] && CONFIG_SOURCES+=("$SYSTEM_CONFIG")
 fi
 
-# ── Read each config in order. The shared python script returns shell-quoted
+# ── Read each config in order. The shared parser returns shell-quoted
 # `CFG_<VAR>=<value>` lines for known keys; unknown keys produce a warning.
 parse_config_file() {
     local file="$1"
     local exit_code=0
     local out
-    out=$(python - "$file" <<'PYEOF'
-import json, shlex, sys
-KEY_MAP = {
-    "experiment":       "EXPERIMENT",
-    "remote":           "REMOTE",
-    "local_uri":        "LOCAL_MLFLOW_URI",
-    "remote_uri":       "REMOTE_MLFLOW_URI",
-    "remote_nexus_dir": "REMOTE_NEXUS_DIR",
-    "remote_python":    "REMOTE_PYTHON",
-    "ssh_key":          "SSH_KEY",
-    "ssh_port":         "SSH_PORT",
-    "state_file":       "STATE_FILE",
-}
-try:
-    with open(sys.argv[1]) as f:
-        cfg = json.load(f)
-except json.JSONDecodeError as e:
-    print(f"[ERROR] {sys.argv[1]} is not valid JSON: {e}", file=sys.stderr)
-    sys.exit(2)
-if not isinstance(cfg, dict):
-    print("[ERROR] sync config must be a JSON object", file=sys.stderr)
-    sys.exit(2)
-unknown = sorted(k for k in set(cfg) - set(KEY_MAP) if not k.startswith("_"))
-if unknown:
-    print(f"[WARN] {sys.argv[1]}: ignoring unknown keys: {unknown}", file=sys.stderr)
-for k, var in KEY_MAP.items():
-    if k in cfg:
-        print(f"CFG_{var}={shlex.quote(str(cfg[k]))}")
-PYEOF
-    ) || exit_code=$?
+    out=$(python "${SCRIPT_DIR}/_parse_sync_config.py" "$file") || exit_code=$?
     if [[ $exit_code -ne 0 ]]; then
         echo "[ERROR] Failed to parse config file: $file"
         exit 1
@@ -198,7 +171,6 @@ fi
 
 REMOTE_HOST="${REMOTE%%:*}"
 REMOTE_PATH="${REMOTE##*:}"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # `${USER}_..._${PID}` makes the filename unique even when several users on
 # the same GPU server fire `*/5 * * * *` cron jobs in the same second.
@@ -255,14 +227,8 @@ fi
 echo $$ > "$LOCK_FILE"
 trap 'rm -f "$LOCK_FILE"' EXIT INT TERM
 
-# ── Activate venv if present (prefer shared ~/.nexus/venv, fall back to ./venv)
-if [ -f "${HOME}/.nexus/venv/bin/activate" ]; then
-    # shellcheck disable=SC1091
-    source "${HOME}/.nexus/venv/bin/activate"
-elif [ -f "venv/bin/activate" ]; then
-    # shellcheck disable=SC1091
-    source venv/bin/activate
-fi
+# shellcheck source=_activate_venv.sh disable=SC1091
+source "${SCRIPT_DIR}/_activate_venv.sh"
 
 # ── Step 1: Export delta from local MLflow
 echo "  [1/3] Exporting delta from local MLflow ($LOCAL_MLFLOW_URI)..."

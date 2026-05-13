@@ -40,14 +40,8 @@ for ((idx = 0; idx < ${#ARGS[@]}; idx++)); do
     fi
 done
 
-# ── Activate venv if present (prefer shared ~/.nexus/venv, fall back to ./venv)
-if [[ -f "${HOME}/.nexus/venv/bin/activate" ]]; then
-    # shellcheck disable=SC1091
-    source "${HOME}/.nexus/venv/bin/activate"
-elif [[ -f "venv/bin/activate" ]]; then
-    # shellcheck disable=SC1091
-    source venv/bin/activate
-fi
+# shellcheck source=_activate_venv.sh disable=SC1091
+source "${SCRIPT_DIR}/_activate_venv.sh"
 
 # ── Discover all non-Default experiments from local MLflow
 EXPERIMENTS=$(python3 - "$LOCAL_URI" <<'PYEOF'

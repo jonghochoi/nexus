@@ -29,15 +29,8 @@ ARTIFACTS_DIR="${MLRUNS_DIR}/artifacts"
 LOG_FILE="${NEXUS_HOME}/mlflow_training.log"
 PID_FILE="${NEXUS_HOME}/.mlflow_training.pid"
 
-# Activate venv — prefer the shared ~/.nexus/venv, fall back to a repo-local
-# ./venv for legacy installs.
-if [ -f "${NEXUS_HOME}/venv/bin/activate" ]; then
-    # shellcheck disable=SC1091
-    source "${NEXUS_HOME}/venv/bin/activate"
-elif [ -f "venv/bin/activate" ]; then
-    # shellcheck disable=SC1091
-    source venv/bin/activate
-fi
+# shellcheck source=_activate_venv.sh disable=SC1091
+source "$(dirname "${BASH_SOURCE[0]}")/_activate_venv.sh"
 
 # Check if already running
 if lsof -Pi :$PORT -sTCP:LISTEN -t >/dev/null 2>&1; then

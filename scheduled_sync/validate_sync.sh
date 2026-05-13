@@ -29,6 +29,8 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # ── Empty placeholders (filled from CLI / config / defaults below)
 REMOTE=""
 LOCAL_MLFLOW_URI=""
@@ -56,16 +58,10 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# ── Activate venv if present (prefer shared ~/.nexus/venv, fall back to ./venv)
-# Mirrors sync_mlflow_to_server.sh / sync_mlflow_all.sh — operators should not
-# have to remember `source ~/.nexus/activate.sh` before running pre-flight.
-if [ -f "${HOME}/.nexus/venv/bin/activate" ]; then
-    # shellcheck disable=SC1091
-    source "${HOME}/.nexus/venv/bin/activate"
-elif [ -f "venv/bin/activate" ]; then
-    # shellcheck disable=SC1091
-    source venv/bin/activate
-fi
+# Operators should not have to remember `source ~/.nexus/activate.sh` before
+# running pre-flight — mirrors sync_mlflow_to_server.sh / sync_mlflow_all.sh.
+# shellcheck source=_activate_venv.sh disable=SC1091
+source "${SCRIPT_DIR}/_activate_venv.sh"
 
 # Same config resolution as sync_mlflow_to_server.sh: explicit --config
 # disables auto-discovery; otherwise /etc/nexus/sync_config.json is used.
@@ -81,31 +77,7 @@ parse_config_file() {
     local file="$1"
     local exit_code=0
     local out
-    out=$(python - "$file" <<'PYEOF'
-import json, shlex, sys
-KEY_MAP = {
-    "remote":           "REMOTE",
-    "local_uri":        "LOCAL_MLFLOW_URI",
-    "remote_uri":       "REMOTE_MLFLOW_URI",
-    "remote_nexus_dir": "REMOTE_NEXUS_DIR",
-    "remote_python":    "REMOTE_PYTHON",
-    "ssh_key":          "SSH_KEY",
-    "ssh_port":         "SSH_PORT",
-}
-try:
-    with open(sys.argv[1]) as f:
-        cfg = json.load(f)
-except json.JSONDecodeError as e:
-    print(f"[ERROR] {sys.argv[1]} is not valid JSON: {e}", file=sys.stderr)
-    sys.exit(2)
-if not isinstance(cfg, dict):
-    print("[ERROR] sync config must be a JSON object", file=sys.stderr)
-    sys.exit(2)
-for k, var in KEY_MAP.items():
-    if k in cfg:
-        print(f"CFG_{var}={shlex.quote(str(cfg[k]))}")
-PYEOF
-    ) || exit_code=$?
+    out=$(python "${SCRIPT_DIR}/_parse_sync_config.py" "$file") || exit_code=$?
     if [[ $exit_code -ne 0 ]]; then
         echo "[ERROR] Failed to parse config file: $file"
         exit 1
@@ -146,7 +118,6 @@ REMOTE_HOST="${REMOTE%%:*}"
 REMOTE_PATH="${REMOTE##*:}"
 SSH_OPTS="-p $SSH_PORT -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=5"
 [[ -n "$SSH_KEY" ]] && SSH_OPTS="$SSH_OPTS -i $SSH_KEY"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 step()    { echo ""; echo "── $* ──"; }
 ok()      { echo "  [OK]    $*"; }
