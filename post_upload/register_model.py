@@ -37,7 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from rich.console import Console
 from rich.table import Table
 
-from config import add_config_arg, load_config, preparse_config_path
+from config import DEFAULT_CONFIG_PATH, load_config, preparse_config_path
 from history import make_record, print_history, save_upload
 from nexus.logger.model_registry import ModelRegistry
 
@@ -93,7 +93,12 @@ def parse_args():
         help="With --stage Production, archive existing Production versions first "
         "(keeps exactly one Production version)",
     )
-    add_config_arg(parser)
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help=f"Path to JSON config file (default: {DEFAULT_CONFIG_PATH})",
+    )
     parser.add_argument(
         "--dry-run",
         action="store_true",
