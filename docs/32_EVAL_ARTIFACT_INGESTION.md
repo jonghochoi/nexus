@@ -169,7 +169,10 @@ Bare `--tag KEY=VAL` keys are auto-prefixed with `eval.`; pass a dotted key (e.g
 
 ```
 eval_outputs/<run_name>/
-├── rollout.mp4            ← full-resolution video — embedded in auto index.html
+├── rollout.mp4            ← embedded under the "Rollouts" section of index.html
+├── videos/                ← each subdirectory becomes its own index.html section
+│   ├── front.mp4          ← embedded under the "videos/" section
+│   └── side.mp4           ← embedded under the "videos/" section
 ├── rollout_preview.gif    ← uploaded as-is, viewable from the Artifacts pane
 ├── report.md              ← uploaded as-is, downloadable
 ├── metrics.json           ← uploaded as-is (pass via metrics_from= for scalars)
@@ -182,13 +185,13 @@ eval_outputs/<run_name>/
 
 **`generate_index` — auto-generated index.html**
 
-MLflow 2.13's artifact viewer renders HTML inline but not `.mp4`. `EvalLogger` auto-generates an `index.html` next to any video file it finds, embedding it in a `<video controls>` tag. Open `eval/<eval_id>/index.html` in the Artifacts pane to play rollouts in-browser. If no video file is present, a short placeholder page is generated pointing the user back to the Artifacts pane. If `eval_dir` already contains an `index.html`, the auto-generator steps aside. Suppress explicitly with `generate_index=False`:
+MLflow 2.13's artifact viewer renders HTML inline but not `.mp4`. `EvalLogger` auto-generates an `index.html` embedding **every** video file it finds in a `<video controls>` tag. Multiple videos are grouped by their subdirectory under one `<h2>` section each — root-level videos appear under a "Rollouts" heading, and each subdirectory (e.g. `videos/`, `cam/wrist/`) becomes its own section — so multi-camera / multi-trial bundles stay legible. Open `eval/<eval_id>/index.html` in the Artifacts pane to play rollouts in-browser. If no video file is present, a short placeholder page is generated pointing the user back to the Artifacts pane. If `eval_dir` already contains an `index.html`, the auto-generator steps aside. Suppress explicitly with `generate_index=False`:
 
 ```python
 ev.upload(eval_dir=..., generate_index=False)
 ```
 
-> ⚠️ The video is embedded as a `data:video/mp4;base64,...` URI inside `<video src=...>`, not as a relative reference to the sibling mp4. MLflow's HTML preview iframe doesn't resolve relative URLs to sibling artifacts (the player UI appears but no mp4 request fires), so the bytes are inlined directly. Trade-off: HTML ends up ≈ 1.37× the mp4 size and must download fully before playback. Files over **30 MB raw mp4** fall back to a download link — the mp4 is always uploaded as a sibling artifact regardless, so download is the universal fallback. Raise the ceiling at `nexus/logger/eval_logger.py::_MAX_DATA_URI_BYTES` if your central MLflow tolerates larger HTML payloads.
+> ⚠️ Each video is embedded as a `data:video/mp4;base64,...` URI inside `<video src=...>`, not as a relative reference to the sibling mp4. MLflow's HTML preview iframe doesn't resolve relative URLs to sibling artifacts (the player UI appears but no mp4 request fires), so the bytes are inlined directly. Trade-off: HTML ends up ≈ 1.37× the combined mp4 size and must download fully before playback. The cap is **per video, 100 MB raw** — every video under the ceiling is inlined, so a bundle with several videos produces an HTML file that is a multiple of one video's size; a single video over the ceiling falls back to a download link (the mp4 is always uploaded as a sibling artifact regardless, so download is the universal fallback). Adjust the per-video ceiling at `nexus/logger/eval_logger.py::_MAX_DATA_URI_BYTES` if your central MLflow tolerates larger (or needs smaller) HTML payloads.
 
 **`eval_id` — stable name vs. timestamp**
 
@@ -241,7 +244,7 @@ artifacts/
 
 Subdirectories of `eval_dir` are preserved verbatim ([`eval_logger.py`](../nexus/logger/eval_logger.py) — `_upload_artifacts`).
 
-`index.html` embeds any `.mp4` / `.webm` / `.mov` via `<video controls>` tags so rollouts play in-line without download. **Other files (images, reports, JSON, …) are uploaded as-is into the same `eval/<eval_id>/` directory and previewed or downloaded individually from the MLflow Artifacts pane** — they are not embedded in the auto index. Inline rendering for additional file types may be added later; until then, drop your own `index.html` next to the bundle if you need a custom layout (the auto-generator detects it and steps aside). Suppress entirely with `generate_index=False`.
+`index.html` embeds every `.mp4` / `.webm` / `.mov` via `<video controls>` tags so rollouts play in-line without download, grouped into one `<h2>` section per subdirectory (root-level videos under "Rollouts", `videos/front.mp4` etc. under a `videos/` heading). **Other files (images, reports, JSON, …) are uploaded as-is into the same `eval/<eval_id>/` directory and previewed or downloaded individually from the MLflow Artifacts pane** — they are not embedded in the auto index. Inline rendering for additional file types may be added later; until then, drop your own `index.html` next to the bundle if you need a custom layout (the auto-generator detects it and steps aside). Suppress entirely with `generate_index=False`.
 
 A single run can carry an unbounded number of `eval/<eval_id>/` bundles — there is no overwrite of `checkpoints/best.pth` or `checkpoints/last.pth` (the eval namespace is intentionally separate). The sentinel tag `eval.last_id` (see below) always points to the most recent bundle.
 

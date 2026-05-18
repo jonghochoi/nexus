@@ -712,9 +712,15 @@ def test_eval_logger(tracking_uri: str) -> bool:
             (eval_dir / "metrics.json").write_text(
                 json.dumps({"success_rate": 0.87, "nested": {"speed": 1.2}}), encoding="utf-8"
             )
-            # Placeholder .mp4 — content isn't a valid video, but its presence
-            # exercises the auto-generated index.html's <video> embed path.
+            # Placeholder .mp4s — content isn't a valid video, but their
+            # presence exercises the auto-generated index.html's <video>
+            # embed path. A root-level video plus a videos/ subdirectory
+            # with two more covers the multi-video subdirectory grouping.
             (eval_dir / "rollout.mp4").write_bytes(b"\x00")
+            vids = eval_dir / "videos"
+            vids.mkdir()
+            (vids / "front.mp4").write_bytes(b"\x00")
+            (vids / "side.mp4").write_bytes(b"\x00")
 
             # ── 9c. Upload via EvalLogger ─────────────────────────────────────
             ev = EvalLogger(
@@ -792,6 +798,27 @@ def test_eval_logger(tracking_uri: str) -> bool:
             fail("Auto-generated index.html does not label rollout.mp4")
             return False
         ok("Auto-generated index.html embeds rollout.mp4 inline as data:video/mp4 URI")
+
+        # ── 9f. Verify multi-video subdirectory grouping ──────────────────────
+        if index_html.count("<video") < 3:
+            fail(f"index.html should embed 3 videos, found {index_html.count('<video')}")
+            return False
+        for needle in ("<h2>Rollouts</h2>", "<h2>videos/</h2>"):
+            if needle not in index_html:
+                fail(f"index.html missing expected section header: {needle!r}")
+                return False
+        for label in ("videos/front.mp4", "videos/side.mp4"):
+            if label not in index_html:
+                fail(f"index.html does not label {label}")
+                return False
+        subdir_artifacts = {
+            a.path for a in client.list_artifacts(runs[0].info.run_id, "eval/smoke/videos")
+        }
+        expected_subdir = {"eval/smoke/videos/front.mp4", "eval/smoke/videos/side.mp4"}
+        if expected_subdir - subdir_artifacts:
+            fail(f"Missing subdir video artifacts: {expected_subdir - subdir_artifacts}")
+            return False
+        ok("Multi-video subdirectory grouping: Rollouts + videos/ sections verified")
 
         return True
     except Exception as e:
