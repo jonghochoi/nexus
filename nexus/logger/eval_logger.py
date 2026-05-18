@@ -11,11 +11,15 @@ nexus.
 
 Scope — the anchor feature is **inline rollout video playback**. MLflow 2.13's
 artifact viewer renders HTML inline but not ``.mp4``, so an auto-generated
-``index.html`` next to any video file embeds it in a ``<video controls>`` tag.
-Other files (images, reports, JSON, …) are uploaded verbatim and previewed /
-downloaded one-by-one from the MLflow Artifacts pane — they are not embedded
-in the auto index. Future inline rendering for additional file types may be
-added later; until then, ship your own ``index.html`` if you need it.
+``index.html`` embeds every video file it finds in a ``<video controls>`` tag.
+Multiple videos are supported — they are grouped by their subdirectory under
+one ``<h2>`` section each (root-level videos under "Rollouts",
+``videos/front.mp4`` etc. under a per-directory heading) so multi-camera /
+multi-trial bundles stay legible. Other files (images, reports, JSON, …) are
+uploaded verbatim and previewed / downloaded one-by-one from the MLflow
+Artifacts pane — they are not embedded in the auto index. Future inline
+rendering for additional file types may be added later; until then, ship your
+own ``index.html`` if you need it.
 
 Typical usage from an external training / eval repo:
 
@@ -43,7 +47,10 @@ Or with explicit params when the sidecar is not available:
 Expected eval_dir layout (flat or nested — everything is walked recursively):
 
     eval_outputs/<run_name>/
-    ├── rollout.mp4            ← embedded in auto-generated index.html
+    ├── rollout.mp4            ← embedded under the "Rollouts" section
+    ├── videos/                ← each subdirectory becomes its own <h2> section
+    │   ├── front.mp4          ← embedded under the "videos/" section
+    │   └── side.mp4           ← embedded under the "videos/" section
     ├── rollout_preview.gif    ← uploaded as-is, previewable from Artifacts pane
     ├── report.md              ← uploaded as-is, downloadable
     ├── metrics.json           ← uploaded as-is; pass via metrics_from= for scalars
@@ -79,13 +86,15 @@ _VIDEO_EXTS = (".mp4", ".webm", ".mov")
 # MIME types matching what ffmpeg's libx264 default writes for each container.
 _VIDEO_MIME = {".mp4": "video/mp4", ".webm": "video/webm", ".mov": "video/quicktime"}
 
-# Cap on raw video size for inline base64 embedding. MLflow's HTML preview
-# iframe breaks relative URLs to sibling artifacts, so videos are embedded
-# directly into `<video src="data:...">` — at the cost of ~1.37× base64
-# overhead and the whole HTML having to download before playback. Above
-# this ceiling the index falls back to a plain download link; the mp4 is
-# uploaded as a sibling artifact regardless.
-_MAX_DATA_URI_BYTES = 30 * 1024 * 1024
+# Per-video cap on raw size for inline base64 embedding. MLflow's HTML
+# preview iframe breaks relative URLs to sibling artifacts, so videos are
+# embedded directly into `<video src="data:...">` — at the cost of ~1.37×
+# base64 overhead and the whole HTML having to download before playback.
+# Above this ceiling a single video falls back to a plain download link;
+# the file is uploaded as a sibling artifact regardless. This is a
+# per-video ceiling — a bundle with several videos inlines every one under
+# the ceiling, so the generated HTML can be a multiple of this value.
+_MAX_DATA_URI_BYTES = 100 * 1024 * 1024
 
 
 # ── Module-level helpers ──────────────────────────────────────────────────────
@@ -434,10 +443,14 @@ class EvalLogger:
 
         Only ``.mp4`` / ``.webm`` / ``.mov`` files are embedded — relative URLs
         to sibling artifacts don't resolve in MLflow's HTML preview iframe, so
-        the bytes are inlined into ``<video src="data:...">``. Videos over
-        ``_MAX_DATA_URI_BYTES`` fall back to a download link. Other files in
-        the bundle are uploaded as-is and viewed individually from the
-        Artifacts pane — they are not referenced here.
+        the bytes are inlined into ``<video src="data:...">``. Every video
+        under ``_MAX_DATA_URI_BYTES`` is inlined; larger ones fall back to a
+        download link. Videos are grouped by their subdirectory under one
+        ``<h2>`` section each — root-level videos under "Rollouts",
+        ``videos/front.mp4`` etc. under a per-directory heading — so
+        multi-camera / multi-trial bundles stay legible. Other files in the
+        bundle are uploaded as-is and viewed individually from the Artifacts
+        pane — they are not referenced here.
         """
         videos = [(rel, size) for rel, size in files if rel.suffix.lower() in _VIDEO_EXTS]
 
@@ -463,25 +476,42 @@ class EvalLogger:
         ]
 
         if videos:
-            parts.append("<h2>Rollouts</h2>")
+            # Group by parent directory so multi-camera / multi-trial bundles
+            # (videos/front.mp4, videos/side.mp4, cam/wrist/run0.mp4, …) render
+            # under one <h2> per subdirectory. `files` is path-sorted, so dict
+            # insertion order is deterministic.
+            groups: dict[Path, list] = {}
             for rel, size in videos:
-                label = html.escape(str(rel))
-                if size > _MAX_DATA_URI_BYTES:
-                    download_href = _url_attr(str(rel))
+                groups.setdefault(rel.parent, []).append((rel, size))
+
+            # Root-level videos lead under "Rollouts"; subdirectories follow
+            # alphabetically so the section order doesn't depend on filenames.
+            root = Path(".")
+            order = ([root] if root in groups else []) + sorted(
+                (p for p in groups if p != root), key=lambda p: p.as_posix()
+            )
+            for parent in order:
+                items = groups[parent]
+                heading = "Rollouts" if parent == root else f"{parent.as_posix()}/"
+                parts.append(f"<h2>{html.escape(heading)}</h2>")
+                for rel, size in items:
+                    label = html.escape(str(rel))
+                    if size > _MAX_DATA_URI_BYTES:
+                        download_href = _url_attr(str(rel))
+                        parts.append(
+                            f"<p><strong>{label}</strong> "
+                            f'<span class="meta">({_fmt_size(size)} — too large to inline, '
+                            f'<a href="{download_href}" download>download</a> and play locally)</span></p>'
+                        )
+                        continue
+                    mime = _VIDEO_MIME.get(rel.suffix.lower(), "video/mp4")
+                    b64 = base64.b64encode((eval_dir / rel).read_bytes()).decode("ascii")
                     parts.append(
                         f"<p><strong>{label}</strong> "
-                        f'<span class="meta">({_fmt_size(size)} — too large to inline, '
-                        f'<a href="{download_href}" download>download</a> and play locally)</span></p>'
+                        f'<span class="meta">({_fmt_size(size)})</span></p>'
+                        f'<video controls preload="metadata" '
+                        f'src="data:{mime};base64,{b64}"></video>'
                     )
-                    continue
-                mime = _VIDEO_MIME.get(rel.suffix.lower(), "video/mp4")
-                b64 = base64.b64encode((eval_dir / rel).read_bytes()).decode("ascii")
-                parts.append(
-                    f"<p><strong>{label}</strong> "
-                    f'<span class="meta">({_fmt_size(size)})</span></p>'
-                    f'<video controls preload="metadata" '
-                    f'src="data:{mime};base64,{b64}"></video>'
-                )
         else:
             parts.append(
                 '<p class="meta">No video artifacts in this bundle — '
