@@ -15,7 +15,9 @@ Expected tfevents directory structure:
 
 import argparse
 import os
+import shutil
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Optional
@@ -101,6 +103,22 @@ def parse_args(defaults: dict):
     )
     parser.add_argument(
         "--upload-artifacts", action="store_true", help="Upload files in tb_dir as MLflow artifacts"
+    )
+    parser.add_argument(
+        "--checkpoint",
+        type=str,
+        default=None,
+        metavar="PATH",
+        help="Attach a checkpoint file as checkpoints/<kind>.pth on the new run "
+        "(any source filename; renamed on upload). Lets a tfevents-back-filled "
+        "run be registered later via register_model.py",
+    )
+    parser.add_argument(
+        "--checkpoint-kind",
+        type=str,
+        default="best",
+        choices=("best", "last"),
+        help="Slot for --checkpoint: 'best' or 'last' (default: best)",
     )
     parser.add_argument(
         "--history",
@@ -303,6 +321,8 @@ def upload_to_mlflow(
     central_tracking_uri: str,
     extra_tags: dict,
     upload_artifacts: bool,
+    checkpoint: Optional[str] = None,
+    checkpoint_kind: str = "best",
 ):
     # Verify MLflow server connection
     mlflow.set_tracking_uri(central_tracking_uri)
@@ -378,6 +398,15 @@ def upload_to_mlflow(
             mlflow.log_artifacts(tb_dir, artifact_path="tensorboard_logs")
             console.print("[green][OK] tfevents artifact upload complete[/green]")
 
+        # ── Checkpoint upload (optional) — renamed to checkpoints/<kind>.pth so a
+        # tfevents-back-filled run satisfies register_model.py's source lookup.
+        if checkpoint:
+            console.print(
+                f"\n[yellow]Uploading checkpoint as checkpoints/{checkpoint_kind}.pth...[/yellow]"
+            )
+            upload_checkpoint(client, run_id, checkpoint, checkpoint_kind)
+            console.print("[green][OK] checkpoint upload complete[/green]")
+
     console.print(f"\n[bold green]✓ Upload complete![/bold green]")
     console.print(f"  Run ID      : [yellow]{run_id}[/yellow]")
     console.print(f"  Data points : [green]{total_rows:,}[/green]  ({total_batches} batches)")
@@ -385,6 +414,21 @@ def upload_to_mlflow(
     console.print(f"\n  -> Open the URL above in your browser to verify.\n")
 
     return run_id
+
+
+# ── 5b. Checkpoint upload ────────────────────────────────────────────────────
+def upload_checkpoint(client: MlflowClient, run_id: str, checkpoint_path: str, kind: str) -> None:
+    """Attach a checkpoint as checkpoints/best.pth or checkpoints/last.pth.
+
+    Mirrors ``MLflowLogger.log_checkpoint`` — the source file may have any
+    name; it is renamed to ``<kind><ext>`` on upload so only one file per
+    kind is ever kept. Canonical policy: docs/00_PRINCIPLES.md#checkpoint-policy.
+    """
+    ext = os.path.splitext(checkpoint_path)[1] or ".pth"
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = os.path.join(tmp, f"{kind}{ext}")
+        shutil.copy2(checkpoint_path, dst)
+        client.log_artifact(run_id, dst, "checkpoints")
 
 
 # ── 6. Metric name sanitization ──────────────────────────────────────────────
@@ -424,6 +468,10 @@ def main():
 
     if not args.tb_dir:
         console.print("[red][ERROR] --tb-dir is required for uploads.[/red]")
+        sys.exit(1)
+
+    if args.checkpoint and not Path(args.checkpoint).is_file():
+        console.print(f"[red][ERROR] Checkpoint file not found: {args.checkpoint}[/red]")
         sys.exit(1)
 
     console.rule("[bold blue]TensorBoard -> MLflow Uploader[/bold blue]")
@@ -505,6 +553,11 @@ def main():
     if args.dry_run:
         console.print("[bold yellow]--dry-run mode: skipping upload.[/bold yellow]")
         console.print(f"[cyan]Would upload with tags:[/cyan] {tags}")
+        if args.checkpoint:
+            console.print(
+                f"[cyan]Would attach checkpoint:[/cyan] {args.checkpoint} "
+                f"-> checkpoints/{args.checkpoint_kind}.pth"
+            )
         return
 
     console.print(f"[cyan]Tags to upload:[/cyan] {tags}")
@@ -526,6 +579,8 @@ def main():
         central_tracking_uri=args.central_tracking_uri,
         extra_tags=tags,
         upload_artifacts=args.upload_artifacts,
+        checkpoint=args.checkpoint,
+        checkpoint_kind=args.checkpoint_kind,
     )
 
     # Auto-verify — removes the manual run_id copy/paste step.

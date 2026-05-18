@@ -119,7 +119,7 @@ The default pulls **`mlflow-skinny`** — `MlflowClient` and the tracking / enti
 
 |   | **Pipeline A** — Live logging | **Pipeline B** — Post-upload |
 |---|---|---|
-| **When** | New trainer / monitor a live run | Upload a completed tfevents in one shot, or register a checkpoint as a model after evaluation |
+| **When** | New trainer / monitor a live run | Upload a completed tfevents (optionally with its checkpoint) in one shot, or register a checkpoint as a model after evaluation |
 | **Trainer code** | 3-line change: `SummaryWriter` → `make_logger` | Untouched |
 | **Cadence** | Every step → local MLflow buffer → cron sync (every 5 min) | Manual, once per run dir / once per registration |
 | **Setup guides** | [`11_LOGGER_SETUP`](docs/11_LOGGER_SETUP.md) (code integration) → [`12_SCHEDULED_SYNC`](docs/12_SCHEDULED_SYNC.md) (cron sync) | [`13_POST_UPLOAD`](docs/13_POST_UPLOAD.md) — includes `register_model.py` for post-hoc Model Registry entries and `upload_eval.py` for rollout artifact bundles |

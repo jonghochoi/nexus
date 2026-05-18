@@ -406,6 +406,8 @@ with open(log_dir / "run_meta.json", "w") as f:
 | `--no-verify` | Skip automatic post-upload verification |
 | `--dry-run` | Parse & preview only (skips validation and upload) |
 | `--upload-artifacts` | Also attach tfevents files as MLflow artifacts |
+| `--checkpoint PATH` | Attach a checkpoint as `checkpoints/<kind>.pth` on the new run (any source filename; renamed on upload) |
+| `--checkpoint-kind {best,last}` | Slot for `--checkpoint` (default: `best`) |
 | `--history` | Print recent uploads and exit |
 
 ### ── `verify_tb.py`
@@ -680,7 +682,7 @@ The intended flow is *evaluate first, register second*: train many runs, run inf
 ### ── Prerequisites
 
 - The run already exists on central MLflow (visible in the UI). Pipeline A users: wait for the next `scheduled_sync` cycle if the run is fresh.
-- `checkpoints/<kind>.pth` artifact is uploaded to that run. This requires the trainer to have called `MLflowLogger.log_checkpoint(path, kind="best")` (or `"last"`) at least once. *(Canonical policy: `docs/00_PRINCIPLES.md#checkpoint-policy`.)*
+- `checkpoints/<kind>.pth` artifact is uploaded to that run. Pipeline A: the trainer called `MLflowLogger.log_checkpoint(path, kind="best")` (or `"last"`) at least once. Pipeline B: pass `--checkpoint <path> --checkpoint-kind best` to `upload_tb.py` so a tfevents-back-filled run carries the artifact and can be registered here. *(Canonical policy: `docs/00_PRINCIPLES.md#checkpoint-policy`.)*
 - `~/.nexus/post_config.json` `central_tracking_uri` points at central MLflow, or pass `--central-tracking-uri` explicitly.
 
 ### ── Usage
